@@ -21,3 +21,4 @@ class User(Base):
     expense_categories = relationship("ExpenseCategory", back_populates="user", cascade="all, delete-orphan")
     transactions = relationship("Transaction", back_populates="user", cascade="all, delete-orphan")
     balance_snapshots = relationship("BalanceSnapshot", back_populates="user", cascade="all, delete-orphan")
+    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")

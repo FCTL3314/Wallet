@@ -5,6 +5,7 @@ from app.models.income_source import IncomeSource
 from app.models.expense_category import ExpenseCategory
 from app.models.transaction import Transaction, TransactionType
 from app.models.balance_snapshot import BalanceSnapshot
+from app.models.refresh_token import RefreshToken
 
 __all__ = [
     "User",
@@ -16,4 +17,5 @@ __all__ = [
     "Transaction",
     "TransactionType",
     "BalanceSnapshot",
+    "RefreshToken",
 ]

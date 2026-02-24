@@ -20,19 +20,63 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+let isRefreshing = false
+let failedQueue: Array<{ resolve: (token: string) => void; reject: (error: unknown) => void }> = []
+
+function processQueue(error: unknown, token: string | null = null) {
+  failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve(token!)))
+  failedQueue = []
+}
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config
     const status = error.response?.status
     const code = error.response?.data?.code
-
-    // Auth errors handled inline by views, not via redirect
     const isAuthError = code?.startsWith('auth/')
 
-    if (status === 401 && !isAuthError) {
-      localStorage.removeItem('token')
-      window.location.href = '/login'
-    } else if (toastService && !isAuthError) {
+    if (status === 401 && !isAuthError && !originalRequest._retry) {
+      const refreshToken = localStorage.getItem('refresh_token')
+
+      if (!refreshToken) {
+        localStorage.removeItem('token')
+        window.location.href = '/login'
+        return Promise.reject(error)
+      }
+
+      if (isRefreshing) {
+        return new Promise<string>((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`
+          return api(originalRequest)
+        })
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      try {
+        const { data } = await axios.post('/api/auth/refresh', { refresh_token: refreshToken })
+        localStorage.setItem('token', data.access_token)
+        localStorage.setItem('refresh_token', data.refresh_token)
+        api.defaults.headers.common.Authorization = `Bearer ${data.access_token}`
+        processQueue(null, data.access_token)
+        originalRequest.headers.Authorization = `Bearer ${data.access_token}`
+        return api(originalRequest)
+      } catch (refreshError) {
+        processQueue(refreshError, null)
+        localStorage.removeItem('token')
+        localStorage.removeItem('refresh_token')
+        window.location.href = '/login'
+        return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
+      }
+    }
+
+    if (toastService && !isAuthError) {
       toastService.add({
         severity: 'error',
         summary: 'Error',
@@ -40,8 +84,9 @@ api.interceptors.response.use(
         life: 5000,
       })
     }
+
     return Promise.reject(error)
-  }
+  },
 )
 
 export default api

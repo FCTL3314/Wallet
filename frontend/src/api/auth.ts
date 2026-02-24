@@ -2,6 +2,7 @@ import api from './client'
 
 export interface TokenResponse {
   access_token: string
+  refresh_token: string
   token_type: string
 }
 
@@ -16,6 +17,12 @@ export const authApi = {
   },
   login(email: string, password: string) {
     return api.post<TokenResponse>('/auth/login', { email, password })
+  },
+  refresh(refresh_token: string) {
+    return api.post<TokenResponse>('/auth/refresh', { refresh_token })
+  },
+  logout(refresh_token: string) {
+    return api.post('/auth/logout', { refresh_token })
   },
   me() {
     return api.get<UserResponse>('/auth/me')

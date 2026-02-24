@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -27,3 +29,14 @@ def decode_access_token(token: str) -> int | None:
         return int(sub) if sub else None
     except (JWTError, ValueError):
         return None
+
+
+def create_refresh_token() -> tuple[str, str]:
+    """Returns (raw_token, hashed_token). Store only the hash in DB."""
+    raw = secrets.token_urlsafe(32)
+    hashed = hashlib.sha256(raw.encode()).hexdigest()
+    return raw, hashed
+
+
+def hash_refresh_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()

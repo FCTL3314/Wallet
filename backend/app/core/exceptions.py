@@ -53,6 +53,16 @@ class AuthUserNotFound(AppException):
         )
 
 
+class AuthInvalidRefreshToken(AppException):
+    def __init__(self, detail: Optional[str] = None):
+        super().__init__(
+            code="auth/invalid_refresh_token",
+            message="Invalid or expired refresh token",
+            status_code=401,
+            detail=detail,
+        )
+
+
 class AuthEmailTaken(AppException):
     def __init__(self, detail: Optional[str] = None):
         super().__init__(
