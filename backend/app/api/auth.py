@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.core.exceptions import AuthEmailTaken, AuthInvalidCredentials, AuthInvalidRefreshToken
+from app.core.exceptions import AuthEmailTaken, AuthInvalidCredentials, AuthInvalidRefreshToken, AuthWeakPassword
+from app.core.password_policy import validate_password
 from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token, hash_refresh_token
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
@@ -26,6 +27,10 @@ async def _issue_tokens(user_id: int, db: AsyncSession) -> TokenResponse:
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    violations = validate_password(body.password)
+    if violations:
+        raise AuthWeakPassword(violations)
+
     existing = await db.execute(select(User).where(User.email == body.email))
     if existing.scalar_one_or_none():
         raise AuthEmailTaken()

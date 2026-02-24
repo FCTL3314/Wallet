@@ -1024,3 +1024,33 @@ table.data-table tbody tr:hover {
   color: var(--text-secondary) !important;
   font-family: var(--font-body) !important;
 }
+
+/* ============================================================
+   PASSWORD REQUIREMENTS CHECKLIST
+   ============================================================ */
+
+.password-requirements {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.req-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+  transition: color 0.2s;
+}
+
+.req-met  { color: var(--color-income);  }
+.req-unmet { color: var(--text-secondary); }
+
+.req-icon {
+  font-size: 0.75rem;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}

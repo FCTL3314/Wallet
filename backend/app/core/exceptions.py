@@ -63,6 +63,16 @@ class AuthInvalidRefreshToken(AppException):
         )
 
 
+class AuthWeakPassword(AppException):
+    def __init__(self, violations: list[str]):
+        super().__init__(
+            code="auth/weak_password",
+            message="Password does not meet security requirements",
+            status_code=422,
+            detail="; ".join(violations),
+        )
+
+
 class AuthEmailTaken(AppException):
     def __init__(self, detail: Optional[str] = None):
         super().__init__(

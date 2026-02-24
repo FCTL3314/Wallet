@@ -13,7 +13,12 @@ const router = useRouter()
 
 const schema = yup.object({
   email: yup.string().required('Email is required').email('Invalid email format'),
-  password: yup.string().required('Password is required').min(6, 'Password must be at least 6 characters'),
+  password: yup.string()
+    .required('Password is required')
+    .min(8, 'At least 8 characters')
+    .matches(/[A-Z]/, 'At least one uppercase letter')
+    .matches(/[a-z]/, 'At least one lowercase letter')
+    .matches(/\d/, 'At least one digit (0–9)'),
   confirmPassword: yup.string()
     .required('Please confirm your password')
     .oneOf([yup.ref('password')], 'Passwords do not match'),
@@ -71,6 +76,24 @@ const submit = handleSubmit(async (values) => {
             }"
           />
           <p v-if="formErrors.password" class="field-error">{{ formErrors.password }}</p>
+          <div class="password-requirements" v-if="password">
+            <div :class="['req-item', password.length >= 8 ? 'req-met' : 'req-unmet']">
+              <span class="req-icon">{{ password.length >= 8 ? '✓' : '✗' }}</span>
+              At least 8 characters
+            </div>
+            <div :class="['req-item', /[A-Z]/.test(password) ? 'req-met' : 'req-unmet']">
+              <span class="req-icon">{{ /[A-Z]/.test(password) ? '✓' : '✗' }}</span>
+              Uppercase letter (A–Z)
+            </div>
+            <div :class="['req-item', /[a-z]/.test(password) ? 'req-met' : 'req-unmet']">
+              <span class="req-icon">{{ /[a-z]/.test(password) ? '✓' : '✗' }}</span>
+              Lowercase letter (a–z)
+            </div>
+            <div :class="['req-item', /\d/.test(password) ? 'req-met' : 'req-unmet']">
+              <span class="req-icon">{{ /\d/.test(password) ? '✓' : '✗' }}</span>
+              At least one digit (0–9)
+            </div>
+          </div>
         </div>
         <div class="form-group">
           <label>Confirm Password</label>
