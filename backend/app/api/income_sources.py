@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.exceptions import ResourceNotFound
 from app.models import User, IncomeSource
 from app.schemas.income_source import IncomeSourceCreate, IncomeSourceUpdate, IncomeSourceResponse
 
@@ -36,7 +37,7 @@ async def update_source(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise HTTPException(status_code=404, detail="Income source not found")
+        raise ResourceNotFound("income_source")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -53,5 +54,5 @@ async def delete_source(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise HTTPException(status_code=404, detail="Income source not found")
+        raise ResourceNotFound("income_source")
     await db.delete(obj)

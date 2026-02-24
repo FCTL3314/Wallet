@@ -1,11 +1,12 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.exceptions import ResourceNotFound
 from app.models import User, BalanceSnapshot
 from app.schemas.balance_snapshot import BalanceSnapshotCreate, BalanceSnapshotUpdate, BalanceSnapshotResponse
 
@@ -54,7 +55,7 @@ async def update_snapshot(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise HTTPException(status_code=404, detail="Balance snapshot not found")
+        raise ResourceNotFound("balance_snapshot")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -71,5 +72,5 @@ async def delete_snapshot(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise HTTPException(status_code=404, detail="Balance snapshot not found")
+        raise ResourceNotFound("balance_snapshot")
     await db.delete(obj)

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import Toast from 'primevue/toast'
 import { useAuthStore } from './stores/auth'
 import { useReferencesStore } from './stores/references'
 
@@ -24,6 +25,7 @@ function logout() {
 </script>
 
 <template>
+  <Toast position="top-right" />
   <div v-if="auth.isAuthenticated" class="app-layout">
     <aside class="sidebar">
       <div class="sidebar-brand">Wallet</div>

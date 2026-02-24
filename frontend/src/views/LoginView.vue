@@ -1,26 +1,38 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useForm, useField } from 'vee-validate'
+import * as yup from 'yup'
 import { useAuthStore } from '../stores/auth'
 import { useReferencesStore } from '../stores/references'
+import { getErrorMessage } from '../api/errors'
 
 const auth = useAuthStore()
 const refs = useReferencesStore()
 const router = useRouter()
-const email = ref('')
-const password = ref('')
-const error = ref('')
 
-async function submit() {
-  error.value = ''
+const schema = yup.object({
+  email: yup.string().required('Email is required').email('Invalid email format'),
+  password: yup.string().required('Password is required'),
+})
+
+const { handleSubmit, errors: formErrors } = useForm({ validationSchema: schema })
+
+const { value: email, meta: emailMeta } = useField<string>('email', undefined, { validateOnValueUpdate: true })
+const { value: password, meta: passwordMeta } = useField<string>('password', undefined, { validateOnValueUpdate: true })
+
+const serverError = ref('')
+
+const submit = handleSubmit(async (values) => {
+  serverError.value = ''
   try {
-    await auth.login(email.value, password.value)
+    await auth.login(values.email, values.password)
     await refs.fetchAll()
     router.push('/')
-  } catch (e: any) {
-    error.value = e.response?.data?.detail || 'Login failed'
+  } catch (e: unknown) {
+    serverError.value = getErrorMessage(e)
   }
-}
+})
 </script>
 
 <template>
@@ -30,13 +42,31 @@ async function submit() {
       <form @submit.prevent="submit">
         <div class="form-group">
           <label>Email</label>
-          <input v-model="email" type="email" required placeholder="you@example.com" />
+          <input
+            v-model="email"
+            type="email"
+            placeholder="you@example.com"
+            :class="{
+              'input-valid': emailMeta.dirty && emailMeta.valid,
+              'input-invalid': emailMeta.dirty && !emailMeta.valid
+            }"
+          />
+          <p v-if="formErrors.email" class="field-error">{{ formErrors.email }}</p>
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input v-model="password" type="password" required placeholder="••••••••" />
+          <input
+            v-model="password"
+            type="password"
+            placeholder="••••••••"
+            :class="{
+              'input-valid': passwordMeta.dirty && passwordMeta.valid,
+              'input-invalid': passwordMeta.dirty && !passwordMeta.valid
+            }"
+          />
+          <p v-if="formErrors.password" class="field-error">{{ formErrors.password }}</p>
         </div>
-        <p v-if="error" class="error-msg">{{ error }}</p>
+        <p v-if="serverError" class="error-msg">{{ serverError }}</p>
         <button type="submit" class="btn btn-primary btn-block" style="margin-top: 8px">Log In</button>
       </form>
       <p class="auth-link">

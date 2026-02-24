@@ -1,11 +1,12 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.exceptions import ResourceNotFound
 from app.models import User, Transaction
 from app.models.transaction import TransactionType
 from app.schemas.transaction import TransactionCreate, TransactionUpdate, TransactionResponse
@@ -62,7 +63,7 @@ async def update_transaction(
     result = await db.execute(select(Transaction).where(Transaction.id == tx_id, Transaction.user_id == user.id))
     obj = result.scalar_one_or_none()
     if not obj:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+        raise ResourceNotFound("transaction")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -77,5 +78,5 @@ async def delete_transaction(
     result = await db.execute(select(Transaction).where(Transaction.id == tx_id, Transaction.user_id == user.id))
     obj = result.scalar_one_or_none()
     if not obj:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+        raise ResourceNotFound("transaction")
     await db.delete(obj)

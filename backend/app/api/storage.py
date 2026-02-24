@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.exceptions import ResourceNotFound
 from app.models import User, StorageLocation, StorageAccount
 from app.schemas.storage import (
     StorageLocationCreate,
@@ -45,7 +46,7 @@ async def update_location(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise HTTPException(status_code=404, detail="Storage location not found")
+        raise ResourceNotFound("storage_location")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -62,7 +63,7 @@ async def delete_location(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise HTTPException(status_code=404, detail="Storage location not found")
+        raise ResourceNotFound("storage_location")
     await db.delete(obj)
 
 
@@ -98,5 +99,5 @@ async def delete_account(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise HTTPException(status_code=404, detail="Storage account not found")
+        raise ResourceNotFound("storage_account")
     await db.delete(obj)

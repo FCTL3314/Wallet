@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.exceptions import ResourceNotFound
 from app.models import User, ExpenseCategory
 from app.schemas.expense_category import ExpenseCategoryCreate, ExpenseCategoryUpdate, ExpenseCategoryResponse
 
@@ -36,7 +37,7 @@ async def update_category(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise HTTPException(status_code=404, detail="Expense category not found")
+        raise ResourceNotFound("expense_category")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -53,5 +54,5 @@ async def delete_category(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise HTTPException(status_code=404, detail="Expense category not found")
+        raise ResourceNotFound("expense_category")
     await db.delete(obj)

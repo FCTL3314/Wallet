@@ -9,14 +9,38 @@ Wallet is a full-stack personal finance tracker with:
 - **Frontend**: Vue 3 + TypeScript + PrimeVue + Pinia + Vite
 - **Deployment**: Docker Compose with Nginx reverse proxy
 
+## Code Standards
+
+- **Language**: All code, comments, error messages, and documentation in English
+- **Best practices**: Use modular architecture, proven patterns, and clean separation of concerns
+- **Error handling**: Use standardized error codes (see `app/core/exceptions.py`)
+
 ## Development Commands
 
-### Database
+### Docker (recommended)
 ```bash
-docker compose up db -d           # Start PostgreSQL
+make dev          # Start dev environment (frontend :5173, backend :8000)
+make dev-build    # Rebuild and start
+make dev-down     # Stop dev environment
+make db           # Start only database
+make logs         # Follow dev logs
 ```
 
-### Backend (from /backend)
+### Production
+```bash
+make prod         # Start production (app at :3000)
+make prod-build   # Rebuild and start
+make prod-down    # Stop production
+```
+
+### Local Development (without Docker)
+
+**Database:**
+```bash
+make db                           # Start PostgreSQL in Docker
+```
+
+**Backend (from /backend):**
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -25,19 +49,13 @@ uvicorn app.main:app --reload     # Start dev server (http://localhost:8000)
 ```
 API docs: http://localhost:8000/docs
 
-### Frontend (from /frontend)
+**Frontend (from /frontend):**
 ```bash
 npm install
 npm run dev      # Dev server with HMR (http://localhost:5173)
 npm run build    # Production build
 npm run preview  # Preview production build
 ```
-
-### Production
-```bash
-docker compose up --build -d      # Build and start all services
-```
-App available at http://localhost:3000 (Nginx proxies /api/ to backend)
 
 ### Test Credentials
 `admin@wallet.app` / `password`
