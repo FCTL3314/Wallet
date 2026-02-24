@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@phosphor-icons/vue": "^2.2.1",
     "@primeuix/themes": "^2.0.3",
     "axios": "^1.13.5",
     "chart.js": "^4.5.1",

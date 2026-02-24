@@ -42,7 +42,9 @@ const submit = handleSubmit(async (values) => {
 <template>
   <div class="auth-page">
     <div class="auth-card">
-      <h1>Register</h1>
+      <div class="auth-orb"></div>
+      <h1 class="auth-title">Wallet</h1>
+      <p class="auth-tagline">Your money, beautifully tracked</p>
       <form @submit.prevent="submit">
         <div class="form-group">
           <label>Email</label>

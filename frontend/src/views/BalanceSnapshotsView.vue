@@ -120,7 +120,7 @@ function formatPeriod(iso: string) {
   <div class="card">
     <div class="card-title">All Snapshots</div>
     <p v-if="loading">Loading...</p>
-    <p v-else-if="!snapshots.length" style="color: #94a3b8">No snapshots yet.</p>
+    <p v-else-if="!snapshots.length" class="text-muted">No snapshots yet.</p>
     <table v-else class="data-table">
       <thead>
         <tr>

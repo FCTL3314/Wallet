@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import Toast from 'primevue/toast'
 import { useAuthStore } from './stores/auth'
 import { useReferencesStore } from './stores/references'
+import { PhChartBar, PhArrowsLeftRight, PhWallet, PhReceipt, PhGear } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
 const refs = useReferencesStore()
@@ -26,20 +27,27 @@ function logout() {
 
 <template>
   <Toast position="top-right" />
+
+  <!-- Aurora background orbs -->
+  <div class="aurora-orb aurora-orb-1"></div>
+  <div class="aurora-orb aurora-orb-2"></div>
+  <div class="aurora-orb aurora-orb-3"></div>
+
   <div v-if="auth.isAuthenticated" class="app-layout">
     <aside class="sidebar">
-      <div class="sidebar-brand">Wallet</div>
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-icon">💎</span>
+        <span class="sidebar-brand-name">Wallet</span>
+      </div>
       <nav class="sidebar-nav">
-        <RouterLink to="/"><i class="pi pi-chart-bar"></i> Dashboard</RouterLink>
-        <RouterLink to="/transactions"><i class="pi pi-arrow-right-left"></i> Transactions</RouterLink>
-        <RouterLink to="/balance-snapshots"><i class="pi pi-wallet"></i> Balances</RouterLink>
-        <RouterLink to="/expenses"><i class="pi pi-receipt"></i> Expenses</RouterLink>
-        <RouterLink to="/settings"><i class="pi pi-cog"></i> Settings</RouterLink>
+        <RouterLink to="/"><PhChartBar weight="duotone" /> Dashboard</RouterLink>
+        <RouterLink to="/transactions"><PhArrowsLeftRight weight="duotone" /> Transactions</RouterLink>
+        <RouterLink to="/balance-snapshots"><PhWallet weight="duotone" /> Balances</RouterLink>
+        <RouterLink to="/expenses"><PhReceipt weight="duotone" /> Expenses</RouterLink>
+        <RouterLink to="/settings"><PhGear weight="duotone" /> Settings</RouterLink>
       </nav>
       <div class="sidebar-footer">
-        <div style="font-size: 0.8125rem; margin-bottom: 8px; color: #94a3b8;">
-          {{ auth.user?.email }}
-        </div>
+        <div class="sidebar-footer-email">{{ auth.user?.email }}</div>
         <button @click="logout">Log out</button>
       </div>
     </aside>

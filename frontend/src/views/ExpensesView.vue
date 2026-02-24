@@ -84,7 +84,7 @@ function fmt(n: number) {
 
   <div class="card">
     <p v-if="loading">Loading...</p>
-    <p v-else-if="!template?.items.length" style="color: #94a3b8">No expense categories yet.</p>
+    <p v-else-if="!template?.items.length" class="text-muted">No expense categories yet.</p>
     <table v-else class="data-table">
       <thead>
         <tr>
@@ -123,9 +123,11 @@ function fmt(n: number) {
           <label>Monthly Amount ($)</label>
           <input v-model.number="form.monthly_amount" type="number" step="0.01" min="0" required />
         </div>
-        <div class="form-group" style="display: flex; gap: 24px">
-          <label><input type="checkbox" v-model="form.is_tax" /> Is Tax</label>
-          <label><input type="checkbox" v-model="form.is_rent" /> Is Rent</label>
+        <div class="form-group">
+          <div class="checkbox-group">
+            <label><input type="checkbox" v-model="form.is_tax" /> Is Tax</label>
+            <label><input type="checkbox" v-model="form.is_rent" /> Is Rent</label>
+          </div>
         </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" @click="showModal = false">Cancel</button>

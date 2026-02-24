@@ -104,7 +104,7 @@ function categoryName(id: number | null) {
 
   <div class="card">
     <p v-if="loading">Loading...</p>
-    <p v-else-if="!items.length" style="color: #94a3b8">No transactions yet.</p>
+    <p v-else-if="!items.length" class="text-muted">No transactions yet.</p>
     <table v-else class="data-table">
       <thead>
         <tr>
@@ -143,10 +143,12 @@ function categoryName(id: number | null) {
       <form @submit.prevent="save">
         <div class="form-group">
           <label>Type</label>
-          <select v-model="form.type">
-            <option value="income">Income</option>
-            <option value="expense">Expense</option>
-          </select>
+          <div class="type-toggle">
+            <select v-model="form.type">
+              <option value="income">Income</option>
+              <option value="expense">Expense</option>
+            </select>
+          </div>
         </div>
         <div class="form-group">
           <label>Date</label>

@@ -53,24 +53,24 @@ function chartData() {
       {
         label: 'Income',
         data: data.value.map((e) => e.income),
-        borderColor: '#22c55e',
-        backgroundColor: 'rgba(34,197,94,0.1)',
+        borderColor: '#34d399',
+        backgroundColor: 'rgba(52,211,153,0.15)',
         fill: true,
         tension: 0.3,
       },
       {
         label: 'Expenses',
         data: data.value.map((e) => e.expenses),
-        borderColor: '#ef4444',
-        backgroundColor: 'rgba(239,68,68,0.1)',
+        borderColor: '#fb7185',
+        backgroundColor: 'rgba(251,113,133,0.15)',
         fill: true,
         tension: 0.3,
       },
       {
         label: 'Profit',
         data: data.value.map((e) => e.profit),
-        borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59,130,246,0.1)',
+        borderColor: '#a78bfa',
+        backgroundColor: 'rgba(167,139,250,0.15)',
         fill: true,
         tension: 0.3,
       },
@@ -80,8 +80,26 @@ function chartData() {
 
 const chartOptions = {
   responsive: true,
-  plugins: { legend: { position: 'top' as const } },
-  scales: { y: { beginAtZero: true } },
+  plugins: {
+    legend: {
+      position: 'top' as const,
+      labels: {
+        color: 'rgba(255,255,255,0.60)',
+        font: { family: 'DM Sans', size: 12 },
+      },
+    },
+  },
+  scales: {
+    y: {
+      beginAtZero: true,
+      grid: { color: 'rgba(255,255,255,0.07)' },
+      ticks: { color: 'rgba(255,255,255,0.50)' },
+    },
+    x: {
+      grid: { color: 'rgba(255,255,255,0.07)' },
+      ticks: { color: 'rgba(255,255,255,0.50)' },
+    },
+  },
 }
 </script>
 
@@ -90,7 +108,7 @@ const chartOptions = {
 
   <div class="toolbar">
     <input v-model="dateFrom" type="date" />
-    <span>—</span>
+    <span class="text-muted">—</span>
     <input v-model="dateTo" type="date" />
     <select v-model="groupBy">
       <option value="month">Month</option>
@@ -100,15 +118,15 @@ const chartOptions = {
   </div>
 
   <div v-if="data.length" class="stats-grid">
-    <div class="stat-card">
+    <div class="stat-card stat-card--income">
       <div class="stat-label">Total Income</div>
       <div class="stat-value amount-positive">{{ fmt(data.reduce((s, e) => s + e.income, 0)) }}</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card stat-card--expense">
       <div class="stat-label">Total Expenses</div>
       <div class="stat-value amount-negative">{{ fmt(data.reduce((s, e) => s + e.expenses, 0)) }}</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card stat-card--profit">
       <div class="stat-label">Total Profit</div>
       <div class="stat-value" :class="data.reduce((s, e) => s + e.profit, 0) >= 0 ? 'amount-positive' : 'amount-negative'">
         {{ fmt(data.reduce((s, e) => s + e.profit, 0)) }}
@@ -122,6 +140,7 @@ const chartOptions = {
     </div>
   </div>
 
+  <!-- Chart background is transparent — aurora shows through -->
   <div class="card" v-if="data.length">
     <div class="card-title">Trends</div>
     <Line :data="chartData()" :options="chartOptions" />
@@ -130,7 +149,7 @@ const chartOptions = {
   <div class="card">
     <div class="card-title">Summary Table</div>
     <p v-if="loading">Loading...</p>
-    <p v-else-if="!data.length" style="color: #94a3b8">No data for selected period.</p>
+    <p v-else-if="!data.length" class="text-muted">No data for selected period.</p>
     <table v-else class="data-table">
       <thead>
         <tr>
