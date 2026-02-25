@@ -3,8 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.db_helpers import get_or_404
 from app.core.dependencies import get_current_user
-from app.core.exceptions import ResourceNotFound
 from app.models import User, Currency
 from app.schemas.currency import CurrencyCreate, CurrencyUpdate, CurrencyResponse
 
@@ -32,10 +32,7 @@ async def create_currency(
 async def update_currency(
     currency_id: int, body: CurrencyUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(Currency).where(Currency.id == currency_id, Currency.user_id == user.id))
-    obj = result.scalar_one_or_none()
-    if not obj:
-        raise ResourceNotFound("currency")
+    obj = await get_or_404(db, Currency, currency_id, user.id, "currency")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -47,8 +44,5 @@ async def update_currency(
 async def delete_currency(
     currency_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(Currency).where(Currency.id == currency_id, Currency.user_id == user.id))
-    obj = result.scalar_one_or_none()
-    if not obj:
-        raise ResourceNotFound("currency")
+    obj = await get_or_404(db, Currency, currency_id, user.id, "currency")
     await db.delete(obj)

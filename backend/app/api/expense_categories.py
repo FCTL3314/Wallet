@@ -3,8 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.db_helpers import get_or_404
 from app.core.dependencies import get_current_user
-from app.core.exceptions import ResourceNotFound
 from app.models import User, ExpenseCategory
 from app.schemas.expense_category import ExpenseCategoryCreate, ExpenseCategoryUpdate, ExpenseCategoryResponse
 
@@ -32,12 +32,7 @@ async def create_category(
 async def update_category(
     cat_id: int, body: ExpenseCategoryUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(ExpenseCategory).where(ExpenseCategory.id == cat_id, ExpenseCategory.user_id == user.id)
-    )
-    obj = result.scalar_one_or_none()
-    if not obj:
-        raise ResourceNotFound("expense_category")
+    obj = await get_or_404(db, ExpenseCategory, cat_id, user.id, "expense_category")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -49,10 +44,5 @@ async def update_category(
 async def delete_category(
     cat_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(ExpenseCategory).where(ExpenseCategory.id == cat_id, ExpenseCategory.user_id == user.id)
-    )
-    obj = result.scalar_one_or_none()
-    if not obj:
-        raise ResourceNotFound("expense_category")
+    obj = await get_or_404(db, ExpenseCategory, cat_id, user.id, "expense_category")
     await db.delete(obj)

@@ -5,8 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.db_helpers import get_or_404
 from app.core.dependencies import get_current_user
-from app.core.exceptions import ResourceNotFound
 from app.models import User, BalanceSnapshot
 from app.schemas.balance_snapshot import BalanceSnapshotCreate, BalanceSnapshotUpdate, BalanceSnapshotResponse
 
@@ -50,12 +50,7 @@ async def create_snapshot(
 async def update_snapshot(
     snap_id: int, body: BalanceSnapshotUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(BalanceSnapshot).where(BalanceSnapshot.id == snap_id, BalanceSnapshot.user_id == user.id)
-    )
-    obj = result.scalar_one_or_none()
-    if not obj:
-        raise ResourceNotFound("balance_snapshot")
+    obj = await get_or_404(db, BalanceSnapshot, snap_id, user.id, "balance_snapshot")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -67,10 +62,5 @@ async def update_snapshot(
 async def delete_snapshot(
     snap_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(BalanceSnapshot).where(BalanceSnapshot.id == snap_id, BalanceSnapshot.user_id == user.id)
-    )
-    obj = result.scalar_one_or_none()
-    if not obj:
-        raise ResourceNotFound("balance_snapshot")
+    obj = await get_or_404(db, BalanceSnapshot, snap_id, user.id, "balance_snapshot")
     await db.delete(obj)

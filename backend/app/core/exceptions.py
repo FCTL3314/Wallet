@@ -1,11 +1,10 @@
-from typing import Optional
 from pydantic import BaseModel
 
 
 class ErrorResponse(BaseModel):
     code: str
     message: str
-    detail: Optional[str] = None
+    detail: str | None = None
 
 
 class AppException(Exception):
@@ -14,7 +13,7 @@ class AppException(Exception):
         code: str,
         message: str,
         status_code: int = 400,
-        detail: Optional[str] = None,
+        detail: str | None = None,
     ):
         self.code = code
         self.message = message
@@ -24,7 +23,7 @@ class AppException(Exception):
 
 
 class AuthInvalidCredentials(AppException):
-    def __init__(self, detail: Optional[str] = None):
+    def __init__(self, detail: str | None = None):
         super().__init__(
             code="auth/invalid_credentials",
             message="Invalid email or password",
@@ -34,7 +33,7 @@ class AuthInvalidCredentials(AppException):
 
 
 class AuthInvalidToken(AppException):
-    def __init__(self, detail: Optional[str] = None):
+    def __init__(self, detail: str | None = None):
         super().__init__(
             code="auth/invalid_token",
             message="Your session has expired. Please log in again",
@@ -44,7 +43,7 @@ class AuthInvalidToken(AppException):
 
 
 class AuthUserNotFound(AppException):
-    def __init__(self, detail: Optional[str] = None):
+    def __init__(self, detail: str | None = None):
         super().__init__(
             code="auth/user_not_found",
             message="Account not found",
@@ -54,7 +53,7 @@ class AuthUserNotFound(AppException):
 
 
 class AuthInvalidRefreshToken(AppException):
-    def __init__(self, detail: Optional[str] = None):
+    def __init__(self, detail: str | None = None):
         super().__init__(
             code="auth/invalid_refresh_token",
             message="Invalid or expired refresh token",
@@ -74,7 +73,7 @@ class AuthWeakPassword(AppException):
 
 
 class AuthEmailTaken(AppException):
-    def __init__(self, detail: Optional[str] = None):
+    def __init__(self, detail: str | None = None):
         super().__init__(
             code="auth/email_taken",
             message="This email is already registered",
@@ -84,7 +83,7 @@ class AuthEmailTaken(AppException):
 
 
 class ResourceNotFound(AppException):
-    def __init__(self, resource_type: str = "item", detail: Optional[str] = None):
+    def __init__(self, resource_type: str = "item", detail: str | None = None):
         friendly_name = resource_type.replace("_", " ").capitalize()
         super().__init__(
             code=f"resource/{resource_type}_not_found",

@@ -4,8 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.db_helpers import get_or_404
 from app.core.dependencies import get_current_user
-from app.core.exceptions import ResourceNotFound
 from app.models import User, StorageLocation, StorageAccount
 from app.schemas.storage import (
     StorageLocationCreate,
@@ -42,12 +42,7 @@ async def create_location(
 async def update_location(
     loc_id: int, body: StorageLocationUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(StorageLocation).where(StorageLocation.id == loc_id, StorageLocation.user_id == user.id)
-    )
-    obj = result.scalar_one_or_none()
-    if not obj:
-        raise ResourceNotFound("storage_location")
+    obj = await get_or_404(db, StorageLocation, loc_id, user.id, "storage_location")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -59,12 +54,7 @@ async def update_location(
 async def delete_location(
     loc_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(StorageLocation).where(StorageLocation.id == loc_id, StorageLocation.user_id == user.id)
-    )
-    obj = result.scalar_one_or_none()
-    if not obj:
-        raise ResourceNotFound("storage_location")
+    obj = await get_or_404(db, StorageLocation, loc_id, user.id, "storage_location")
     await db.delete(obj)
 
 
@@ -95,14 +85,10 @@ async def create_account(
 async def update_account(
     acc_id: int, body: StorageAccountUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(StorageAccount)
-        .where(StorageAccount.id == acc_id, StorageAccount.user_id == user.id)
-        .options(selectinload(StorageAccount.storage_location), selectinload(StorageAccount.currency))
+    obj = await get_or_404(
+        db, StorageAccount, acc_id, user.id, "storage_account",
+        options=[selectinload(StorageAccount.storage_location), selectinload(StorageAccount.currency)],
     )
-    obj = result.scalar_one_or_none()
-    if not obj:
-        raise ResourceNotFound("storage_account")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -114,10 +100,5 @@ async def update_account(
 async def delete_account(
     acc_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(StorageAccount).where(StorageAccount.id == acc_id, StorageAccount.user_id == user.id)
-    )
-    obj = result.scalar_one_or_none()
-    if not obj:
-        raise ResourceNotFound("storage_account")
+    obj = await get_or_404(db, StorageAccount, acc_id, user.id, "storage_account")
     await db.delete(obj)

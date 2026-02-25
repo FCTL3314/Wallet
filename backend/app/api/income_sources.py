@@ -3,8 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.db_helpers import get_or_404
 from app.core.dependencies import get_current_user
-from app.core.exceptions import ResourceNotFound
 from app.models import User, IncomeSource
 from app.schemas.income_source import IncomeSourceCreate, IncomeSourceUpdate, IncomeSourceResponse
 
@@ -32,12 +32,7 @@ async def create_source(
 async def update_source(
     source_id: int, body: IncomeSourceUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(IncomeSource).where(IncomeSource.id == source_id, IncomeSource.user_id == user.id)
-    )
-    obj = result.scalar_one_or_none()
-    if not obj:
-        raise ResourceNotFound("income_source")
+    obj = await get_or_404(db, IncomeSource, source_id, user.id, "income_source")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -49,10 +44,5 @@ async def update_source(
 async def delete_source(
     source_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(IncomeSource).where(IncomeSource.id == source_id, IncomeSource.user_id == user.id)
-    )
-    obj = result.scalar_one_or_none()
-    if not obj:
-        raise ResourceNotFound("income_source")
+    obj = await get_or_404(db, IncomeSource, source_id, user.id, "income_source")
     await db.delete(obj)

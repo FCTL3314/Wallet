@@ -1,3 +1,4 @@
+from calendar import monthrange
 from datetime import date
 from decimal import Decimal
 from enum import Enum
@@ -5,7 +6,7 @@ from enum import Enum
 from sqlalchemy import select, func, case, and_, literal_column
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Transaction, BalanceSnapshot, ExpenseCategory, Currency, StorageAccount, StorageLocation
+from app.models import Transaction, BalanceSnapshot, ExpenseCategory, Currency, StorageAccount, StorageLocation, IncomeSource
 from app.models.transaction import TransactionType
 
 
@@ -78,11 +79,9 @@ async def get_summary(
         if entry["period"]:
             period_date = date.fromisoformat(entry["period"])
             if group_by == GroupBy.month:
-                from calendar import monthrange
                 end = date(period_date.year, period_date.month, monthrange(period_date.year, period_date.month)[1])
             elif group_by == GroupBy.quarter:
                 qm = period_date.month + 2
-                from calendar import monthrange
                 end = date(period_date.year, qm, monthrange(period_date.year, qm)[1])
             else:
                 end = date(period_date.year, 12, 31)
@@ -123,8 +122,6 @@ async def _get_balance_at_date(db: AsyncSession, user_id: int, at_date: date) ->
 async def get_income_by_source(
     db: AsyncSession, user_id: int, date_from: date, date_to: date, group_by: GroupBy
 ) -> list[dict]:
-    from app.models import IncomeSource
-
     period = _period_label(group_by).label("period")
     q = (
         select(
@@ -162,10 +159,8 @@ async def get_balance_by_storage(
     db: AsyncSession, user_id: int, date_from: date, date_to: date, group_by: GroupBy
 ) -> list[dict]:
     """For each period, get balance per storage account from the latest snapshot in that period."""
-    from app.models import BalanceSnapshot
-
     period = (
-        func.date_trunc(group_by.value if group_by != GroupBy.month else "month", BalanceSnapshot.date)
+        func.date_trunc(group_by.value, BalanceSnapshot.date)
     ).label("period")
 
     subq = (
@@ -217,8 +212,6 @@ async def get_balance_by_storage(
 
 
 async def get_expense_vs_budget(db: AsyncSession, user_id: int, year: int, month: int) -> list[dict]:
-    from calendar import monthrange
-
     date_from = date(year, month, 1)
     date_to = date(year, month, monthrange(year, month)[1])
 

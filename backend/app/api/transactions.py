@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.db_helpers import get_or_404
 from app.core.dependencies import get_current_user
 from app.core.exceptions import ResourceNotFound
 from app.models import ExpenseCategory, IncomeSource, Transaction, User
@@ -45,7 +46,7 @@ async def _validate_fk_ownership(
 
 @router.get("/", response_model=list[TransactionResponse])
 async def list_transactions(
-    type: TransactionType | None = None,
+    tx_type: TransactionType | None = Query(default=None, alias="type"),
     date_from: date | None = None,
     date_to: date | None = None,
     income_source_id: int | None = None,
@@ -61,8 +62,8 @@ async def list_transactions(
         .where(Transaction.user_id == user.id)
         .order_by(Transaction.date.desc())
     )
-    if type:
-        q = q.where(Transaction.type == type)
+    if tx_type:
+        q = q.where(Transaction.type == tx_type)
     if date_from:
         q = q.where(Transaction.date >= date_from)
     if date_to:
@@ -103,14 +104,7 @@ async def update_transaction(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(Transaction).where(
-            Transaction.id == tx_id, Transaction.user_id == user.id
-        )
-    )
-    obj = result.scalar_one_or_none()
-    if not obj:
-        raise ResourceNotFound("transaction")
+    obj = await get_or_404(db, Transaction, tx_id, user.id, "transaction")
     data = body.model_dump(exclude_unset=True)
     await _validate_fk_ownership(
         db, user.id, data.get("income_source_id"), data.get("expense_category_id")
@@ -128,12 +122,5 @@ async def delete_transaction(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(Transaction).where(
-            Transaction.id == tx_id, Transaction.user_id == user.id
-        )
-    )
-    obj = result.scalar_one_or_none()
-    if not obj:
-        raise ResourceNotFound("transaction")
+    obj = await get_or_404(db, Transaction, tx_id, user.id, "transaction")
     await db.delete(obj)

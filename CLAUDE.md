@@ -15,6 +15,14 @@ Wallet is a full-stack personal finance tracker with:
 - **Best practices**: Use modular architecture, proven patterns, and clean separation of concerns
 - **Error handling**: Use standardized error codes (see `app/core/exceptions.py`)
 
+## Python Code Standards
+
+- Use `X | None` instead of `Optional[X]`; use `X | Y` instead of `Union[X, Y]`
+- Use built-in generic types: `list[x]`, `dict[k, v]`, `tuple[x, y]` (not `typing.List`, `typing.Dict`, etc.)
+- Never use Python builtin names as identifiers: `type`, `id`, `list`, `dict`, `filter`, `input`, `format`, etc.
+- All imports must be at the top of the file; never import inside functions (except to break circular imports)
+- Use `get_or_404()` from `app/core/db_helpers.py` for all user-scoped resource lookups
+
 ## Development Commands
 
 ### Docker (recommended)
