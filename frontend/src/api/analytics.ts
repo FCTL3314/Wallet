@@ -33,7 +33,7 @@ export interface BalanceByStorageEntry {
 export interface ExpenseTemplateItem {
   id: number
   name: string
-  monthly_amount: number
+  budgeted_amount: number
   is_tax: boolean
   is_rent: boolean
 }
@@ -52,6 +52,14 @@ export interface AnalyticsParams {
   group_by?: GroupBy
 }
 
+export interface ExpenseVsBudgetItem {
+  id: number
+  name: string
+  budgeted: number
+  actual: number
+  remaining: number
+}
+
 export const analyticsApi = {
   summary: (params: AnalyticsParams) => api.get<SummaryEntry[]>('/analytics/summary', { params }),
   incomeBySource: (params: AnalyticsParams) =>
@@ -59,4 +67,6 @@ export const analyticsApi = {
   balanceByStorage: (params: AnalyticsParams) =>
     api.get<BalanceByStorageEntry[]>('/analytics/balance-by-storage', { params }),
   expenseTemplate: () => api.get<ExpenseTemplate>('/analytics/expense-template'),
+  expenseVsBudget: (params?: { year?: number; month?: number }) =>
+    api.get<ExpenseVsBudgetItem[]>('/analytics/expense-vs-budget', { params }),
 }

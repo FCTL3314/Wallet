@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { balanceSnapshotsApi, type BalanceSnapshot, type BalanceSnapshotCreate } from '../api/balanceSnapshots'
 import { analyticsApi, type BalanceByStorageEntry, type GroupBy } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
+import { fmtAmount, fmtPeriod } from '../utils/format'
 
 const refs = useReferencesStore()
 const snapshots = ref<BalanceSnapshot[]>([])
@@ -32,6 +33,7 @@ async function load() {
 }
 
 onMounted(load)
+watch([year, groupBy], load)
 
 function openCreate() {
   editing.value = null
@@ -65,27 +67,14 @@ async function remove(id: number) {
   await load()
 }
 
-function fmt(n: number) {
-  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
-}
-
-function accountLabel(id: number) {
-  const acc = refs.storageAccounts.find((a) => a.id === id)
-  return acc ? refs.storageAccountLabel(acc) : '?'
-}
-
-function formatPeriod(iso: string) {
-  const d = new Date(iso)
-  return d.toLocaleDateString('ru-RU', { year: 'numeric', month: 'short' })
-}
 </script>
 
 <template>
   <h1 class="page-title">Balance Snapshots</h1>
 
   <div class="toolbar">
-    <input v-model.number="year" type="number" min="2020" max="2030" style="width: 100px" @change="load" />
-    <select v-model="groupBy" @change="load">
+    <input v-model.number="year" type="number" min="2020" max="2030" style="width: 100px" />
+    <select v-model="groupBy">
       <option value="month">Month</option>
       <option value="quarter">Quarter</option>
       <option value="year">Year</option>
@@ -106,10 +95,10 @@ function formatPeriod(iso: string) {
       </thead>
       <tbody>
         <tr v-for="row in storageData" :key="row.period">
-          <td>{{ formatPeriod(row.period) }}</td>
-          <td v-for="(val, cur) in row.totals" :key="cur">{{ cur === 'USD' ? '$' : '€' }}{{ fmt(val) }}</td>
+          <td>{{ fmtPeriod(row.period) }}</td>
+          <td v-for="(val, cur) in row.totals" :key="cur">{{ cur === 'USD' ? '$' : '€' }}{{ fmtAmount(val) }}</td>
           <td v-for="acc in row.accounts" :key="acc.name">
-            {{ acc.currency === 'USD' ? '$' : '€' }}{{ fmt(acc.amount) }}
+            {{ acc.currency === 'USD' ? '$' : '€' }}{{ fmtAmount(acc.amount) }}
           </td>
         </tr>
       </tbody>
@@ -133,8 +122,8 @@ function formatPeriod(iso: string) {
       <tbody>
         <tr v-for="s in snapshots" :key="s.id">
           <td>{{ s.date }}</td>
-          <td>{{ accountLabel(s.storage_account_id) }}</td>
-          <td>{{ fmt(s.amount) }}</td>
+          <td>{{ refs.storageAccountLabelById(s.storage_account_id) }}</td>
+          <td>{{ fmtAmount(s.amount) }}</td>
           <td style="white-space: nowrap">
             <button class="btn btn-secondary btn-sm" @click="openEdit(s)">Edit</button>
             <button class="btn btn-danger btn-sm" style="margin-left: 4px" @click="remove(s.id)">Del</button>

@@ -39,8 +39,13 @@ export const useReferencesStore = defineStore('references', () => {
     return `${loc?.name ?? '?'} ${cur?.code ?? '?'}`
   }
 
+  function storageAccountLabelById(id: number): string {
+    const acc = storageAccounts.value.find((a) => a.id === id)
+    return acc ? storageAccountLabel(acc) : '?'
+  }
+
   return {
     currencies, storageLocations, storageAccounts, incomeSources, expenseCategories,
-    loaded, fetchAll, currencyById, storageAccountLabel,
+    loaded, fetchAll, currencyById, storageAccountLabel, storageAccountLabelById,
   }
 })

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useReferencesStore } from '../stores/references'
 import {
   currenciesApi, storageLocationsApi, storageAccountsApi, incomeSourcesApi,
+  type StorageAccount,
 } from '../api/references'
 
 const refs = useReferencesStore()
@@ -46,6 +47,18 @@ async function addAccount() {
 async function deleteAccount(id: number) {
   if (!confirm('Delete storage account?')) return
   await storageAccountsApi.delete(id)
+  await refs.fetchAll()
+}
+const editingAccount = ref<StorageAccount | null>(null)
+const editAccountForm = ref({ storage_location_id: 0 })
+function openEditAccount(acc: StorageAccount) {
+  editingAccount.value = acc
+  editAccountForm.value = { storage_location_id: acc.storage_location_id }
+}
+async function saveEditAccount() {
+  if (!editingAccount.value) return
+  await storageAccountsApi.update(editingAccount.value.id, editAccountForm.value)
+  editingAccount.value = null
   await refs.fetchAll()
 }
 
@@ -110,8 +123,18 @@ async function deleteSource(id: number) {
         <button class="btn btn-primary btn-sm" @click="addAccount">Add</button>
       </div>
       <div v-for="a in refs.storageAccounts" :key="a.id" class="settings-item">
-        <span>{{ refs.storageAccountLabel(a) }}</span>
-        <button class="btn btn-danger btn-sm" @click="deleteAccount(a.id)">Del</button>
+        <template v-if="editingAccount?.id === a.id">
+          <select v-model.number="editAccountForm.storage_location_id" class="form-input-sm" style="flex: 1">
+            <option v-for="l in refs.storageLocations" :key="l.id" :value="l.id">{{ l.name }}</option>
+          </select>
+          <button class="btn btn-primary btn-sm" @click="saveEditAccount">Save</button>
+          <button class="btn btn-secondary btn-sm" @click="editingAccount = null">Cancel</button>
+        </template>
+        <template v-else>
+          <span>{{ refs.storageAccountLabel(a) }}</span>
+          <button class="btn btn-secondary btn-sm" @click="openEditAccount(a)">Edit</button>
+          <button class="btn btn-danger btn-sm" @click="deleteAccount(a.id)">Del</button>
+        </template>
       </div>
     </div>
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { analyticsApi, type SummaryEntry, type GroupBy } from '../api/analytics'
+import { fmtAmount, fmtPeriod } from '../utils/format'
 import { Line } from 'vue-chartjs'
 import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler,
@@ -30,25 +31,17 @@ async function load() {
       group_by: groupBy.value,
     })
     data.value = d
-  } catch { /* empty */ }
-  loading.value = false
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(load)
 watch([dateFrom, dateTo, groupBy], load)
 
-function formatPeriod(iso: string) {
-  const d = new Date(iso)
-  return d.toLocaleDateString('ru-RU', { year: 'numeric', month: 'short' })
-}
-
-function fmt(n: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
-}
-
 function chartData() {
   return {
-    labels: data.value.map((e) => formatPeriod(e.period)),
+    labels: data.value.map((e) => fmtPeriod(e.period)),
     datasets: [
       {
         label: 'Income',
@@ -120,22 +113,22 @@ const chartOptions = {
   <div v-if="data.length" class="stats-grid">
     <div class="stat-card stat-card--income">
       <div class="stat-label">Total Income</div>
-      <div class="stat-value amount-positive">{{ fmt(data.reduce((s, e) => s + e.income, 0)) }}</div>
+      <div class="stat-value amount-positive">{{ fmtAmount(data.reduce((s, e) => s + e.income, 0)) }}</div>
     </div>
     <div class="stat-card stat-card--expense">
       <div class="stat-label">Total Expenses</div>
-      <div class="stat-value amount-negative">{{ fmt(data.reduce((s, e) => s + e.expenses, 0)) }}</div>
+      <div class="stat-value amount-negative">{{ fmtAmount(data.reduce((s, e) => s + e.expenses, 0)) }}</div>
     </div>
     <div class="stat-card stat-card--profit">
       <div class="stat-label">Total Profit</div>
       <div class="stat-value" :class="data.reduce((s, e) => s + e.profit, 0) >= 0 ? 'amount-positive' : 'amount-negative'">
-        {{ fmt(data.reduce((s, e) => s + e.profit, 0)) }}
+        {{ fmtAmount(data.reduce((s, e) => s + e.profit, 0)) }}
       </div>
     </div>
     <div class="stat-card" v-if="data[data.length - 1]?.balances">
       <div class="stat-label">Latest Balance</div>
       <div v-for="(val, cur) in data[data.length - 1]!.balances" :key="cur" class="stat-value">
-        {{ cur }}: {{ fmt(val) }}
+        {{ cur }}: {{ fmtAmount(val) }}
       </div>
     </div>
   </div>
@@ -164,16 +157,16 @@ const chartOptions = {
       </thead>
       <tbody>
         <tr v-for="row in data" :key="row.period">
-          <td>{{ formatPeriod(row.period) }}</td>
+          <td>{{ fmtPeriod(row.period) }}</td>
           <td>
-            <span v-for="(val, cur) in row.balances" :key="cur">{{ cur }} {{ fmt(val) }}&nbsp;</span>
+            <span v-for="(val, cur) in row.balances" :key="cur">{{ cur }} {{ fmtAmount(val) }}&nbsp;</span>
             <span v-if="!row.balances || !Object.keys(row.balances).length">—</span>
           </td>
-          <td class="amount-positive">{{ fmt(row.income) }}</td>
-          <td :class="row.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmt(row.profit) }}</td>
-          <td class="amount-negative">{{ fmt(row.expenses) }}</td>
-          <td>{{ fmt(row.avg_income) }}</td>
-          <td>{{ fmt(row.avg_profit) }}</td>
+          <td class="amount-positive">{{ fmtAmount(row.income) }}</td>
+          <td :class="row.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(row.profit) }}</td>
+          <td class="amount-negative">{{ fmtAmount(row.expenses) }}</td>
+          <td>{{ fmtAmount(row.avg_income) }}</td>
+          <td>{{ fmtAmount(row.avg_profit) }}</td>
         </tr>
       </tbody>
     </table>

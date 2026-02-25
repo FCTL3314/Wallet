@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, status
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -17,7 +17,18 @@ from app.schemas.auth import RegisterRequest, LoginRequest, RefreshRequest, Toke
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+async def _cleanup_tokens(user_id: int, db: AsyncSession) -> None:
+    now = datetime.now(timezone.utc)
+    await db.execute(
+        delete(RefreshToken).where(
+            RefreshToken.user_id == user_id,
+            (RefreshToken.revoked == True) | (RefreshToken.expires_at < now),  # noqa: E712
+        )
+    )
+
+
 async def _issue_tokens(user_id: int, db: AsyncSession) -> TokenResponse:
+    await _cleanup_tokens(user_id, db)
     access_token = create_access_token(user_id)
     raw_refresh, hashed_refresh = create_refresh_token()
     expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)

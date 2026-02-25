@@ -1,21 +1,27 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { analyticsApi, type ExpenseTemplate } from '../api/analytics'
+import { analyticsApi, type ExpenseTemplate, type ExpenseVsBudgetItem } from '../api/analytics'
 import { expenseCategoriesApi, type ExpenseCategory } from '../api/references'
 import { useReferencesStore } from '../stores/references'
+import { fmtAmount } from '../utils/format'
 
 const refs = useReferencesStore()
 const template = ref<ExpenseTemplate | null>(null)
+const vsBudget = ref<Map<number, ExpenseVsBudgetItem>>(new Map())
 const loading = ref(false)
 const showModal = ref(false)
 const editing = ref<ExpenseCategory | null>(null)
 
-const form = ref({ name: '', monthly_amount: 0, is_tax: false, is_rent: false })
+const form = ref({ name: '', budgeted_amount: 0, is_tax: false, is_rent: false })
 
 async function load() {
   loading.value = true
-  const { data } = await analyticsApi.expenseTemplate()
-  template.value = data
+  const [templateRes, budgetRes] = await Promise.all([
+    analyticsApi.expenseTemplate(),
+    analyticsApi.expenseVsBudget(),
+  ])
+  template.value = templateRes.data
+  vsBudget.value = new Map(budgetRes.data.map((item) => [item.id, item]))
   loading.value = false
 }
 
@@ -23,13 +29,13 @@ onMounted(load)
 
 function openCreate() {
   editing.value = null
-  form.value = { name: '', monthly_amount: 0, is_tax: false, is_rent: false }
+  form.value = { name: '', budgeted_amount: 0, is_tax: false, is_rent: false }
   showModal.value = true
 }
 
 function openEdit(cat: ExpenseCategory) {
   editing.value = cat
-  form.value = { name: cat.name, monthly_amount: cat.monthly_amount, is_tax: cat.is_tax, is_rent: cat.is_rent }
+  form.value = { name: cat.name, budgeted_amount: cat.budgeted_amount, is_tax: cat.is_tax, is_rent: cat.is_rent }
   showModal.value = true
 }
 
@@ -51,9 +57,6 @@ async function remove(id: number) {
   await load()
 }
 
-function fmt(n: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
-}
 </script>
 
 <template>
@@ -66,19 +69,19 @@ function fmt(n: number) {
   <div v-if="template" class="stats-grid">
     <div class="stat-card">
       <div class="stat-label">Total Monthly</div>
-      <div class="stat-value">{{ fmt(template.total) }}</div>
+      <div class="stat-value">{{ fmtAmount(template.total) }}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Without Tax</div>
-      <div class="stat-value">{{ fmt(template.without_tax) }}</div>
+      <div class="stat-value">{{ fmtAmount(template.without_tax) }}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Without Rent</div>
-      <div class="stat-value">{{ fmt(template.without_rent) }}</div>
+      <div class="stat-value">{{ fmtAmount(template.without_rent) }}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Without Tax & Rent</div>
-      <div class="stat-value">{{ fmt(template.without_tax_and_rent) }}</div>
+      <div class="stat-value">{{ fmtAmount(template.without_tax_and_rent) }}</div>
     </div>
   </div>
 
@@ -89,7 +92,9 @@ function fmt(n: number) {
       <thead>
         <tr>
           <th>Name</th>
-          <th>Cost / Month</th>
+          <th>Budget / Month</th>
+          <th>Actual (this month)</th>
+          <th>Remaining</th>
           <th>Tax</th>
           <th>Rent</th>
           <th></th>
@@ -98,7 +103,13 @@ function fmt(n: number) {
       <tbody>
         <tr v-for="item in template!.items" :key="item.id">
           <td>{{ item.name }}</td>
-          <td>{{ fmt(item.monthly_amount) }}</td>
+          <td>{{ fmtAmount(item.budgeted_amount) }}</td>
+          <td :class="(vsBudget.get(item.id)?.actual ?? 0) > 0 ? 'amount-negative' : ''">
+            {{ fmtAmount(vsBudget.get(item.id)?.actual ?? 0) }}
+          </td>
+          <td :class="(vsBudget.get(item.id)?.remaining ?? 0) < 0 ? 'amount-negative' : 'amount-positive'">
+            {{ fmtAmount(vsBudget.get(item.id)?.remaining ?? 0) }}
+          </td>
           <td>{{ item.is_tax ? 'Yes' : '' }}</td>
           <td>{{ item.is_rent ? 'Yes' : '' }}</td>
           <td style="white-space: nowrap">
@@ -121,7 +132,7 @@ function fmt(n: number) {
         </div>
         <div class="form-group">
           <label>Monthly Amount ($)</label>
-          <input v-model.number="form.monthly_amount" type="number" step="0.01" min="0" required />
+          <input v-model.number="form.budgeted_amount" type="number" step="0.01" min="0" required />
         </div>
         <div class="form-group">
           <div class="checkbox-group">

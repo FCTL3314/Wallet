@@ -12,6 +12,7 @@ from app.schemas.storage import (
     StorageLocationUpdate,
     StorageLocationResponse,
     StorageAccountCreate,
+    StorageAccountUpdate,
     StorageAccountResponse,
 )
 
@@ -85,6 +86,25 @@ async def create_account(
 ):
     obj = StorageAccount(**body.model_dump(), user_id=user.id)
     db.add(obj)
+    await db.flush()
+    await db.refresh(obj, attribute_names=["storage_location", "currency"])
+    return obj
+
+
+@router.put("/storage-accounts/{acc_id}", response_model=StorageAccountResponse)
+async def update_account(
+    acc_id: int, body: StorageAccountUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(StorageAccount)
+        .where(StorageAccount.id == acc_id, StorageAccount.user_id == user.id)
+        .options(selectinload(StorageAccount.storage_location), selectinload(StorageAccount.currency))
+    )
+    obj = result.scalar_one_or_none()
+    if not obj:
+        raise ResourceNotFound("storage_account")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(obj, k, v)
     await db.flush()
     await db.refresh(obj, attribute_names=["storage_location", "currency"])
     return obj

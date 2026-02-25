@@ -21,6 +21,10 @@ class StorageAccountCreate(BaseModel):
     currency_id: int
 
 
+class StorageAccountUpdate(BaseModel):
+    storage_location_id: int | None = None
+
+
 class StorageAccountResponse(BaseModel):
     id: int
     storage_location_id: int

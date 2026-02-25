@@ -12,7 +12,7 @@ class ExpenseCategory(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
-    monthly_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    budgeted_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
     is_tax: Mapped[bool] = mapped_column(Boolean, default=False)
     is_rent: Mapped[bool] = mapped_column(Boolean, default=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))

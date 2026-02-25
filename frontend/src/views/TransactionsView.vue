@@ -2,6 +2,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { transactionsApi, type Transaction, type TransactionCreate } from '../api/transactions'
 import { useReferencesStore } from '../stores/references'
+import { fmtAmount } from '../utils/format'
 
 const refs = useReferencesStore()
 const items = ref<Transaction[]>([])
@@ -68,15 +69,6 @@ async function remove(id: number) {
   await load()
 }
 
-function fmt(n: number) {
-  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
-}
-
-function accountLabel(id: number) {
-  const acc = refs.storageAccounts.find((a) => a.id === id)
-  return acc ? refs.storageAccountLabel(acc) : '?'
-}
-
 function sourceName(id: number | null) {
   if (!id) return '—'
   return refs.incomeSources.find((s) => s.id === id)?.name ?? '?'
@@ -122,9 +114,9 @@ function categoryName(id: number | null) {
           <td>{{ tx.date }}</td>
           <td><span :class="['chip', tx.type === 'income' ? 'chip-income' : 'chip-expense']">{{ tx.type }}</span></td>
           <td :class="tx.type === 'income' ? 'amount-positive' : 'amount-negative'">
-            {{ tx.type === 'expense' ? '-' : '' }}{{ fmt(tx.amount) }}
+            {{ tx.type === 'expense' ? '-' : '' }}{{ fmtAmount(tx.amount) }}
           </td>
-          <td>{{ accountLabel(tx.storage_account_id) }}</td>
+          <td>{{ refs.storageAccountLabelById(tx.storage_account_id) }}</td>
           <td>{{ tx.type === 'income' ? sourceName(tx.income_source_id) : categoryName(tx.expense_category_id) }}</td>
           <td>{{ tx.description || '' }}</td>
           <td style="white-space: nowrap">

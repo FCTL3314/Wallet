@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,7 @@ from app.services.analytics import (
     get_income_by_source,
     get_balance_by_storage,
     get_expense_template,
+    get_expense_vs_budget,
 )
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -56,3 +57,19 @@ async def expense_template(
     db: AsyncSession = Depends(get_db),
 ):
     return await get_expense_template(db, user.id)
+
+
+@router.get("/expense-vs-budget")
+async def expense_vs_budget(
+    year: int | None = Query(default=None),
+    month: int | None = Query(default=None),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    now = datetime.now(timezone.utc)
+    return await get_expense_vs_budget(
+        db,
+        user.id,
+        year if year is not None else now.year,
+        month if month is not None else now.month,
+    )

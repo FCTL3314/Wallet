@@ -7,11 +7,40 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.exceptions import ResourceNotFound
-from app.models import User, Transaction
+from app.models import ExpenseCategory, IncomeSource, Transaction, User
 from app.models.transaction import TransactionType
-from app.schemas.transaction import TransactionCreate, TransactionUpdate, TransactionResponse
+from app.schemas.transaction import (
+    TransactionCreate,
+    TransactionResponse,
+    TransactionUpdate,
+)
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
+
+
+async def _validate_fk_ownership(
+    db: AsyncSession,
+    user_id: int,
+    income_source_id: int | None,
+    expense_category_id: int | None,
+) -> None:
+    if income_source_id is not None:
+        result = await db.execute(
+            select(IncomeSource).where(
+                IncomeSource.id == income_source_id, IncomeSource.user_id == user_id
+            )
+        )
+        if not result.scalar_one_or_none():
+            raise ResourceNotFound("income_source")
+    if expense_category_id is not None:
+        result = await db.execute(
+            select(ExpenseCategory).where(
+                ExpenseCategory.id == expense_category_id,
+                ExpenseCategory.user_id == user_id,
+            )
+        )
+        if not result.scalar_one_or_none():
+            raise ResourceNotFound("expense_category")
 
 
 @router.get("/", response_model=list[TransactionResponse])
@@ -27,7 +56,11 @@ async def list_transactions(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(Transaction).where(Transaction.user_id == user.id).order_by(Transaction.date.desc())
+    q = (
+        select(Transaction)
+        .where(Transaction.user_id == user.id)
+        .order_by(Transaction.date.desc())
+    )
     if type:
         q = q.where(Transaction.type == type)
     if date_from:
@@ -45,10 +78,17 @@ async def list_transactions(
     return result.scalars().all()
 
 
-@router.post("/", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_transaction(
-    body: TransactionCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    body: TransactionCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    await _validate_fk_ownership(
+        db, user.id, body.income_source_id, body.expense_category_id
+    )
     obj = Transaction(**body.model_dump(), user_id=user.id)
     db.add(obj)
     await db.flush()
@@ -58,13 +98,24 @@ async def create_transaction(
 
 @router.put("/{tx_id}", response_model=TransactionResponse)
 async def update_transaction(
-    tx_id: int, body: TransactionUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    tx_id: int,
+    body: TransactionUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Transaction).where(Transaction.id == tx_id, Transaction.user_id == user.id))
+    result = await db.execute(
+        select(Transaction).where(
+            Transaction.id == tx_id, Transaction.user_id == user.id
+        )
+    )
     obj = result.scalar_one_or_none()
     if not obj:
         raise ResourceNotFound("transaction")
-    for k, v in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    await _validate_fk_ownership(
+        db, user.id, data.get("income_source_id"), data.get("expense_category_id")
+    )
+    for k, v in data.items():
         setattr(obj, k, v)
     await db.flush()
     await db.refresh(obj)
@@ -73,9 +124,15 @@ async def update_transaction(
 
 @router.delete("/{tx_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_transaction(
-    tx_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    tx_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Transaction).where(Transaction.id == tx_id, Transaction.user_id == user.id))
+    result = await db.execute(
+        select(Transaction).where(
+            Transaction.id == tx_id, Transaction.user_id == user.id
+        )
+    )
     obj = result.scalar_one_or_none()
     if not obj:
         raise ResourceNotFound("transaction")

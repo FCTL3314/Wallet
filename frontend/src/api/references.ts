@@ -27,7 +27,7 @@ export interface IncomeSource {
 export interface ExpenseCategory {
   id: number
   name: string
-  monthly_amount: number
+  budgeted_amount: number
   is_tax: boolean
   is_rent: boolean
 }
@@ -50,6 +50,8 @@ export const storageAccountsApi = {
   list: () => api.get<StorageAccount[]>('/storage-accounts/'),
   create: (data: { storage_location_id: number; currency_id: number }) =>
     api.post<StorageAccount>('/storage-accounts/', data),
+  update: (id: number, data: { storage_location_id?: number }) =>
+    api.put<StorageAccount>(`/storage-accounts/${id}`, data),
   delete: (id: number) => api.delete(`/storage-accounts/${id}`),
 }
 

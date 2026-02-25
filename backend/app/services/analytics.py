@@ -216,6 +216,54 @@ async def get_balance_by_storage(
     return list(grouped.values())
 
 
+async def get_expense_vs_budget(db: AsyncSession, user_id: int, year: int, month: int) -> list[dict]:
+    from calendar import monthrange
+
+    date_from = date(year, month, 1)
+    date_to = date(year, month, monthrange(year, month)[1])
+
+    actuals_subq = (
+        select(
+            Transaction.expense_category_id,
+            func.coalesce(func.sum(Transaction.amount), 0).label("actual"),
+        )
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.type == TransactionType.expense,
+            Transaction.date >= date_from,
+            Transaction.date <= date_to,
+            Transaction.expense_category_id.isnot(None),
+        )
+        .group_by(Transaction.expense_category_id)
+        .subquery()
+    )
+
+    q = (
+        select(
+            ExpenseCategory.id,
+            ExpenseCategory.name,
+            ExpenseCategory.budgeted_amount,
+            func.coalesce(actuals_subq.c.actual, 0).label("actual"),
+        )
+        .outerjoin(actuals_subq, ExpenseCategory.id == actuals_subq.c.expense_category_id)
+        .where(ExpenseCategory.user_id == user_id)
+        .order_by(ExpenseCategory.name)
+    )
+    result = await db.execute(q)
+    rows = result.all()
+
+    return [
+        {
+            "id": row.id,
+            "name": row.name,
+            "budgeted": Decimal(str(row.budgeted_amount)),
+            "actual": Decimal(str(row.actual)),
+            "remaining": Decimal(str(row.budgeted_amount)) - Decimal(str(row.actual)),
+        }
+        for row in rows
+    ]
+
+
 async def get_expense_template(db: AsyncSession, user_id: int) -> dict:
     result = await db.execute(select(ExpenseCategory).where(ExpenseCategory.user_id == user_id))
     categories = result.scalars().all()
@@ -229,15 +277,15 @@ async def get_expense_template(db: AsyncSession, user_id: int) -> dict:
         items.append({
             "id": cat.id,
             "name": cat.name,
-            "monthly_amount": cat.monthly_amount,
+            "budgeted_amount": cat.budgeted_amount,
             "is_tax": cat.is_tax,
             "is_rent": cat.is_rent,
         })
-        total += cat.monthly_amount
+        total += cat.budgeted_amount
         if cat.is_tax:
-            tax_amount += cat.monthly_amount
+            tax_amount += cat.budgeted_amount
         if cat.is_rent:
-            rent_amount += cat.monthly_amount
+            rent_amount += cat.budgeted_amount
 
     return {
         "items": items,
