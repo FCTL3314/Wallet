@@ -6,6 +6,8 @@ import {
   type StorageAccount,
 } from '../api/references'
 import { useCrudSection } from '../composables/useCrudSection'
+import BaseCard from '../components/BaseCard.vue'
+import BaseConfirmButton from '../components/BaseConfirmButton.vue'
 
 const refs = useReferencesStore()
 const fetchAll = () => refs.fetchAll()
@@ -22,7 +24,7 @@ async function addCurrency() {
   await currencyCrud.add(newCurrency.value)
   newCurrency.value = { code: '', symbol: '' }
 }
-const deleteCurrency = (id: number) => currencyCrud.remove(id, 'Delete currency?')
+const deleteCurrency = (id: number) => currencyCrud.remove(id)
 
 // Storage Location
 const newLocation = ref('')
@@ -31,7 +33,7 @@ async function addLocation() {
   await locationCrud.add({ name: newLocation.value })
   newLocation.value = ''
 }
-const deleteLocation = (id: number) => locationCrud.remove(id, 'Delete storage location?')
+const deleteLocation = (id: number) => locationCrud.remove(id)
 
 // Storage Account
 const newAccount = ref({ storage_location_id: 0, currency_id: 0 })
@@ -40,7 +42,7 @@ async function addAccount() {
   await accountCrud.add(newAccount.value)
   newAccount.value = { storage_location_id: 0, currency_id: 0 }
 }
-const deleteAccount = (id: number) => accountCrud.remove(id, 'Delete storage account?')
+const deleteAccount = (id: number) => accountCrud.remove(id)
 const editingAccount = ref<StorageAccount | null>(null)
 const editAccountForm = ref({ storage_location_id: 0 })
 function openEditAccount(acc: StorageAccount) {
@@ -61,7 +63,7 @@ async function addSource() {
   await sourceCrud.add({ name: newSource.value })
   newSource.value = ''
 }
-const deleteSource = (id: number) => sourceCrud.remove(id, 'Delete income source?')
+const deleteSource = (id: number) => sourceCrud.remove(id)
 </script>
 
 <template>
@@ -69,8 +71,7 @@ const deleteSource = (id: number) => sourceCrud.remove(id, 'Delete income source
 
   <div class="settings-grid">
     <!-- Currencies -->
-    <div class="card">
-      <div class="card-title">Currencies</div>
+    <BaseCard title="Currencies">
       <div class="settings-item-row">
         <input v-model="newCurrency.code" placeholder="Code (USD)" class="form-input-sm" style="width: 80px" />
         <input v-model="newCurrency.symbol" placeholder="Symbol ($)" class="form-input-sm" style="width: 60px" />
@@ -78,26 +79,24 @@ const deleteSource = (id: number) => sourceCrud.remove(id, 'Delete income source
       </div>
       <div v-for="c in refs.currencies" :key="c.id" class="settings-item">
         <span>{{ c.code }} ({{ c.symbol }})</span>
-        <button class="btn btn-danger btn-sm" @click="deleteCurrency(c.id)">Del</button>
+        <BaseConfirmButton @confirm="deleteCurrency(c.id)" />
       </div>
-    </div>
+    </BaseCard>
 
     <!-- Storage Locations -->
-    <div class="card">
-      <div class="card-title">Storage Locations</div>
+    <BaseCard title="Storage Locations">
       <div class="settings-item-row">
         <input v-model="newLocation" placeholder="Name" class="form-input-sm" style="flex: 1" />
         <button class="btn btn-primary btn-sm" @click="addLocation">Add</button>
       </div>
       <div v-for="l in refs.storageLocations" :key="l.id" class="settings-item">
         <span>{{ l.name }}</span>
-        <button class="btn btn-danger btn-sm" @click="deleteLocation(l.id)">Del</button>
+        <BaseConfirmButton @confirm="deleteLocation(l.id)" />
       </div>
-    </div>
+    </BaseCard>
 
     <!-- Storage Accounts -->
-    <div class="card">
-      <div class="card-title">Storage Accounts</div>
+    <BaseCard title="Storage Accounts">
       <div class="settings-item-row">
         <select v-model.number="newAccount.storage_location_id" class="form-input-sm" style="flex: 1">
           <option :value="0" disabled>Location</option>
@@ -120,22 +119,21 @@ const deleteSource = (id: number) => sourceCrud.remove(id, 'Delete income source
         <template v-else>
           <span>{{ refs.storageAccountLabel(a) }}</span>
           <button class="btn btn-secondary btn-sm" @click="openEditAccount(a)">Edit</button>
-          <button class="btn btn-danger btn-sm" @click="deleteAccount(a.id)">Del</button>
+          <BaseConfirmButton @confirm="deleteAccount(a.id)" />
         </template>
       </div>
-    </div>
+    </BaseCard>
 
     <!-- Income Sources -->
-    <div class="card">
-      <div class="card-title">Income Sources</div>
+    <BaseCard title="Income Sources">
       <div class="settings-item-row">
         <input v-model="newSource" placeholder="Name" class="form-input-sm" style="flex: 1" />
         <button class="btn btn-primary btn-sm" @click="addSource">Add</button>
       </div>
       <div v-for="s in refs.incomeSources" :key="s.id" class="settings-item">
         <span>{{ s.name }}</span>
-        <button class="btn btn-danger btn-sm" @click="deleteSource(s.id)">Del</button>
+        <BaseConfirmButton @confirm="deleteSource(s.id)" />
       </div>
-    </div>
+    </BaseCard>
   </div>
 </template>

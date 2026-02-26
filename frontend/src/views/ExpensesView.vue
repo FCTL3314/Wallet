@@ -4,6 +4,10 @@ import { analyticsApi, type ExpenseTemplate, type ExpenseVsBudgetItem, type Expe
 import { expenseCategoriesApi } from '../api/references'
 import { useReferencesStore } from '../stores/references'
 import { fmtAmount } from '../utils/format'
+import BaseModal from '../components/BaseModal.vue'
+import BaseDataTable from '../components/BaseDataTable.vue'
+import BaseStatCard from '../components/BaseStatCard.vue'
+import BaseConfirmButton from '../components/BaseConfirmButton.vue'
 
 const refs = useReferencesStore()
 const template = ref<ExpenseTemplate | null>(null)
@@ -60,12 +64,10 @@ async function save() {
 }
 
 async function remove(id: number) {
-  if (!confirm('Delete this category?')) return
   await expenseCategoriesApi.delete(id)
   await refs.fetchAll()
   await load()
 }
-
 </script>
 
 <template>
@@ -76,84 +78,66 @@ async function remove(id: number) {
   </div>
 
   <div v-if="template" class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-label">Total Monthly</div>
+    <BaseStatCard label="Total Monthly">
       <div class="stat-value">{{ fmtAmount(template.total) }}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Without Tax</div>
+    </BaseStatCard>
+    <BaseStatCard label="Without Tax">
       <div class="stat-value">{{ fmtAmount(template.without_tax) }}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Without Rent</div>
+    </BaseStatCard>
+    <BaseStatCard label="Without Rent">
       <div class="stat-value">{{ fmtAmount(template.without_rent) }}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Without Tax & Rent</div>
+    </BaseStatCard>
+    <BaseStatCard label="Without Tax & Rent">
       <div class="stat-value">{{ fmtAmount(template.without_tax_and_rent) }}</div>
-    </div>
+    </BaseStatCard>
   </div>
 
-  <div class="card">
-    <p v-if="loading">Loading...</p>
-    <p v-else-if="!resolvedItems.length" class="text-muted">No expense categories yet.</p>
-    <table v-else class="data-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Budget / Month</th>
-          <th>Actual (this month)</th>
-          <th>Remaining</th>
-          <th>Tax</th>
-          <th>Rent</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="item in resolvedItems" :key="item.id">
-          <td>{{ item.name }}</td>
-          <td>{{ fmtAmount(item.budgeted_amount) }}</td>
-          <td :class="item.actual > 0 ? 'amount-negative' : ''">
-            {{ fmtAmount(item.actual) }}
-          </td>
-          <td :class="item.remaining < 0 ? 'amount-negative' : 'amount-positive'">
-            {{ fmtAmount(item.remaining) }}
-          </td>
-          <td>{{ item.is_tax ? 'Yes' : '' }}</td>
-          <td>{{ item.is_rent ? 'Yes' : '' }}</td>
-          <td style="white-space: nowrap">
-            <button class="btn btn-secondary btn-sm" @click="openEdit(item)">Edit</button>
-            <button class="btn btn-danger btn-sm" style="margin-left: 4px" @click="remove(item.id)">Del</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+  <BaseDataTable :loading="loading" :empty="!resolvedItems.length" empty-message="No expense categories yet.">
+    <template #head>
+      <tr>
+        <th>Name</th>
+        <th>Budget / Month</th>
+        <th>Actual (this month)</th>
+        <th>Remaining</th>
+        <th>Tax</th>
+        <th>Rent</th>
+        <th></th>
+      </tr>
+    </template>
+    <template #body>
+      <tr v-for="item in resolvedItems" :key="item.id">
+        <td>{{ item.name }}</td>
+        <td>{{ fmtAmount(item.budgeted_amount) }}</td>
+        <td :class="item.actual > 0 ? 'amount-negative' : ''">
+          {{ fmtAmount(item.actual) }}
+        </td>
+        <td :class="item.remaining < 0 ? 'amount-negative' : 'amount-positive'">
+          {{ fmtAmount(item.remaining) }}
+        </td>
+        <td>{{ item.is_tax ? 'Yes' : '' }}</td>
+        <td>{{ item.is_rent ? 'Yes' : '' }}</td>
+        <td style="white-space: nowrap">
+          <button class="btn btn-secondary btn-sm" @click="openEdit(item)">Edit</button>
+          <BaseConfirmButton @confirm="remove(item.id)" />
+        </td>
+      </tr>
+    </template>
+  </BaseDataTable>
 
-  <!-- Modal -->
-  <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-    <div class="modal">
-      <h2>{{ editing ? 'Edit' : 'New' }} Expense Category</h2>
-      <form @submit.prevent="save">
-        <div class="form-group">
-          <label>Name</label>
-          <input v-model="form.name" required />
-        </div>
-        <div class="form-group">
-          <label>Monthly Amount ($)</label>
-          <input v-model.number="form.budgeted_amount" type="number" step="0.01" min="0" required />
-        </div>
-        <div class="form-group">
-          <div class="checkbox-group">
-            <label><input type="checkbox" v-model="form.is_tax" /> Is Tax</label>
-            <label><input type="checkbox" v-model="form.is_rent" /> Is Rent</label>
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-secondary" @click="showModal = false">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
-      </form>
+  <BaseModal :show="showModal" :title="`${editing ? 'Edit' : 'New'} Expense Category`" @close="showModal = false" @submit="save">
+    <div class="form-group">
+      <label>Name</label>
+      <input v-model="form.name" required />
     </div>
-  </div>
+    <div class="form-group">
+      <label>Monthly Amount ($)</label>
+      <input v-model.number="form.budgeted_amount" type="number" step="0.01" min="0" required />
+    </div>
+    <div class="form-group">
+      <div class="checkbox-group">
+        <label><input type="checkbox" v-model="form.is_tax" /> Is Tax</label>
+        <label><input type="checkbox" v-model="form.is_rent" /> Is Rent</label>
+      </div>
+    </div>
+  </BaseModal>
 </template>

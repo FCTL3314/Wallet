@@ -6,6 +6,9 @@ import { Line } from 'vue-chartjs'
 import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler,
 } from 'chart.js'
+import BaseCard from '../components/BaseCard.vue'
+import BaseDataTable from '../components/BaseDataTable.vue'
+import BaseStatCard from '../components/BaseStatCard.vue'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
@@ -113,64 +116,54 @@ const chartOptions = {
   </div>
 
   <div v-if="data.length" class="stats-grid">
-    <div class="stat-card stat-card--income">
-      <div class="stat-label">Total Income</div>
+    <BaseStatCard label="Total Income" variant="income">
       <div class="stat-value amount-positive">{{ fmtAmount(totalIncome) }}</div>
-    </div>
-    <div class="stat-card stat-card--expense">
-      <div class="stat-label">Total Expenses</div>
+    </BaseStatCard>
+    <BaseStatCard label="Total Expenses" variant="expense">
       <div class="stat-value amount-negative">{{ fmtAmount(totalExpenses) }}</div>
-    </div>
-    <div class="stat-card stat-card--profit">
-      <div class="stat-label">Total Profit</div>
+    </BaseStatCard>
+    <BaseStatCard label="Total Profit" variant="profit">
       <div class="stat-value" :class="totalProfit >= 0 ? 'amount-positive' : 'amount-negative'">
         {{ fmtAmount(totalProfit) }}
       </div>
-    </div>
-    <div class="stat-card" v-if="data[data.length - 1]?.balances">
-      <div class="stat-label">Latest Balance</div>
+    </BaseStatCard>
+    <BaseStatCard v-if="data[data.length - 1]?.balances" label="Latest Balance">
       <div v-for="(val, cur) in data[data.length - 1]!.balances" :key="cur" class="stat-value">
         {{ cur }}: {{ fmtAmount(val) }}
       </div>
-    </div>
+    </BaseStatCard>
   </div>
 
   <!-- Chart background is transparent — aurora shows through -->
-  <div class="card" v-if="data.length">
-    <div class="card-title">Trends</div>
+  <BaseCard v-if="data.length" title="Trends">
     <Line :data="chartData" :options="chartOptions" />
-  </div>
+  </BaseCard>
 
-  <div class="card">
-    <div class="card-title">Summary Table</div>
-    <p v-if="loading">Loading...</p>
-    <p v-else-if="!data.length" class="text-muted">No data for selected period.</p>
-    <table v-else class="data-table">
-      <thead>
-        <tr>
-          <th>Period</th>
-          <th>Balance</th>
-          <th>Income</th>
-          <th>Profit</th>
-          <th>Expenses</th>
-          <th>Avg Income</th>
-          <th>Avg Profit</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="row in data" :key="row.period">
-          <td>{{ fmtPeriod(row.period) }}</td>
-          <td>
-            <span v-for="(val, cur) in row.balances" :key="cur">{{ cur }} {{ fmtAmount(val) }}&nbsp;</span>
-            <span v-if="!row.balances || !Object.keys(row.balances).length">—</span>
-          </td>
-          <td class="amount-positive">{{ fmtAmount(row.income) }}</td>
-          <td :class="row.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(row.profit) }}</td>
-          <td class="amount-negative">{{ fmtAmount(row.expenses) }}</td>
-          <td>{{ fmtAmount(row.avg_income) }}</td>
-          <td>{{ fmtAmount(row.avg_profit) }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+  <BaseDataTable title="Summary Table" :loading="loading" :empty="!data.length" empty-message="No data for selected period.">
+    <template #head>
+      <tr>
+        <th>Period</th>
+        <th>Balance</th>
+        <th>Income</th>
+        <th>Profit</th>
+        <th>Expenses</th>
+        <th>Avg Income</th>
+        <th>Avg Profit</th>
+      </tr>
+    </template>
+    <template #body>
+      <tr v-for="row in data" :key="row.period">
+        <td>{{ fmtPeriod(row.period) }}</td>
+        <td>
+          <span v-for="(val, cur) in row.balances" :key="cur">{{ cur }} {{ fmtAmount(val) }}&nbsp;</span>
+          <span v-if="!row.balances || !Object.keys(row.balances).length">—</span>
+        </td>
+        <td class="amount-positive">{{ fmtAmount(row.income) }}</td>
+        <td :class="row.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(row.profit) }}</td>
+        <td class="amount-negative">{{ fmtAmount(row.expenses) }}</td>
+        <td>{{ fmtAmount(row.avg_income) }}</td>
+        <td>{{ fmtAmount(row.avg_profit) }}</td>
+      </tr>
+    </template>
+  </BaseDataTable>
 </template>

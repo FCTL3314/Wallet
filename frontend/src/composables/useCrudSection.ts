@@ -10,8 +10,7 @@ export function useCrudSection<TCreate>(
     await afterMutate()
   }
 
-  async function remove(id: number, confirmMsg: string) {
-    if (!confirm(confirmMsg)) return
+  async function remove(id: number) {
     await api.delete(id)
     await afterMutate()
   }

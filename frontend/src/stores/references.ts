@@ -18,6 +18,8 @@ export const useReferencesStore = defineStore('references', () => {
   const _currencyByCode = computed(() => new Map(currencies.value.map((c) => [c.code, c])))
   const _locationById = computed(() => new Map(storageLocations.value.map((l) => [l.id, l])))
   const _accountById = computed(() => new Map(storageAccounts.value.map((a) => [a.id, a])))
+  const _incomeSourceById = computed(() => new Map(incomeSources.value.map((s) => [s.id, s])))
+  const _expenseCategoryById = computed(() => new Map(expenseCategories.value.map((c) => [c.id, c])))
 
   async function fetchAll() {
     const [c, sl, sa, is_, ec] = await Promise.all([
@@ -54,8 +56,17 @@ export const useReferencesStore = defineStore('references', () => {
     return acc ? storageAccountLabel(acc) : '?'
   }
 
+  function incomeSourceById(id: number) {
+    return _incomeSourceById.value.get(id)
+  }
+
+  function expenseCategoryById(id: number) {
+    return _expenseCategoryById.value.get(id)
+  }
+
   return {
     currencies, storageLocations, storageAccounts, incomeSources, expenseCategories,
     loaded, fetchAll, currencyById, currencyByCode, storageAccountLabel, storageAccountLabelById,
+    incomeSourceById, expenseCategoryById,
   }
 })

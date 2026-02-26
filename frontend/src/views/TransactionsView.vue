@@ -3,6 +3,9 @@ import { ref, onMounted, watch } from 'vue'
 import { transactionsApi, type Transaction, type TransactionCreate, type TransactionFilters } from '../api/transactions'
 import { useReferencesStore } from '../stores/references'
 import { fmtAmount } from '../utils/format'
+import BaseModal from '../components/BaseModal.vue'
+import BaseDataTable from '../components/BaseDataTable.vue'
+import BaseConfirmButton from '../components/BaseConfirmButton.vue'
 
 const refs = useReferencesStore()
 const items = ref<Transaction[]>([])
@@ -64,19 +67,18 @@ async function save() {
 }
 
 async function remove(id: number) {
-  if (!confirm('Delete this transaction?')) return
   await transactionsApi.delete(id)
   await load()
 }
 
 function sourceName(id: number | null) {
   if (!id) return '—'
-  return refs.incomeSources.find((s) => s.id === id)?.name ?? '?'
+  return refs.incomeSourceById(id)?.name ?? '?'
 }
 
 function categoryName(id: number | null) {
   if (!id) return '—'
-  return refs.expenseCategories.find((c) => c.id === id)?.name ?? '?'
+  return refs.expenseCategoryById(id)?.name ?? '?'
 }
 </script>
 
@@ -94,93 +96,79 @@ function categoryName(id: number | null) {
     <button class="btn btn-primary btn-sm" @click="openCreate">+ Add Transaction</button>
   </div>
 
-  <div class="card">
-    <p v-if="loading">Loading...</p>
-    <p v-else-if="!items.length" class="text-muted">No transactions yet.</p>
-    <table v-else class="data-table">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Type</th>
-          <th>Amount</th>
-          <th>Account</th>
-          <th>Source / Category</th>
-          <th>Description</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="tx in items" :key="tx.id">
-          <td>{{ tx.date }}</td>
-          <td><span :class="['chip', tx.type === 'income' ? 'chip-income' : 'chip-expense']">{{ tx.type }}</span></td>
-          <td :class="tx.type === 'income' ? 'amount-positive' : 'amount-negative'">
-            {{ tx.type === 'expense' ? '-' : '' }}{{ fmtAmount(tx.amount) }}
-          </td>
-          <td>{{ refs.storageAccountLabelById(tx.storage_account_id) }}</td>
-          <td>{{ tx.type === 'income' ? sourceName(tx.income_source_id) : categoryName(tx.expense_category_id) }}</td>
-          <td>{{ tx.description || '' }}</td>
-          <td style="white-space: nowrap">
-            <button class="btn btn-secondary btn-sm" @click="openEdit(tx)">Edit</button>
-            <button class="btn btn-danger btn-sm" style="margin-left: 4px" @click="remove(tx.id)">Del</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+  <BaseDataTable :loading="loading" :empty="!items.length" empty-message="No transactions yet.">
+    <template #head>
+      <tr>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Amount</th>
+        <th>Account</th>
+        <th>Source / Category</th>
+        <th>Description</th>
+        <th></th>
+      </tr>
+    </template>
+    <template #body>
+      <tr v-for="tx in items" :key="tx.id">
+        <td>{{ tx.date }}</td>
+        <td><span :class="['chip', tx.type === 'income' ? 'chip-income' : 'chip-expense']">{{ tx.type }}</span></td>
+        <td :class="tx.type === 'income' ? 'amount-positive' : 'amount-negative'">
+          {{ tx.type === 'expense' ? '-' : '' }}{{ fmtAmount(tx.amount) }}
+        </td>
+        <td>{{ refs.storageAccountLabelById(tx.storage_account_id) }}</td>
+        <td>{{ tx.type === 'income' ? sourceName(tx.income_source_id) : categoryName(tx.expense_category_id) }}</td>
+        <td>{{ tx.description || '' }}</td>
+        <td style="white-space: nowrap">
+          <button class="btn btn-secondary btn-sm" @click="openEdit(tx)">Edit</button>
+          <BaseConfirmButton @confirm="remove(tx.id)" />
+        </td>
+      </tr>
+    </template>
+  </BaseDataTable>
 
-  <!-- Modal -->
-  <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-    <div class="modal">
-      <h2>{{ editing ? 'Edit' : 'New' }} Transaction</h2>
-      <form @submit.prevent="save">
-        <div class="form-group">
-          <label>Type</label>
-          <div class="type-toggle">
-            <select v-model="form.type">
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Date</label>
-          <input v-model="form.date" type="date" required />
-        </div>
-        <div class="form-group">
-          <label>Amount</label>
-          <input v-model.number="form.amount" type="number" step="0.01" min="0" required />
-        </div>
-        <div class="form-group">
-          <label>Account</label>
-          <select v-model.number="form.storage_account_id" required>
-            <option v-for="acc in refs.storageAccounts" :key="acc.id" :value="acc.id">
-              {{ refs.storageAccountLabel(acc) }}
-            </option>
-          </select>
-        </div>
-        <div class="form-group" v-if="form.type === 'income'">
-          <label>Income Source</label>
-          <select v-model.number="form.income_source_id">
-            <option :value="null">— None —</option>
-            <option v-for="s in refs.incomeSources" :key="s.id" :value="s.id">{{ s.name }}</option>
-          </select>
-        </div>
-        <div class="form-group" v-if="form.type === 'expense'">
-          <label>Expense Category</label>
-          <select v-model.number="form.expense_category_id">
-            <option :value="null">— None —</option>
-            <option v-for="c in refs.expenseCategories" :key="c.id" :value="c.id">{{ c.name }}</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Description</label>
-          <input v-model="form.description" type="text" />
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-secondary" @click="showModal = false">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
-      </form>
+  <BaseModal :show="showModal" :title="`${editing ? 'Edit' : 'New'} Transaction`" @close="showModal = false" @submit="save">
+    <div class="form-group">
+      <label>Type</label>
+      <div class="type-toggle">
+        <select v-model="form.type">
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+      </div>
     </div>
-  </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input v-model="form.date" type="date" required />
+    </div>
+    <div class="form-group">
+      <label>Amount</label>
+      <input v-model.number="form.amount" type="number" step="0.01" min="0" required />
+    </div>
+    <div class="form-group">
+      <label>Account</label>
+      <select v-model.number="form.storage_account_id" required>
+        <option v-for="acc in refs.storageAccounts" :key="acc.id" :value="acc.id">
+          {{ refs.storageAccountLabel(acc) }}
+        </option>
+      </select>
+    </div>
+    <div class="form-group" v-if="form.type === 'income'">
+      <label>Income Source</label>
+      <select v-model.number="form.income_source_id">
+        <option :value="null">— None —</option>
+        <option v-for="s in refs.incomeSources" :key="s.id" :value="s.id">{{ s.name }}</option>
+      </select>
+    </div>
+    <div class="form-group" v-if="form.type === 'expense'">
+      <label>Expense Category</label>
+      <select v-model.number="form.expense_category_id">
+        <option :value="null">— None —</option>
+        <option v-for="c in refs.expenseCategories" :key="c.id" :value="c.id">{{ c.name }}</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <input v-model="form.description" type="text" />
+    </div>
+  </BaseModal>
 </template>
