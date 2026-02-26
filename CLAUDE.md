@@ -101,3 +101,48 @@ Transaction links to ExpenseCategory (for expenses) or IncomeSource (for income)
 
 ### API Prefix
 All backend routes use `/api` prefix. Frontend proxied through Nginx in production.
+
+## Frontend Standards (Vue 3 + TypeScript)
+
+### File Structure
+- `src/composables/` — reusable composable functions (`useAsync`, `useCrudSection`, etc.)
+- `src/types/` — shared TypeScript interfaces and types (not inline in files)
+- `src/components/Base*.vue` — reusable base components (`BaseDialog`, `BaseTable`, etc.)
+
+### Composition API Rules
+- Always use `<script setup lang="ts">`
+- Use `storeToRefs()` when destructuring state from Pinia stores (preserves reactivity)
+- Use `computed()` (not methods or inline expressions) for all derived/transformed data
+- Use `useTemplateRef<T>('name')` instead of `ref<T | null>(null)` for DOM refs
+- Use `defineModel()` for two-way binding in child components
+
+### Type Safety
+- No `any` types — define interfaces in `src/types/` and import them
+- Router meta must use the `RouteMeta` interface (augment in `src/router/index.ts`)
+- API filter params must be typed interfaces, not plain objects
+- Use `as const` for enum-like string literals
+
+### Data Fetching Pattern (required for all views)
+Use the `useAsync` composable from `src/composables/useAsync.ts`:
+```typescript
+const { data, loading, error, execute } = useAsync(() => api.list())
+```
+- Exposes: `data: Ref<T | null>`, `loading: Ref<boolean>`, `error: Ref<string | null>`, `execute()`
+- `watch()` reactive params → call `execute()` to reload
+- `finally` block always resets `loading`
+
+### Component Naming
+- Base/reusable: `BaseDialog.vue`, `BaseTable.vue`, `BaseConfirmButton.vue`
+- Page-scoped slots only: `TheNavbar.vue`, `TheSidebar.vue`
+- Feature-scoped: `TransactionForm.vue`, `CategoryRow.vue`
+
+### Stores
+- Setup stores (`defineStore('id', () => {})`) preferred over Options stores
+- Use `storeToRefs()` in components: `const { token } = storeToRefs(authStore)`
+- Lookup helpers (e.g. `currencyById`) use `Map` not linear `find()` for O(1) access
+
+### Avoid
+- `confirm()` for deletion — use a modal or inline confirmation
+- `refs.fetchAll()` after every CRUD op — update local state or fetch only changed resource
+- Inline `reduce()` / `find()` in template expressions — use `computed()`
+- Hardcoded locale strings (currency symbols, language codes)

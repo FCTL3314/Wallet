@@ -96,9 +96,9 @@ async function remove(id: number) {
       <tbody>
         <tr v-for="row in storageData" :key="row.period">
           <td>{{ fmtPeriod(row.period) }}</td>
-          <td v-for="(val, cur) in row.totals" :key="cur">{{ cur === 'USD' ? '$' : '€' }}{{ fmtAmount(val) }}</td>
+          <td v-for="(val, cur) in row.totals" :key="cur">{{ refs.currencyByCode(cur)?.symbol ?? cur }}{{ fmtAmount(val) }}</td>
           <td v-for="acc in row.accounts" :key="acc.name">
-            {{ acc.currency === 'USD' ? '$' : '€' }}{{ fmtAmount(acc.amount) }}
+            {{ refs.currencyByCode(acc.currency)?.symbol ?? acc.currency }}{{ fmtAmount(acc.amount) }}
           </td>
         </tr>
       </tbody>

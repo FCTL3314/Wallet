@@ -1,4 +1,4 @@
-from datetime import date
+import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, field_validator
@@ -8,7 +8,7 @@ from app.models.transaction import TransactionType
 
 class TransactionCreate(BaseModel):
     type: TransactionType
-    date: date
+    date: datetime.date
     amount: Decimal
     description: str | None = None
     currency_id: int
@@ -26,7 +26,7 @@ class TransactionCreate(BaseModel):
 
 class TransactionUpdate(BaseModel):
     type: TransactionType | None = None
-    date: date | None = None
+    date: datetime.date | None = None
     amount: Decimal | None = None
     description: str | None = None
     currency_id: int | None = None
@@ -45,7 +45,7 @@ class TransactionUpdate(BaseModel):
 class TransactionResponse(BaseModel):
     id: int
     type: TransactionType
-    date: date
+    date: datetime.date
     amount: Decimal
     description: str | None
     currency_id: int

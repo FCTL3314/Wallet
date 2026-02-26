@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { transactionsApi, type Transaction, type TransactionCreate } from '../api/transactions'
+import { transactionsApi, type Transaction, type TransactionCreate, type TransactionFilters } from '../api/transactions'
 import { useReferencesStore } from '../stores/references'
 import { fmtAmount } from '../utils/format'
 
@@ -22,7 +22,7 @@ const form = ref<TransactionCreate>({
 
 async function load() {
   loading.value = true
-  const params: any = {}
+  const params: TransactionFilters = {}
   if (filterType.value) params.type = filterType.value
   if (filterDateFrom.value) params.date_from = filterDateFrom.value
   if (filterDateTo.value) params.date_to = filterDateTo.value

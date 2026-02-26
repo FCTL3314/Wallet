@@ -1,4 +1,4 @@
-from datetime import date
+import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, field_validator
@@ -6,7 +6,7 @@ from pydantic import BaseModel, field_validator
 
 class BalanceSnapshotCreate(BaseModel):
     storage_account_id: int
-    date: date
+    date: datetime.date
     amount: Decimal
 
     @field_validator("amount")
@@ -18,7 +18,7 @@ class BalanceSnapshotCreate(BaseModel):
 
 
 class BalanceSnapshotUpdate(BaseModel):
-    date: date | None = None
+    date: datetime.date | None = None
     amount: Decimal | None = None
 
     @field_validator("amount")
@@ -32,7 +32,7 @@ class BalanceSnapshotUpdate(BaseModel):
 class BalanceSnapshotResponse(BaseModel):
     id: int
     storage_account_id: int
-    date: date
+    date: datetime.date
     amount: Decimal
 
     model_config = {"from_attributes": True}

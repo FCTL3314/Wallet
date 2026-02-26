@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { analyticsApi, type ExpenseTemplate, type ExpenseVsBudgetItem } from '../api/analytics'
-import { expenseCategoriesApi, type ExpenseCategory } from '../api/references'
+import { ref, computed, onMounted } from 'vue'
+import { analyticsApi, type ExpenseTemplate, type ExpenseVsBudgetItem, type ExpenseTemplateItem } from '../api/analytics'
+import { expenseCategoriesApi } from '../api/references'
 import { useReferencesStore } from '../stores/references'
 import { fmtAmount } from '../utils/format'
 
@@ -10,9 +10,18 @@ const template = ref<ExpenseTemplate | null>(null)
 const vsBudget = ref<Map<number, ExpenseVsBudgetItem>>(new Map())
 const loading = ref(false)
 const showModal = ref(false)
-const editing = ref<ExpenseCategory | null>(null)
+const editing = ref<ExpenseTemplateItem | null>(null)
 
 const form = ref({ name: '', budgeted_amount: 0, is_tax: false, is_rent: false })
+
+const resolvedItems = computed(() => {
+  if (!template.value) return []
+  return template.value.items.map((item) => ({
+    ...item,
+    actual: vsBudget.value.get(item.id)?.actual ?? 0,
+    remaining: vsBudget.value.get(item.id)?.remaining ?? 0,
+  }))
+})
 
 async function load() {
   loading.value = true
@@ -33,7 +42,7 @@ function openCreate() {
   showModal.value = true
 }
 
-function openEdit(cat: ExpenseCategory) {
+function openEdit(cat: ExpenseTemplateItem) {
   editing.value = cat
   form.value = { name: cat.name, budgeted_amount: cat.budgeted_amount, is_tax: cat.is_tax, is_rent: cat.is_rent }
   showModal.value = true
@@ -87,7 +96,7 @@ async function remove(id: number) {
 
   <div class="card">
     <p v-if="loading">Loading...</p>
-    <p v-else-if="!template?.items.length" class="text-muted">No expense categories yet.</p>
+    <p v-else-if="!resolvedItems.length" class="text-muted">No expense categories yet.</p>
     <table v-else class="data-table">
       <thead>
         <tr>
@@ -101,19 +110,19 @@ async function remove(id: number) {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="item in template!.items" :key="item.id">
+        <tr v-for="item in resolvedItems" :key="item.id">
           <td>{{ item.name }}</td>
           <td>{{ fmtAmount(item.budgeted_amount) }}</td>
-          <td :class="(vsBudget.get(item.id)?.actual ?? 0) > 0 ? 'amount-negative' : ''">
-            {{ fmtAmount(vsBudget.get(item.id)?.actual ?? 0) }}
+          <td :class="item.actual > 0 ? 'amount-negative' : ''">
+            {{ fmtAmount(item.actual) }}
           </td>
-          <td :class="(vsBudget.get(item.id)?.remaining ?? 0) < 0 ? 'amount-negative' : 'amount-positive'">
-            {{ fmtAmount(vsBudget.get(item.id)?.remaining ?? 0) }}
+          <td :class="item.remaining < 0 ? 'amount-negative' : 'amount-positive'">
+            {{ fmtAmount(item.remaining) }}
           </td>
           <td>{{ item.is_tax ? 'Yes' : '' }}</td>
           <td>{{ item.is_rent ? 'Yes' : '' }}</td>
           <td style="white-space: nowrap">
-            <button class="btn btn-secondary btn-sm" @click="openEdit(item as any)">Edit</button>
+            <button class="btn btn-secondary btn-sm" @click="openEdit(item)">Edit</button>
             <button class="btn btn-danger btn-sm" style="margin-left: 4px" @click="remove(item.id)">Del</button>
           </td>
         </tr>

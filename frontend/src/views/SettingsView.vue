@@ -5,50 +5,42 @@ import {
   currenciesApi, storageLocationsApi, storageAccountsApi, incomeSourcesApi,
   type StorageAccount,
 } from '../api/references'
+import { useCrudSection } from '../composables/useCrudSection'
 
 const refs = useReferencesStore()
+const fetchAll = () => refs.fetchAll()
+
+const currencyCrud = useCrudSection(currenciesApi, fetchAll)
+const locationCrud = useCrudSection(storageLocationsApi, fetchAll)
+const accountCrud = useCrudSection(storageAccountsApi, fetchAll)
+const sourceCrud = useCrudSection(incomeSourcesApi, fetchAll)
 
 // Currency
 const newCurrency = ref({ code: '', symbol: '' })
 async function addCurrency() {
   if (!newCurrency.value.code) return
-  await currenciesApi.create(newCurrency.value)
+  await currencyCrud.add(newCurrency.value)
   newCurrency.value = { code: '', symbol: '' }
-  await refs.fetchAll()
 }
-async function deleteCurrency(id: number) {
-  if (!confirm('Delete currency?')) return
-  await currenciesApi.delete(id)
-  await refs.fetchAll()
-}
+const deleteCurrency = (id: number) => currencyCrud.remove(id, 'Delete currency?')
 
 // Storage Location
 const newLocation = ref('')
 async function addLocation() {
   if (!newLocation.value) return
-  await storageLocationsApi.create({ name: newLocation.value })
+  await locationCrud.add({ name: newLocation.value })
   newLocation.value = ''
-  await refs.fetchAll()
 }
-async function deleteLocation(id: number) {
-  if (!confirm('Delete storage location?')) return
-  await storageLocationsApi.delete(id)
-  await refs.fetchAll()
-}
+const deleteLocation = (id: number) => locationCrud.remove(id, 'Delete storage location?')
 
 // Storage Account
 const newAccount = ref({ storage_location_id: 0, currency_id: 0 })
 async function addAccount() {
   if (!newAccount.value.storage_location_id || !newAccount.value.currency_id) return
-  await storageAccountsApi.create(newAccount.value)
+  await accountCrud.add(newAccount.value)
   newAccount.value = { storage_location_id: 0, currency_id: 0 }
-  await refs.fetchAll()
 }
-async function deleteAccount(id: number) {
-  if (!confirm('Delete storage account?')) return
-  await storageAccountsApi.delete(id)
-  await refs.fetchAll()
-}
+const deleteAccount = (id: number) => accountCrud.remove(id, 'Delete storage account?')
 const editingAccount = ref<StorageAccount | null>(null)
 const editAccountForm = ref({ storage_location_id: 0 })
 function openEditAccount(acc: StorageAccount) {
@@ -66,15 +58,10 @@ async function saveEditAccount() {
 const newSource = ref('')
 async function addSource() {
   if (!newSource.value) return
-  await incomeSourcesApi.create({ name: newSource.value })
+  await sourceCrud.add({ name: newSource.value })
   newSource.value = ''
-  await refs.fetchAll()
 }
-async function deleteSource(id: number) {
-  if (!confirm('Delete income source?')) return
-  await incomeSourcesApi.delete(id)
-  await refs.fetchAll()
-}
+const deleteSource = (id: number) => sourceCrud.remove(id, 'Delete income source?')
 </script>
 
 <template>

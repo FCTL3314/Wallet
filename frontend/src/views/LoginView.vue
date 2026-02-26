@@ -1,15 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { useForm, useField } from 'vee-validate'
 import * as yup from 'yup'
 import { useAuthStore } from '../stores/auth'
-import { useReferencesStore } from '../stores/references'
-import { getErrorMessage } from '../api/errors'
+import { useAuthForm } from '../composables/useAuthForm'
 
 const auth = useAuthStore()
-const refs = useReferencesStore()
-const router = useRouter()
+const { serverError, submitAuthAction } = useAuthForm()
 
 const schema = yup.object({
   email: yup.string().required('Email is required').email('Invalid email format'),
@@ -21,17 +17,8 @@ const { handleSubmit, errors: formErrors } = useForm({ validationSchema: schema 
 const { value: email, meta: emailMeta } = useField<string>('email', undefined, { validateOnValueUpdate: true })
 const { value: password, meta: passwordMeta } = useField<string>('password', undefined, { validateOnValueUpdate: true })
 
-const serverError = ref('')
-
-const submit = handleSubmit(async (values) => {
-  serverError.value = ''
-  try {
-    await auth.login(values.email, values.password)
-    await refs.fetchAll()
-    router.push('/')
-  } catch (e: unknown) {
-    serverError.value = getErrorMessage(e)
-  }
+const submit = handleSubmit((values) => {
+  submitAuthAction(() => auth.login(values.email, values.password))
 })
 </script>
 

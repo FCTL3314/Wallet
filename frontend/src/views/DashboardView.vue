@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { analyticsApi, type SummaryEntry, type GroupBy } from '../api/analytics'
 import { fmtAmount, fmtPeriod } from '../utils/format'
 import { Line } from 'vue-chartjs'
@@ -39,37 +39,39 @@ async function load() {
 onMounted(load)
 watch([dateFrom, dateTo, groupBy], load)
 
-function chartData() {
-  return {
-    labels: data.value.map((e) => fmtPeriod(e.period)),
-    datasets: [
-      {
-        label: 'Income',
-        data: data.value.map((e) => e.income),
-        borderColor: '#34d399',
-        backgroundColor: 'rgba(52,211,153,0.15)',
-        fill: true,
-        tension: 0.3,
-      },
-      {
-        label: 'Expenses',
-        data: data.value.map((e) => e.expenses),
-        borderColor: '#fb7185',
-        backgroundColor: 'rgba(251,113,133,0.15)',
-        fill: true,
-        tension: 0.3,
-      },
-      {
-        label: 'Profit',
-        data: data.value.map((e) => e.profit),
-        borderColor: '#a78bfa',
-        backgroundColor: 'rgba(167,139,250,0.15)',
-        fill: true,
-        tension: 0.3,
-      },
-    ],
-  }
-}
+const totalIncome = computed(() => data.value.reduce((s, e) => s + e.income, 0))
+const totalExpenses = computed(() => data.value.reduce((s, e) => s + e.expenses, 0))
+const totalProfit = computed(() => data.value.reduce((s, e) => s + e.profit, 0))
+
+const chartData = computed(() => ({
+  labels: data.value.map((e) => fmtPeriod(e.period)),
+  datasets: [
+    {
+      label: 'Income',
+      data: data.value.map((e) => e.income),
+      borderColor: '#34d399',
+      backgroundColor: 'rgba(52,211,153,0.15)',
+      fill: true,
+      tension: 0.3,
+    },
+    {
+      label: 'Expenses',
+      data: data.value.map((e) => e.expenses),
+      borderColor: '#fb7185',
+      backgroundColor: 'rgba(251,113,133,0.15)',
+      fill: true,
+      tension: 0.3,
+    },
+    {
+      label: 'Profit',
+      data: data.value.map((e) => e.profit),
+      borderColor: '#a78bfa',
+      backgroundColor: 'rgba(167,139,250,0.15)',
+      fill: true,
+      tension: 0.3,
+    },
+  ],
+}))
 
 const chartOptions = {
   responsive: true,
@@ -113,16 +115,16 @@ const chartOptions = {
   <div v-if="data.length" class="stats-grid">
     <div class="stat-card stat-card--income">
       <div class="stat-label">Total Income</div>
-      <div class="stat-value amount-positive">{{ fmtAmount(data.reduce((s, e) => s + e.income, 0)) }}</div>
+      <div class="stat-value amount-positive">{{ fmtAmount(totalIncome) }}</div>
     </div>
     <div class="stat-card stat-card--expense">
       <div class="stat-label">Total Expenses</div>
-      <div class="stat-value amount-negative">{{ fmtAmount(data.reduce((s, e) => s + e.expenses, 0)) }}</div>
+      <div class="stat-value amount-negative">{{ fmtAmount(totalExpenses) }}</div>
     </div>
     <div class="stat-card stat-card--profit">
       <div class="stat-label">Total Profit</div>
-      <div class="stat-value" :class="data.reduce((s, e) => s + e.profit, 0) >= 0 ? 'amount-positive' : 'amount-negative'">
-        {{ fmtAmount(data.reduce((s, e) => s + e.profit, 0)) }}
+      <div class="stat-value" :class="totalProfit >= 0 ? 'amount-positive' : 'amount-negative'">
+        {{ fmtAmount(totalProfit) }}
       </div>
     </div>
     <div class="stat-card" v-if="data[data.length - 1]?.balances">
@@ -136,7 +138,7 @@ const chartOptions = {
   <!-- Chart background is transparent — aurora shows through -->
   <div class="card" v-if="data.length">
     <div class="card-title">Trends</div>
-    <Line :data="chartData()" :options="chartOptions" />
+    <Line :data="chartData" :options="chartOptions" />
   </div>
 
   <div class="card">
