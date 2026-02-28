@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.db_helpers import get_or_404
 from app.core.dependencies import get_current_user
-from app.core.exceptions import ResourceNotFound
+from app.core.exceptions import AppException, ResourceNotFound
 from app.models import ExpenseCategory, IncomeSource, Transaction, User
 from app.models.transaction import TransactionType
 from app.schemas.transaction import (
@@ -87,6 +87,12 @@ async def create_transaction(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if body.type == TransactionType.expense:
+        raise AppException(
+            code="transaction/expense_not_allowed",
+            message="Expense transactions are not supported. Record balance snapshots instead.",
+            status_code=422,
+        )
     await _validate_fk_ownership(
         db, user.id, body.income_source_id, body.expense_category_id
     )
@@ -104,6 +110,12 @@ async def update_transaction(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if body.type == TransactionType.expense:
+        raise AppException(
+            code="transaction/expense_not_allowed",
+            message="Expense transactions are not supported. Record balance snapshots instead.",
+            status_code=422,
+        )
     obj = await get_or_404(db, Transaction, tx_id, user.id, "transaction")
     data = body.model_dump(exclude_unset=True)
     await _validate_fk_ownership(

@@ -41,9 +41,9 @@ function logout() {
       </div>
       <nav class="sidebar-nav">
         <RouterLink to="/"><PhChartBar weight="duotone" /> Dashboard</RouterLink>
-        <RouterLink to="/transactions"><PhArrowsLeftRight weight="duotone" /> Transactions</RouterLink>
+        <RouterLink to="/transactions"><PhArrowsLeftRight weight="duotone" /> Income</RouterLink>
         <RouterLink to="/balance-snapshots"><PhWallet weight="duotone" /> Balances</RouterLink>
-        <RouterLink to="/expenses"><PhReceipt weight="duotone" /> Expenses</RouterLink>
+        <RouterLink to="/expenses"><PhReceipt weight="duotone" /> Regular Expenses</RouterLink>
         <RouterLink to="/settings"><PhGear weight="duotone" /> Settings</RouterLink>
       </nav>
       <div class="sidebar-footer">

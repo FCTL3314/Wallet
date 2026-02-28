@@ -42,9 +42,10 @@ async function load() {
 onMounted(load)
 watch([dateFrom, dateTo, groupBy], load)
 
-const totalIncome = computed(() => data.value.reduce((s, e) => s + e.income, 0))
-const totalExpenses = computed(() => data.value.reduce((s, e) => s + e.expenses, 0))
-const totalProfit = computed(() => data.value.reduce((s, e) => s + e.profit, 0))
+const lastEntry = computed(() => data.value[data.value.length - 1] ?? null)
+
+const avgIncome = computed(() => lastEntry.value?.avg_income ?? 0)
+const avgProfit = computed(() => lastEntry.value?.avg_profit ?? 0)
 
 const chartData = computed(() => ({
   labels: data.value.map((e) => fmtPeriod(e.period)),
@@ -58,8 +59,8 @@ const chartData = computed(() => ({
       tension: 0.3,
     },
     {
-      label: 'Expenses',
-      data: data.value.map((e) => e.expenses),
+      label: 'Expense',
+      data: data.value.map((e) => e.income - e.profit),
       borderColor: '#fb7185',
       backgroundColor: 'rgba(251,113,133,0.15)',
       fill: true,
@@ -116,25 +117,21 @@ const chartOptions = {
   </div>
 
   <div v-if="data.length" class="stats-grid">
-    <BaseStatCard label="Total Income" variant="income">
-      <div class="stat-value amount-positive">{{ fmtAmount(totalIncome) }}</div>
-    </BaseStatCard>
-    <BaseStatCard label="Total Expenses" variant="expense">
-      <div class="stat-value amount-negative">{{ fmtAmount(totalExpenses) }}</div>
-    </BaseStatCard>
-    <BaseStatCard label="Total Profit" variant="profit">
-      <div class="stat-value" :class="totalProfit >= 0 ? 'amount-positive' : 'amount-negative'">
-        {{ fmtAmount(totalProfit) }}
+    <BaseStatCard v-if="lastEntry?.balances" label="Current Balance">
+      <div v-for="(val, cur) in lastEntry!.balances" :key="cur" class="stat-value">
+        {{ cur }}: {{ fmtAmount(val) }}
       </div>
     </BaseStatCard>
-    <BaseStatCard v-if="data[data.length - 1]?.balances" label="Latest Balance">
-      <div v-for="(val, cur) in data[data.length - 1]!.balances" :key="cur" class="stat-value">
-        {{ cur }}: {{ fmtAmount(val) }}
+    <BaseStatCard label="Avg Income" variant="income">
+      <div class="stat-value amount-positive">{{ fmtAmount(avgIncome) }}</div>
+    </BaseStatCard>
+    <BaseStatCard label="Avg Profit" variant="profit">
+      <div class="stat-value" :class="avgProfit >= 0 ? 'amount-positive' : 'amount-negative'">
+        {{ fmtAmount(avgProfit) }}
       </div>
     </BaseStatCard>
   </div>
 
-  <!-- Chart background is transparent — aurora shows through -->
   <BaseCard v-if="data.length" title="Trends">
     <Line :data="chartData" :options="chartOptions" />
   </BaseCard>
@@ -146,7 +143,7 @@ const chartOptions = {
         <th>Balance</th>
         <th>Income</th>
         <th>Profit</th>
-        <th>Expenses</th>
+        <th>Expense</th>
         <th>Avg Income</th>
         <th>Avg Profit</th>
       </tr>
@@ -160,7 +157,9 @@ const chartOptions = {
         </td>
         <td class="amount-positive">{{ fmtAmount(row.income) }}</td>
         <td :class="row.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(row.profit) }}</td>
-        <td class="amount-negative">{{ fmtAmount(row.expenses) }}</td>
+        <td :class="(row.income - row.profit) > 0 ? 'amount-negative' : 'amount-positive'">
+          {{ row.income === 0 && row.profit === 0 ? '—' : fmtAmount(row.income - row.profit) }}
+        </td>
         <td>{{ fmtAmount(row.avg_income) }}</td>
         <td>{{ fmtAmount(row.avg_profit) }}</td>
       </tr>

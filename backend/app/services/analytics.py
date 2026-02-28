@@ -1,9 +1,9 @@
 from calendar import monthrange
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from enum import Enum
 
-from sqlalchemy import select, func, case, and_, literal_column
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Transaction, BalanceSnapshot, ExpenseCategory, Currency, StorageAccount, StorageLocation, IncomeSource
@@ -17,13 +17,66 @@ class GroupBy(str, Enum):
 
 
 def _period_label(group_by: GroupBy):
-    """Return SQL expressions for (period_start, label) depending on grouping."""
+    """Return SQL date_trunc expression for Transaction.date depending on grouping."""
+    return func.date_trunc(group_by.value, Transaction.date)
+
+
+def _generate_periods(date_from: date, date_to: date, group_by: GroupBy) -> list[tuple[date, date]]:
+    """Generate (period_start, period_end) tuples covering the date range."""
+    periods = []
     if group_by == GroupBy.month:
-        return func.date_trunc("month", Transaction.date)
+        cur = date(date_from.year, date_from.month, 1)
+        while cur <= date_to:
+            end = date(cur.year, cur.month, monthrange(cur.year, cur.month)[1])
+            periods.append((cur, end))
+            if cur.month == 12:
+                cur = date(cur.year + 1, 1, 1)
+            else:
+                cur = date(cur.year, cur.month + 1, 1)
     elif group_by == GroupBy.quarter:
-        return func.date_trunc("quarter", Transaction.date)
-    else:
-        return func.date_trunc("year", Transaction.date)
+        qstart_month = ((date_from.month - 1) // 3) * 3 + 1
+        cur = date(date_from.year, qstart_month, 1)
+        while cur <= date_to:
+            end_month = cur.month + 2
+            end = date(cur.year, end_month, monthrange(cur.year, end_month)[1])
+            periods.append((cur, end))
+            if cur.month >= 10:
+                cur = date(cur.year + 1, 1, 1)
+            else:
+                cur = date(cur.year, cur.month + 3, 1)
+    else:  # year
+        cur = date(date_from.year, 1, 1)
+        while cur <= date_to:
+            end = date(cur.year, 12, 31)
+            periods.append((cur, end))
+            cur = date(cur.year + 1, 1, 1)
+    return periods
+
+
+async def _get_income_per_period(
+    db: AsyncSession,
+    user_id: int,
+    date_from: date,
+    date_to: date,
+    group_by: GroupBy,
+) -> dict[str, Decimal]:
+    """Return total income per period as {period_start_iso: amount}."""
+    period = func.date_trunc(group_by.value, Transaction.date).label("period")
+    q = (
+        select(period, func.coalesce(func.sum(Transaction.amount), 0).label("income"))
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.type == TransactionType.income,
+            Transaction.date >= date_from,
+            Transaction.date <= date_to,
+        )
+        .group_by("period")
+    )
+    result = await db.execute(q)
+    return {
+        row.period.date().isoformat(): Decimal(str(row.income))
+        for row in result.all()
+    }
 
 
 async def get_summary(
@@ -33,67 +86,69 @@ async def get_summary(
     date_to: date,
     group_by: GroupBy,
 ) -> list[dict]:
-    period = _period_label(group_by).label("period")
-    income_sum = func.coalesce(
-        func.sum(case((Transaction.type == TransactionType.income, Transaction.amount), else_=literal_column("0"))),
-        0,
-    ).label("income")
-    expense_sum = func.coalesce(
-        func.sum(case((Transaction.type == TransactionType.expense, Transaction.amount), else_=literal_column("0"))),
-        0,
-    ).label("expenses")
+    """
+    Excel-model summary: profit = balance_change, derived_expense = profit - income.
+    Generates one row per calendar period in the requested range.
+    """
+    periods = _generate_periods(date_from, date_to, group_by)
+    if not periods:
+        return []
 
-    q = (
-        select(period, income_sum, expense_sum)
-        .where(
-            Transaction.user_id == user_id,
-            Transaction.date >= date_from,
-            Transaction.date <= date_to,
-        )
-        .group_by("period")
-        .order_by("period")
-    )
-    result = await db.execute(q)
-    rows = result.all()
+    income_map = await _get_income_per_period(db, user_id, date_from, date_to, group_by)
+
+    # Balance at the end of the period immediately before the first period
+    prev_end = periods[0][0] - timedelta(days=1)
+    prev_balances = await _get_balance_at_date(db, user_id, prev_end)
 
     summary = []
     cumulative_income = Decimal("0")
     cumulative_profit = Decimal("0")
-    for i, row in enumerate(rows, 1):
-        income = Decimal(str(row.income))
-        expenses = Decimal(str(row.expenses))
-        profit = income - expenses
-        cumulative_income += income
-        cumulative_profit += profit
+    income_count = 0
+    profit_count = 0
+
+    for period_start, period_end in periods:
+        period_key = period_start.isoformat()
+        income = income_map.get(period_key, Decimal("0"))
+
+        cur_balances = await _get_balance_at_date(db, user_id, period_end)
+
+        all_currencies = set(cur_balances) | set(prev_balances)
+        balance_change = {
+            cur: cur_balances.get(cur, Decimal("0")) - prev_balances.get(cur, Decimal("0"))
+            for cur in all_currencies
+        }
+
+        profit = sum(balance_change.values(), Decimal("0"))
+        derived_expense = profit - income
+
+        if income > 0:
+            cumulative_income += income
+            income_count += 1
+        if profit > 0:
+            cumulative_profit += profit
+            profit_count += 1
+
+        avg_income = (cumulative_income / income_count).quantize(Decimal("0.01")) if income_count > 0 else Decimal("0")
+        avg_profit = (cumulative_profit / profit_count).quantize(Decimal("0.01")) if profit_count > 0 else Decimal("0")
+
         summary.append({
-            "period": row.period.date().isoformat() if row.period else None,
+            "period": period_key,
             "income": income,
-            "expenses": expenses,
             "profit": profit,
-            "avg_income": (cumulative_income / i).quantize(Decimal("0.01")),
-            "avg_profit": (cumulative_profit / i).quantize(Decimal("0.01")),
+            "derived_expense": derived_expense,
+            "avg_income": avg_income,
+            "avg_profit": avg_profit,
+            "balances": cur_balances,
+            "balance_change": balance_change,
         })
 
-    # attach balance snapshots for each period
-    for entry in summary:
-        if entry["period"]:
-            period_date = date.fromisoformat(entry["period"])
-            if group_by == GroupBy.month:
-                end = date(period_date.year, period_date.month, monthrange(period_date.year, period_date.month)[1])
-            elif group_by == GroupBy.quarter:
-                qm = period_date.month + 2
-                end = date(period_date.year, qm, monthrange(period_date.year, qm)[1])
-            else:
-                end = date(period_date.year, 12, 31)
-
-            balances = await _get_balance_at_date(db, user_id, end)
-            entry["balances"] = balances
+        prev_balances = cur_balances
 
     return summary
 
 
 async def _get_balance_at_date(db: AsyncSession, user_id: int, at_date: date) -> dict:
-    """Get the latest balance snapshot for each currency up to at_date."""
+    """Get the latest balance snapshot per currency up to at_date."""
     subq = (
         select(
             BalanceSnapshot.storage_account_id,
@@ -212,46 +267,18 @@ async def get_balance_by_storage(
 
 
 async def get_expense_vs_budget(db: AsyncSession, user_id: int, year: int, month: int) -> list[dict]:
-    date_from = date(year, month, 1)
-    date_to = date(year, month, monthrange(year, month)[1])
-
-    actuals_subq = (
-        select(
-            Transaction.expense_category_id,
-            func.coalesce(func.sum(Transaction.amount), 0).label("actual"),
-        )
-        .where(
-            Transaction.user_id == user_id,
-            Transaction.type == TransactionType.expense,
-            Transaction.date >= date_from,
-            Transaction.date <= date_to,
-            Transaction.expense_category_id.isnot(None),
-        )
-        .group_by(Transaction.expense_category_id)
-        .subquery()
+    result = await db.execute(
+        select(ExpenseCategory).where(ExpenseCategory.user_id == user_id).order_by(ExpenseCategory.name)
     )
-
-    q = (
-        select(
-            ExpenseCategory.id,
-            ExpenseCategory.name,
-            ExpenseCategory.budgeted_amount,
-            func.coalesce(actuals_subq.c.actual, 0).label("actual"),
-        )
-        .outerjoin(actuals_subq, ExpenseCategory.id == actuals_subq.c.expense_category_id)
-        .where(ExpenseCategory.user_id == user_id)
-        .order_by(ExpenseCategory.name)
-    )
-    result = await db.execute(q)
-    rows = result.all()
+    rows = result.scalars().all()
 
     return [
         {
             "id": row.id,
             "name": row.name,
             "budgeted": Decimal(str(row.budgeted_amount)),
-            "actual": Decimal(str(row.actual)),
-            "remaining": Decimal(str(row.budgeted_amount)) - Decimal(str(row.actual)),
+            "actual": Decimal("0"),
+            "remaining": Decimal(str(row.budgeted_amount)),
         }
         for row in rows
     ]

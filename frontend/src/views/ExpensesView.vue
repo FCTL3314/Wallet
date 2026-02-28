@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { analyticsApi, type ExpenseTemplate, type ExpenseVsBudgetItem, type ExpenseTemplateItem } from '../api/analytics'
+import { ref, onMounted } from 'vue'
+import { analyticsApi, type ExpenseTemplate, type ExpenseTemplateItem } from '../api/analytics'
 import { expenseCategoriesApi } from '../api/references'
 import { useReferencesStore } from '../stores/references'
 import { fmtAmount } from '../utils/format'
@@ -12,30 +12,16 @@ import BaseButton from '../components/BaseButton.vue'
 
 const refs = useReferencesStore()
 const template = ref<ExpenseTemplate | null>(null)
-const vsBudget = ref<Map<number, ExpenseVsBudgetItem>>(new Map())
 const loading = ref(false)
 const showModal = ref(false)
 const editing = ref<ExpenseTemplateItem | null>(null)
 
 const form = ref({ name: '', budgeted_amount: 0, is_tax: false, is_rent: false })
 
-const resolvedItems = computed(() => {
-  if (!template.value) return []
-  return template.value.items.map((item) => ({
-    ...item,
-    actual: vsBudget.value.get(item.id)?.actual ?? 0,
-    remaining: vsBudget.value.get(item.id)?.remaining ?? 0,
-  }))
-})
-
 async function load() {
   loading.value = true
-  const [templateRes, budgetRes] = await Promise.all([
-    analyticsApi.expenseTemplate(),
-    analyticsApi.expenseVsBudget(),
-  ])
-  template.value = templateRes.data
-  vsBudget.value = new Map(budgetRes.data.map((item) => [item.id, item]))
+  const { data } = await analyticsApi.expenseTemplate()
+  template.value = data
   loading.value = false
 }
 
@@ -72,7 +58,7 @@ async function remove(id: number) {
 </script>
 
 <template>
-  <h1 class="page-title">Expense Template</h1>
+  <h1 class="page-title">Regular Expenses</h1>
 
   <div class="toolbar">
     <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Category</BaseButton>
@@ -93,28 +79,20 @@ async function remove(id: number) {
     </BaseStatCard>
   </div>
 
-  <BaseDataTable :loading="loading" :empty="!resolvedItems.length" empty-message="No expense categories yet.">
+  <BaseDataTable :loading="loading" :empty="!template?.items.length" empty-message="No expense categories yet.">
     <template #head>
       <tr>
         <th>Name</th>
         <th>Budget / Month</th>
-        <th>Actual (this month)</th>
-        <th>Remaining</th>
         <th>Tax</th>
         <th>Rent</th>
         <th></th>
       </tr>
     </template>
     <template #body>
-      <tr v-for="item in resolvedItems" :key="item.id">
+      <tr v-for="item in template?.items" :key="item.id">
         <td>{{ item.name }}</td>
         <td>{{ fmtAmount(item.budgeted_amount) }}</td>
-        <td :class="item.actual > 0 ? 'amount-negative' : ''">
-          {{ fmtAmount(item.actual) }}
-        </td>
-        <td :class="item.remaining < 0 ? 'amount-negative' : 'amount-positive'">
-          {{ fmtAmount(item.remaining) }}
-        </td>
         <td>{{ item.is_tax ? 'Yes' : '' }}</td>
         <td>{{ item.is_rent ? 'Yes' : '' }}</td>
         <td style="white-space: nowrap">

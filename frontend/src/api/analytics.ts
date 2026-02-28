@@ -5,11 +5,12 @@ export type GroupBy = 'month' | 'quarter' | 'year'
 export interface SummaryEntry {
   period: string
   income: number
-  expenses: number
   profit: number
+  derived_expense: number
   avg_income: number
   avg_profit: number
   balances: Record<string, number>
+  balance_change: Record<string, number>
 }
 
 export interface IncomeBySourceEntry {

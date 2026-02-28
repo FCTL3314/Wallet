@@ -12,7 +12,6 @@ const refs = useReferencesStore()
 const items = ref<Transaction[]>([])
 const loading = ref(false)
 
-const filterType = ref<'' | 'income' | 'expense'>('')
 const filterDateFrom = ref('')
 const filterDateTo = ref('')
 
@@ -26,8 +25,7 @@ const form = ref<TransactionCreate>({
 
 async function load() {
   loading.value = true
-  const params: TransactionFilters = {}
-  if (filterType.value) params.type = filterType.value
+  const params: TransactionFilters = { type: 'income' }
   if (filterDateFrom.value) params.date_from = filterDateFrom.value
   if (filterDateTo.value) params.date_to = filterDateTo.value
   const { data } = await transactionsApi.list(params)
@@ -36,7 +34,7 @@ async function load() {
 }
 
 onMounted(load)
-watch([filterType, filterDateFrom, filterDateTo], load)
+watch([filterDateFrom, filterDateTo], load)
 
 function openCreate() {
   editing.value = null
@@ -76,35 +74,24 @@ function sourceName(id: number | null) {
   if (!id) return '—'
   return refs.incomeSourceById(id)?.name ?? '?'
 }
-
-function categoryName(id: number | null) {
-  if (!id) return '—'
-  return refs.expenseCategoryById(id)?.name ?? '?'
-}
 </script>
 
 <template>
-  <h1 class="page-title">Transactions</h1>
+  <h1 class="page-title">Income</h1>
 
   <div class="toolbar">
-    <select v-model="filterType">
-      <option value="">All types</option>
-      <option value="income">Income</option>
-      <option value="expense">Expense</option>
-    </select>
     <input v-model="filterDateFrom" type="date" placeholder="From" />
     <input v-model="filterDateTo" type="date" placeholder="To" />
-    <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Transaction</BaseButton>
+    <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Income</BaseButton>
   </div>
 
-  <BaseDataTable :loading="loading" :empty="!items.length" empty-message="No transactions yet.">
+  <BaseDataTable :loading="loading" :empty="!items.length" empty-message="No income transactions yet.">
     <template #head>
       <tr>
         <th>Date</th>
-        <th>Type</th>
         <th>Amount</th>
         <th>Account</th>
-        <th>Source / Category</th>
+        <th>Source</th>
         <th>Description</th>
         <th></th>
       </tr>
@@ -112,12 +99,9 @@ function categoryName(id: number | null) {
     <template #body>
       <tr v-for="tx in items" :key="tx.id">
         <td>{{ tx.date }}</td>
-        <td><span :class="['chip', tx.type === 'income' ? 'chip-income' : 'chip-expense']">{{ tx.type }}</span></td>
-        <td :class="tx.type === 'income' ? 'amount-positive' : 'amount-negative'">
-          {{ tx.type === 'expense' ? '-' : '' }}{{ fmtAmount(tx.amount) }}
-        </td>
+        <td class="amount-positive">{{ fmtAmount(tx.amount) }}</td>
         <td>{{ refs.storageAccountLabelById(tx.storage_account_id) }}</td>
-        <td>{{ tx.type === 'income' ? sourceName(tx.income_source_id) : categoryName(tx.expense_category_id) }}</td>
+        <td>{{ sourceName(tx.income_source_id) }}</td>
         <td>{{ tx.description || '' }}</td>
         <td style="white-space: nowrap">
           <BaseButton variant="secondary" size="sm" @click="openEdit(tx)">Edit</BaseButton>
@@ -127,16 +111,7 @@ function categoryName(id: number | null) {
     </template>
   </BaseDataTable>
 
-  <BaseModal :show="showModal" :title="`${editing ? 'Edit' : 'New'} Transaction`" @close="showModal = false" @submit="save">
-    <div class="form-group">
-      <label>Type</label>
-      <div class="type-toggle">
-        <select v-model="form.type">
-          <option value="income">Income</option>
-          <option value="expense">Expense</option>
-        </select>
-      </div>
-    </div>
+  <BaseModal :show="showModal" :title="`${editing ? 'Edit' : 'New'} Income`" @close="showModal = false" @submit="save">
     <div class="form-group">
       <label>Date</label>
       <input v-model="form.date" type="date" required />
@@ -153,18 +128,11 @@ function categoryName(id: number | null) {
         </option>
       </select>
     </div>
-    <div class="form-group" v-if="form.type === 'income'">
-      <label>Income Source</label>
+    <div class="form-group">
+      <label>Source</label>
       <select v-model.number="form.income_source_id">
         <option :value="null">— None —</option>
         <option v-for="s in refs.incomeSources" :key="s.id" :value="s.id">{{ s.name }}</option>
-      </select>
-    </div>
-    <div class="form-group" v-if="form.type === 'expense'">
-      <label>Expense Category</label>
-      <select v-model.number="form.expense_category_id">
-        <option :value="null">— None —</option>
-        <option v-for="c in refs.expenseCategories" :key="c.id" :value="c.id">{{ c.name }}</option>
       </select>
     </div>
     <div class="form-group">
