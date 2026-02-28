@@ -7,6 +7,7 @@ import { fmtAmount, fmtPeriod } from '../utils/format'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseConfirmButton from '../components/BaseConfirmButton.vue'
+import BaseButton from '../components/BaseButton.vue'
 
 const refs = useReferencesStore()
 const snapshots = ref<BalanceSnapshot[]>([])
@@ -80,7 +81,7 @@ async function remove(id: number) {
       <option value="quarter">Quarter</option>
       <option value="year">Year</option>
     </select>
-    <button class="btn btn-primary btn-sm" @click="openCreate">+ Add Snapshot</button>
+    <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Snapshot</BaseButton>
   </div>
 
   <!-- Aggregated view -->
@@ -119,7 +120,7 @@ async function remove(id: number) {
         <td>{{ refs.storageAccountLabelById(s.storage_account_id) }}</td>
         <td>{{ fmtAmount(s.amount) }}</td>
         <td style="white-space: nowrap">
-          <button class="btn btn-secondary btn-sm" @click="openEdit(s)">Edit</button>
+          <BaseButton variant="secondary" size="sm" @click="openEdit(s)">Edit</BaseButton>
           <BaseConfirmButton @confirm="remove(s.id)" />
         </td>
       </tr>

@@ -6,6 +6,7 @@ import { fmtAmount } from '../utils/format'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseConfirmButton from '../components/BaseConfirmButton.vue'
+import BaseButton from '../components/BaseButton.vue'
 
 const refs = useReferencesStore()
 const items = ref<Transaction[]>([])
@@ -93,7 +94,7 @@ function categoryName(id: number | null) {
     </select>
     <input v-model="filterDateFrom" type="date" placeholder="From" />
     <input v-model="filterDateTo" type="date" placeholder="To" />
-    <button class="btn btn-primary btn-sm" @click="openCreate">+ Add Transaction</button>
+    <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Transaction</BaseButton>
   </div>
 
   <BaseDataTable :loading="loading" :empty="!items.length" empty-message="No transactions yet.">
@@ -119,7 +120,7 @@ function categoryName(id: number | null) {
         <td>{{ tx.type === 'income' ? sourceName(tx.income_source_id) : categoryName(tx.expense_category_id) }}</td>
         <td>{{ tx.description || '' }}</td>
         <td style="white-space: nowrap">
-          <button class="btn btn-secondary btn-sm" @click="openEdit(tx)">Edit</button>
+          <BaseButton variant="secondary" size="sm" @click="openEdit(tx)">Edit</BaseButton>
           <BaseConfirmButton @confirm="remove(tx.id)" />
         </td>
       </tr>

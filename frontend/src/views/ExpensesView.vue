@@ -8,6 +8,7 @@ import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseStatCard from '../components/BaseStatCard.vue'
 import BaseConfirmButton from '../components/BaseConfirmButton.vue'
+import BaseButton from '../components/BaseButton.vue'
 
 const refs = useReferencesStore()
 const template = ref<ExpenseTemplate | null>(null)
@@ -74,7 +75,7 @@ async function remove(id: number) {
   <h1 class="page-title">Expense Template</h1>
 
   <div class="toolbar">
-    <button class="btn btn-primary btn-sm" @click="openCreate">+ Add Category</button>
+    <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Category</BaseButton>
   </div>
 
   <div v-if="template" class="stats-grid">
@@ -117,7 +118,7 @@ async function remove(id: number) {
         <td>{{ item.is_tax ? 'Yes' : '' }}</td>
         <td>{{ item.is_rent ? 'Yes' : '' }}</td>
         <td style="white-space: nowrap">
-          <button class="btn btn-secondary btn-sm" @click="openEdit(item)">Edit</button>
+          <BaseButton variant="secondary" size="sm" @click="openEdit(item)">Edit</BaseButton>
           <BaseConfirmButton @confirm="remove(item.id)" />
         </td>
       </tr>

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import BaseButton from './BaseButton.vue'
+
 defineProps<{ title: string; show: boolean }>()
 
 const emit = defineEmits<{ close: []; submit: [] }>()
@@ -11,8 +13,8 @@ const emit = defineEmits<{ close: []; submit: [] }>()
       <form @submit.prevent="emit('submit')">
         <slot />
         <div class="modal-actions">
-          <button type="button" class="btn btn-secondary" @click="emit('close')">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save</button>
+          <BaseButton variant="secondary" type="button" @click="emit('close')">Cancel</BaseButton>
+          <BaseButton variant="primary" type="submit">Save</BaseButton>
         </div>
       </form>
     </div>
