@@ -885,6 +885,11 @@ table.data-table tbody tr:hover {
   margin-top: 4px;
 }
 
+.success-msg {
+  color: var(--color-income);
+  font-size: 0.8125rem;
+}
+
 .auth-link {
   text-align: center;
   margin-top: 20px;

@@ -12,7 +12,7 @@ from app.core.password_policy import validate_password
 from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token, hash_refresh_token
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
-from app.schemas.auth import RegisterRequest, LoginRequest, RefreshRequest, TokenResponse, UserResponse
+from app.schemas.auth import RegisterRequest, LoginRequest, RefreshRequest, TokenResponse, UserResponse, ChangeEmailRequest, ChangePasswordRequest
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -91,3 +91,32 @@ async def logout(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 async def me(user: User = Depends(get_current_user)):
     return user
+
+
+@router.patch("/me/email", response_model=UserResponse)
+async def change_email(
+    body: ChangeEmailRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not verify_password(body.current_password, user.password_hash):
+        raise AuthInvalidCredentials()
+    existing = await db.execute(select(User).where(User.email == body.new_email))
+    if existing.scalar_one_or_none():
+        raise AuthEmailTaken()
+    user.email = body.new_email
+    return user
+
+
+@router.patch("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    body: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not verify_password(body.current_password, user.password_hash):
+        raise AuthInvalidCredentials()
+    violations = validate_password(body.new_password)
+    if violations:
+        raise AuthWeakPassword(violations)
+    user.password_hash = hash_password(body.new_password)

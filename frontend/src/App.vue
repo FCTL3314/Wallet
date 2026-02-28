@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import Toast from 'primevue/toast'
 import { useAuthStore } from './stores/auth'
 import { useReferencesStore } from './stores/references'
-import { PhChartBar, PhArrowsLeftRight, PhWallet, PhReceipt, PhGear } from '@phosphor-icons/vue'
+import { PhChartBar, PhArrowsLeftRight, PhWallet, PhReceipt, PhBooks, PhGear } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
 const refs = useReferencesStore()
@@ -44,6 +44,7 @@ function logout() {
         <RouterLink to="/transactions"><PhArrowsLeftRight weight="duotone" /> Income</RouterLink>
         <RouterLink to="/balance-snapshots"><PhWallet weight="duotone" /> Balances</RouterLink>
         <RouterLink to="/expenses"><PhReceipt weight="duotone" /> Regular Expenses</RouterLink>
+        <RouterLink to="/references"><PhBooks weight="duotone" /> References</RouterLink>
         <RouterLink to="/settings"><PhGear weight="duotone" /> Settings</RouterLink>
       </nav>
       <div class="sidebar-footer">

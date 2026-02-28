@@ -27,4 +27,10 @@ export const authApi = {
   me() {
     return api.get<UserResponse>('/auth/me')
   },
+  changeEmail(current_password: string, new_email: string) {
+    return api.patch<UserResponse>('/auth/me/email', { current_password, new_email })
+  },
+  changePassword(current_password: string, new_password: string) {
+    return api.patch<void>('/auth/me/password', { current_password, new_password })
+  },
 }

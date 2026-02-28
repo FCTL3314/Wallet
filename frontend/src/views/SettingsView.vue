@@ -1,189 +1,182 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useReferencesStore } from '../stores/references'
-import {
-  currenciesApi, storageLocationsApi, storageAccountsApi, incomeSourcesApi,
-  type Currency, type StorageLocation, type IncomeSource,
-} from '../api/references'
-import { useCrudSection } from '../composables/useCrudSection'
+import { useForm, useField } from 'vee-validate'
+import * as yup from 'yup'
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from '../stores/auth'
+import { authApi } from '../api/auth'
+import { getErrorMessage } from '../api/errors'
+import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
-import BaseConfirmButton from '../components/BaseConfirmButton.vue'
-import SettingsSection from '../components/SettingsSection.vue'
 
-const refs = useReferencesStore()
-const fetchAll = () => refs.fetchAll()
+const auth = useAuthStore()
+const { user } = storeToRefs(auth)
 
-const currencyCrud = useCrudSection(currenciesApi, fetchAll)
-const locationCrud = useCrudSection(storageLocationsApi, fetchAll)
-const accountCrud = useCrudSection(storageAccountsApi, fetchAll)
-const sourceCrud = useCrudSection(incomeSourcesApi, fetchAll)
+// ── Change Email ─────────────────────────────────────────────
+const emailSchema = yup.object({
+  currentPasswordForEmail: yup.string().required('Current password is required'),
+  newEmail: yup.string().required('New email is required').email('Invalid email format'),
+})
 
-// Currency
-const newCurrency = ref({ code: '', symbol: '' })
-async function addCurrency() {
-  if (!newCurrency.value.code) return
-  await currencyCrud.add(newCurrency.value)
-  newCurrency.value = { code: '', symbol: '' }
-}
-const deleteCurrency = (id: number) => currencyCrud.remove(id)
-const editingCurrency = ref<Currency | null>(null)
-const editCurrencyForm = ref({ code: '', symbol: '' })
-function openEditCurrency(c: Currency) {
-  editingCurrency.value = c
-  editCurrencyForm.value = { code: c.code, symbol: c.symbol }
-}
-async function saveEditCurrency() {
-  if (!editingCurrency.value) return
-  await currenciesApi.update(editingCurrency.value.id, editCurrencyForm.value)
-  editingCurrency.value = null
-  await refs.fetchAll()
-}
+const { handleSubmit: handleEmailSubmit, errors: emailErrors, resetForm: resetEmailForm } = useForm({ validationSchema: emailSchema })
+const { value: currentPasswordForEmail, meta: cpfeMeta } = useField<string>('currentPasswordForEmail', undefined, { validateOnValueUpdate: true })
+const { value: newEmail, meta: newEmailMeta } = useField<string>('newEmail', undefined, { validateOnValueUpdate: true })
 
-// Storage Location
-const newLocation = ref('')
-async function addLocation() {
-  if (!newLocation.value) return
-  await locationCrud.add({ name: newLocation.value })
-  newLocation.value = ''
-}
-const deleteLocation = (id: number) => locationCrud.remove(id)
-const editingLocation = ref<StorageLocation | null>(null)
-const editLocationForm = ref({ name: '' })
-function openEditLocation(l: StorageLocation) {
-  editingLocation.value = l
-  editLocationForm.value = { name: l.name }
-}
-async function saveEditLocation() {
-  if (!editingLocation.value) return
-  await storageLocationsApi.update(editingLocation.value.id, editLocationForm.value)
-  editingLocation.value = null
-  await refs.fetchAll()
-}
+const emailServerError = ref('')
+const emailSuccess = ref('')
 
-// Storage Account
-const newAccount = ref({ storage_location_id: 0, currency_id: 0 })
-async function addAccount() {
-  if (!newAccount.value.storage_location_id || !newAccount.value.currency_id) return
-  await accountCrud.add(newAccount.value)
-  newAccount.value = { storage_location_id: 0, currency_id: 0 }
-}
-const deleteAccount = (id: number) => accountCrud.remove(id)
+const submitEmail = handleEmailSubmit(async (values) => {
+  emailServerError.value = ''
+  emailSuccess.value = ''
+  try {
+    const { data } = await authApi.changeEmail(values.currentPasswordForEmail, values.newEmail)
+    auth.user = data
+    emailSuccess.value = 'Email updated successfully.'
+    resetEmailForm()
+  } catch (err) {
+    emailServerError.value = getErrorMessage(err)
+  }
+})
 
-// Income Source
-const newSource = ref('')
-async function addSource() {
-  if (!newSource.value) return
-  await sourceCrud.add({ name: newSource.value })
-  newSource.value = ''
-}
-const deleteSource = (id: number) => sourceCrud.remove(id)
-const editingSource = ref<IncomeSource | null>(null)
-const editSourceForm = ref({ name: '' })
-function openEditSource(s: IncomeSource) {
-  editingSource.value = s
-  editSourceForm.value = { name: s.name }
-}
-async function saveEditSource() {
-  if (!editingSource.value) return
-  await incomeSourcesApi.update(editingSource.value.id, editSourceForm.value)
-  editingSource.value = null
-  await refs.fetchAll()
-}
+// ── Change Password ──────────────────────────────────────────
+const passwordSchema = yup.object({
+  currentPassword: yup.string().required('Current password is required'),
+  newPassword: yup.string()
+    .required('New password is required')
+    .min(8, 'At least 8 characters')
+    .matches(/[A-Z]/, 'At least one uppercase letter')
+    .matches(/[a-z]/, 'At least one lowercase letter')
+    .matches(/\d/, 'At least one digit (0–9)'),
+  confirmNewPassword: yup.string()
+    .required('Please confirm your password')
+    .oneOf([yup.ref('newPassword')], 'Passwords do not match'),
+})
+
+const { handleSubmit: handlePasswordSubmit, errors: passwordErrors, resetForm: resetPasswordForm } = useForm({ validationSchema: passwordSchema })
+const { value: currentPassword, meta: cpMeta } = useField<string>('currentPassword', undefined, { validateOnValueUpdate: true })
+const { value: newPassword, meta: newPasswordMeta } = useField<string>('newPassword', undefined, { validateOnValueUpdate: true })
+const { value: confirmNewPassword, meta: confirmMeta } = useField<string>('confirmNewPassword', undefined, { validateOnValueUpdate: true })
+
+const passwordServerError = ref('')
+const passwordSuccess = ref('')
+
+const submitPassword = handlePasswordSubmit(async (values) => {
+  passwordServerError.value = ''
+  passwordSuccess.value = ''
+  try {
+    await authApi.changePassword(values.currentPassword, values.newPassword)
+    passwordSuccess.value = 'Password updated successfully.'
+    resetPasswordForm()
+  } catch (err) {
+    passwordServerError.value = getErrorMessage(err)
+  }
+})
 </script>
 
 <template>
   <h1 class="page-title">Settings</h1>
 
   <div class="settings-grid">
-    <!-- Currencies -->
-    <SettingsSection title="Currencies" :items="refs.currencies" @add="addCurrency">
-      <template #add-form>
-        <input v-model="newCurrency.code" placeholder="Code (USD)" class="form-input-sm" style="flex: 1" />
-        <input v-model="newCurrency.symbol" placeholder="Symbol ($)" class="form-input-sm" style="flex: 1" />
-      </template>
-      <template #default="{ item: c }">
-        <template v-if="editingCurrency?.id === c.id">
-          <div style="display: flex; gap: 8px">
-            <input v-model="editCurrencyForm.code" class="form-input-sm" style="width: 80px" />
-            <input v-model="editCurrencyForm.symbol" class="form-input-sm" style="width: 60px" />
-          </div>
-          <div style="display: flex; gap: 8px">
-            <BaseButton variant="primary" size="sm" @click="saveEditCurrency">Save</BaseButton>
-            <BaseButton variant="secondary" size="sm" @click="editingCurrency = null">Cancel</BaseButton>
-          </div>
-        </template>
-        <template v-else>
-          <span>{{ c.code }} ({{ c.symbol }})</span>
-          <div style="display: flex; gap: 8px">
-            <BaseButton variant="secondary" size="sm" @click="openEditCurrency(c)">Edit</BaseButton>
-            <BaseConfirmButton @confirm="deleteCurrency(c.id)" />
-          </div>
-        </template>
-      </template>
-    </SettingsSection>
+    <BaseCard title="Change Email">
+      <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 16px">
+        Current email: <strong style="color: var(--text-primary)">{{ user?.email }}</strong>
+      </p>
+      <form @submit.prevent="submitEmail">
+        <div class="form-group">
+          <label>Current Password</label>
+          <input
+            v-model="currentPasswordForEmail"
+            type="password"
+            placeholder="••••••••"
+            :class="{
+              'input-valid': cpfeMeta.dirty && cpfeMeta.valid,
+              'input-invalid': cpfeMeta.dirty && !cpfeMeta.valid,
+            }"
+          />
+          <p v-if="emailErrors.currentPasswordForEmail" class="field-error">{{ emailErrors.currentPasswordForEmail }}</p>
+        </div>
+        <div class="form-group">
+          <label>New Email</label>
+          <input
+            v-model="newEmail"
+            type="email"
+            placeholder="new@example.com"
+            :class="{
+              'input-valid': newEmailMeta.dirty && newEmailMeta.valid,
+              'input-invalid': newEmailMeta.dirty && !newEmailMeta.valid,
+            }"
+          />
+          <p v-if="emailErrors.newEmail" class="field-error">{{ emailErrors.newEmail }}</p>
+        </div>
+        <p v-if="emailServerError" class="error-msg">{{ emailServerError }}</p>
+        <p v-if="emailSuccess" class="success-msg">{{ emailSuccess }}</p>
+        <BaseButton type="submit" variant="primary" style="margin-top: 4px">Update Email</BaseButton>
+      </form>
+    </BaseCard>
 
-    <!-- Storage Locations -->
-    <SettingsSection title="Storage Locations" :items="refs.storageLocations" @add="addLocation">
-      <template #add-form>
-        <input v-model="newLocation" placeholder="Name" class="form-input-sm" style="flex: 1" />
-      </template>
-      <template #default="{ item: l }">
-        <template v-if="editingLocation?.id === l.id">
-          <input v-model="editLocationForm.name" class="form-input-sm" style="flex: 1" />
-          <div style="display: flex; gap: 8px">
-            <BaseButton variant="primary" size="sm" @click="saveEditLocation">Save</BaseButton>
-            <BaseButton variant="secondary" size="sm" @click="editingLocation = null">Cancel</BaseButton>
+    <BaseCard title="Change Password">
+      <form @submit.prevent="submitPassword">
+        <div class="form-group">
+          <label>Current Password</label>
+          <input
+            v-model="currentPassword"
+            type="password"
+            placeholder="••••••••"
+            :class="{
+              'input-valid': cpMeta.dirty && cpMeta.valid,
+              'input-invalid': cpMeta.dirty && !cpMeta.valid,
+            }"
+          />
+          <p v-if="passwordErrors.currentPassword" class="field-error">{{ passwordErrors.currentPassword }}</p>
+        </div>
+        <div class="form-group">
+          <label>New Password</label>
+          <input
+            v-model="newPassword"
+            type="password"
+            placeholder="••••••••"
+            :class="{
+              'input-valid': newPasswordMeta.dirty && newPasswordMeta.valid,
+              'input-invalid': newPasswordMeta.dirty && !newPasswordMeta.valid,
+            }"
+          />
+          <p v-if="passwordErrors.newPassword" class="field-error">{{ passwordErrors.newPassword }}</p>
+          <div class="password-requirements" v-if="newPassword">
+            <div :class="['req-item', newPassword.length >= 8 ? 'req-met' : 'req-unmet']">
+              <span class="req-icon">{{ newPassword.length >= 8 ? '✓' : '✗' }}</span>
+              At least 8 characters
+            </div>
+            <div :class="['req-item', /[A-Z]/.test(newPassword) ? 'req-met' : 'req-unmet']">
+              <span class="req-icon">{{ /[A-Z]/.test(newPassword) ? '✓' : '✗' }}</span>
+              Uppercase letter (A–Z)
+            </div>
+            <div :class="['req-item', /[a-z]/.test(newPassword) ? 'req-met' : 'req-unmet']">
+              <span class="req-icon">{{ /[a-z]/.test(newPassword) ? '✓' : '✗' }}</span>
+              Lowercase letter (a–z)
+            </div>
+            <div :class="['req-item', /\d/.test(newPassword) ? 'req-met' : 'req-unmet']">
+              <span class="req-icon">{{ /\d/.test(newPassword) ? '✓' : '✗' }}</span>
+              At least one digit (0–9)
+            </div>
           </div>
-        </template>
-        <template v-else>
-          <span>{{ l.name }}</span>
-          <div style="display: flex; gap: 8px">
-            <BaseButton variant="secondary" size="sm" @click="openEditLocation(l)">Edit</BaseButton>
-            <BaseConfirmButton @confirm="deleteLocation(l.id)" />
-          </div>
-        </template>
-      </template>
-    </SettingsSection>
-
-    <!-- Storage Accounts -->
-    <SettingsSection title="Storage Accounts" :items="refs.storageAccounts" @add="addAccount">
-      <template #add-form>
-        <select v-model.number="newAccount.storage_location_id" class="form-input-sm" style="flex: 1">
-          <option :value="0" disabled>Location</option>
-          <option v-for="l in refs.storageLocations" :key="l.id" :value="l.id">{{ l.name }}</option>
-        </select>
-        <select v-model.number="newAccount.currency_id" class="form-input-sm" style="flex: 1">
-          <option :value="0" disabled>Currency</option>
-          <option v-for="c in refs.currencies" :key="c.id" :value="c.id">{{ c.code }}</option>
-        </select>
-      </template>
-      <template #default="{ item: a }">
-        <span>{{ refs.storageAccountLabel(a) }}</span>
-        <BaseConfirmButton @confirm="deleteAccount(a.id)" />
-      </template>
-    </SettingsSection>
-
-    <!-- Income Sources -->
-    <SettingsSection title="Income Sources" :items="refs.incomeSources" @add="addSource">
-      <template #add-form>
-        <input v-model="newSource" placeholder="Name" class="form-input-sm" style="flex: 1" />
-      </template>
-      <template #default="{ item: s }">
-        <template v-if="editingSource?.id === s.id">
-          <input v-model="editSourceForm.name" class="form-input-sm" style="flex: 1" />
-          <div style="display: flex; gap: 8px">
-            <BaseButton variant="primary" size="sm" @click="saveEditSource">Save</BaseButton>
-            <BaseButton variant="secondary" size="sm" @click="editingSource = null">Cancel</BaseButton>
-          </div>
-        </template>
-        <template v-else>
-          <span>{{ s.name }}</span>
-          <div style="display: flex; gap: 8px">
-            <BaseButton variant="secondary" size="sm" @click="openEditSource(s)">Edit</BaseButton>
-            <BaseConfirmButton @confirm="deleteSource(s.id)" />
-          </div>
-        </template>
-      </template>
-    </SettingsSection>
+        </div>
+        <div class="form-group">
+          <label>Confirm New Password</label>
+          <input
+            v-model="confirmNewPassword"
+            type="password"
+            placeholder="••••••••"
+            :class="{
+              'input-valid': confirmMeta.dirty && confirmMeta.valid,
+              'input-invalid': confirmMeta.dirty && !confirmMeta.valid,
+            }"
+          />
+          <p v-if="passwordErrors.confirmNewPassword" class="field-error">{{ passwordErrors.confirmNewPassword }}</p>
+        </div>
+        <p v-if="passwordServerError" class="error-msg">{{ passwordServerError }}</p>
+        <p v-if="passwordSuccess" class="success-msg">{{ passwordSuccess }}</p>
+        <BaseButton type="submit" variant="primary" style="margin-top: 4px">Update Password</BaseButton>
+      </form>
+    </BaseCard>
   </div>
 </template>
