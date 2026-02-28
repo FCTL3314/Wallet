@@ -50,10 +50,9 @@ make db                           # Start PostgreSQL in Docker
 
 **Backend (from /backend):**
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-alembic upgrade head              # Run migrations
-uvicorn app.main:app --reload     # Start dev server (http://localhost:8000)
+uv sync
+uv run alembic upgrade head              # Run migrations
+uv run uvicorn app.main:app --reload     # Start dev server (http://localhost:8000)
 ```
 API docs: http://localhost:8000/docs
 
