@@ -610,9 +610,23 @@ body {
     box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.15);
 }
 
+@keyframes field-shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-4px); }
+    40%, 80% { transform: translateX(4px); }
+}
+
 .form-group input.input-invalid {
     border-color: rgba(251, 113, 133, 0.70);
     box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.15);
+    animation: field-shake 0.35s ease;
+}
+
+.field-error {
+    color: rgba(251, 113, 133, 0.90);
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+    margin-bottom: 0;
 }
 
 /* Settings small inputs */
@@ -1060,4 +1074,27 @@ table.data-table tbody tr:hover {
     width: 14px;
     text-align: center;
     flex-shrink: 0;
+}
+
+/* ============================================================
+   ROW ANIMATIONS
+   ============================================================ */
+
+@keyframes row-enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+tr.table-row {
+    animation: row-enter 0.25s ease both;
+    animation-delay: calc(var(--i, 0) * 30ms);
+}
+
+@keyframes row-remove {
+    to { opacity: 0; transform: translateX(24px); }
+}
+
+tr.removing {
+    pointer-events: none;
+    animation: row-remove 0.28s ease forwards;
 }

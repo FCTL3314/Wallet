@@ -1,6 +1,7 @@
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -13,9 +14,18 @@ from app.services.analytics import (
     get_balance_by_storage,
     get_expense_template,
     get_expense_vs_budget,
+    get_balance_breakdown,
 )
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
+
+
+class BalanceBreakdownItem(BaseModel):
+    account_id: int
+    account_label: str
+    currency: str
+    latest_snapshot_date: date
+    latest_snapshot_amount: float
 
 
 @router.get("/summary")
@@ -23,10 +33,11 @@ async def summary(
     date_from: date = Query(...),
     date_to: date = Query(...),
     group_by: GroupBy = Query(default=GroupBy.month),
+    currency_id: int | None = Query(default=None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await get_summary(db, user.id, date_from, date_to, group_by)
+    return await get_summary(db, user.id, date_from, date_to, group_by, currency_id)
 
 
 @router.get("/income-by-source")
@@ -34,10 +45,11 @@ async def income_by_source(
     date_from: date = Query(...),
     date_to: date = Query(...),
     group_by: GroupBy = Query(default=GroupBy.month),
+    currency_id: int | None = Query(default=None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await get_income_by_source(db, user.id, date_from, date_to, group_by)
+    return await get_income_by_source(db, user.id, date_from, date_to, group_by, currency_id)
 
 
 @router.get("/balance-by-storage")
@@ -73,3 +85,12 @@ async def expense_vs_budget(
         year if year is not None else now.year,
         month if month is not None else now.month,
     )
+
+
+@router.get("/balance-breakdown", response_model=list[BalanceBreakdownItem])
+async def balance_breakdown(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the latest balance snapshot per storage account for the authenticated user."""
+    return await get_balance_breakdown(db, user.id)

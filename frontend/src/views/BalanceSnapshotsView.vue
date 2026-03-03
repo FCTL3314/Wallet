@@ -1,34 +1,101 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, useTemplateRef, onMounted, watch } from 'vue'
 import { balanceSnapshotsApi, type BalanceSnapshot, type BalanceSnapshotCreate } from '../api/balanceSnapshots'
-import { analyticsApi, type BalanceByStorageEntry, type GroupBy } from '../api/analytics'
+import { analyticsApi, type BalanceByStorageEntry, type BalanceByStorageAccount, type GroupBy } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
 import { fmtAmount, fmtPeriod } from '../utils/format'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseConfirmButton from '../components/BaseConfirmButton.vue'
 import BaseButton from '../components/BaseButton.vue'
+import PeriodFilterBar from '../components/PeriodFilterBar.vue'
+import { useSuccessAnimation } from '../composables/useSuccessAnimation'
 
 const refs = useReferencesStore()
+const { spawn } = useSuccessAnimation()
+const addBtnRef = useTemplateRef<HTMLElement>('addBtn')
 const snapshots = ref<BalanceSnapshot[]>([])
 const storageData = ref<BalanceByStorageEntry[]>([])
 const loading = ref(false)
+
+// All currencies and accounts across ALL periods (not just the first row)
+const allCurrencies = computed(() => {
+  const seen = new Set<string>()
+  for (const row of storageData.value) {
+    for (const cur of Object.keys(row.totals)) seen.add(cur)
+  }
+  return [...seen]
+})
+
+const allAccounts = computed(() => {
+  const map = new Map<string, BalanceByStorageAccount>()
+  for (const row of storageData.value) {
+    for (const acc of row.accounts) {
+      if (!map.has(acc.name)) map.set(acc.name, acc)
+    }
+  }
+  return [...map.values()]
+})
+
+function accountCell(row: BalanceByStorageEntry, name: string): string {
+  const acc = row.accounts.find(a => a.name === name)
+  if (!acc) return '—'
+  return `${refs.currencyByCode(acc.currency)?.symbol ?? acc.currency}${fmtAmount(acc.amount)}`
+}
+
+// Expandable rows
+const expandedPeriods = ref<Set<string>>(new Set())
+
+function togglePeriod(period: string) {
+  const s = new Set(expandedPeriods.value)
+  s.has(period) ? s.delete(period) : s.add(period)
+  expandedPeriods.value = s
+}
+
+function snapshotsForPeriod(period: string): BalanceSnapshot[] {
+  if (period.includes('-Q')) {
+    const [year, q] = period.split('-Q')
+    const startM = (parseInt(q) - 1) * 3 + 1
+    return snapshots.value.filter(s => {
+      const [y, m] = s.date.split('-').map(Number)
+      return String(y) === year && m >= startM && m <= startM + 2
+    })
+  }
+  return snapshots.value.filter(s => s.date.startsWith(period))
+}
+
 const showModal = ref(false)
 const editing = ref<BalanceSnapshot | null>(null)
 
-const year = ref(new Date().getFullYear())
+const today = new Date()
+const dateFrom = ref(`${today.getFullYear()}-01-01`)
+const dateTo = ref(today.toISOString().slice(0, 10))
 const groupBy = ref<GroupBy>('month')
+const activePreset = ref('YTD')
+
+const deletePendingId = ref<number | null>(null)
+const removingId = ref<number | null>(null)
+
+const touchedFields = ref(new Set<string>())
 
 const form = ref<BalanceSnapshotCreate>({
   storage_account_id: 0, date: new Date().toISOString().slice(0, 10), amount: 0,
 })
 
+const formErrors = computed(() => ({
+  amount: (form.value.amount ?? -1) < 0 ? 'Must be 0 or greater' : null,
+}))
+
+watch(showModal, (val) => {
+  if (!val) touchedFields.value = new Set()
+})
+
 async function load() {
   loading.value = true
   const [snaps, analytics] = await Promise.all([
-    balanceSnapshotsApi.list({ date_from: `${year.value}-01-01`, date_to: `${year.value}-12-31` }),
+    balanceSnapshotsApi.list({ date_from: dateFrom.value, date_to: dateTo.value }),
     analyticsApi.balanceByStorage({
-      date_from: `${year.value}-01-01`, date_to: `${year.value}-12-31`, group_by: groupBy.value,
+      date_from: dateFrom.value, date_to: dateTo.value, group_by: groupBy.value,
     }),
   ])
   snapshots.value = snaps.data
@@ -37,7 +104,7 @@ async function load() {
 }
 
 onMounted(load)
-watch([year, groupBy], load)
+watch([dateFrom, dateTo, groupBy], load)
 
 function openCreate() {
   editing.value = null
@@ -56,6 +123,11 @@ function openEdit(snap: BalanceSnapshot) {
 }
 
 async function save() {
+  if (formErrors.value.amount) {
+    touchedFields.value = new Set([...touchedFields.value, 'amount'])
+    return
+  }
+  const isCreate = !editing.value
   if (editing.value) {
     await balanceSnapshotsApi.update(editing.value.id, form.value)
   } else {
@@ -63,10 +135,17 @@ async function save() {
   }
   showModal.value = false
   await load()
+  if (isCreate && addBtnRef.value) {
+    const rect = addBtnRef.value.getBoundingClientRect()
+    spawn({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
+  }
 }
 
 async function remove(id: number) {
+  removingId.value = id
+  await new Promise((resolve) => setTimeout(resolve, 280))
   await balanceSnapshotsApi.delete(id)
+  removingId.value = null
   await load()
 }
 </script>
@@ -74,56 +153,73 @@ async function remove(id: number) {
 <template>
   <h1 class="page-title">Balance Snapshots</h1>
 
-  <div class="toolbar">
-    <input v-model.number="year" type="number" min="2020" max="2030" style="width: 100px" />
-    <select v-model="groupBy">
-      <option value="month">Month</option>
-      <option value="quarter">Quarter</option>
-      <option value="year">Year</option>
-    </select>
-    <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Snapshot</BaseButton>
-  </div>
+  <PeriodFilterBar
+    v-model:dateFrom="dateFrom"
+    v-model:dateTo="dateTo"
+    v-model:groupBy="groupBy"
+    v-model:activePreset="activePreset"
+  >
+    <div ref="addBtn"><BaseButton variant="primary" size="sm" @click="openCreate">+ Add Snapshot</BaseButton></div>
+  </PeriodFilterBar>
 
-  <!-- Aggregated view -->
   <BaseDataTable title="Balances by Storage" :loading="loading" :empty="!storageData.length" empty-message="No balance data for selected period.">
     <template #head>
       <tr>
+        <th style="width: 36px;"></th>
         <th>Period</th>
-        <th v-for="(_, cur) in storageData[0]?.totals" :key="cur">{{ cur }} Total</th>
-        <th v-for="acc in storageData[0]?.accounts" :key="acc.name">{{ acc.name }}</th>
+        <th v-for="cur in allCurrencies" :key="cur">{{ cur }} Total</th>
+        <th v-for="acc in allAccounts" :key="acc.name">{{ acc.name }}</th>
       </tr>
     </template>
     <template #body>
-      <tr v-for="row in storageData" :key="row.period">
-        <td>{{ fmtPeriod(row.period) }}</td>
-        <td v-for="(val, cur) in row.totals" :key="cur">{{ refs.currencyByCode(cur)?.symbol ?? cur }}{{ fmtAmount(val) }}</td>
-        <td v-for="acc in row.accounts" :key="acc.name">
-          {{ refs.currencyByCode(acc.currency)?.symbol ?? acc.currency }}{{ fmtAmount(acc.amount) }}
-        </td>
-      </tr>
-    </template>
-  </BaseDataTable>
+      <template v-for="(row, index) in storageData" :key="row.period">
+        <tr
+          class="table-row period-row"
+          :style="{ '--i': Math.min(index, 15) }"
+          @click="togglePeriod(row.period)"
+        >
+          <td>
+            <button class="expand-btn" :class="{ expanded: expandedPeriods.has(row.period) }">▶</button>
+          </td>
+          <td>{{ fmtPeriod(row.period) }}</td>
+          <td v-for="cur in allCurrencies" :key="cur">
+            <template v-if="row.totals[cur] != null">{{ refs.currencyByCode(cur)?.symbol ?? cur }}{{ fmtAmount(row.totals[cur]) }}</template>
+            <template v-else>—</template>
+          </td>
+          <td v-for="col in allAccounts" :key="col.name">{{ accountCell(row, col.name) }}</td>
+        </tr>
 
-  <!-- Raw snapshots -->
-  <BaseDataTable title="All Snapshots" :loading="loading" :empty="!snapshots.length" empty-message="No snapshots yet.">
-    <template #head>
-      <tr>
-        <th>Date</th>
-        <th>Account</th>
-        <th>Amount</th>
-        <th></th>
-      </tr>
-    </template>
-    <template #body>
-      <tr v-for="s in snapshots" :key="s.id">
-        <td>{{ s.date }}</td>
-        <td>{{ refs.storageAccountLabelById(s.storage_account_id) }}</td>
-        <td>{{ fmtAmount(s.amount) }}</td>
-        <td style="white-space: nowrap">
-          <BaseButton variant="secondary" size="sm" @click="openEdit(s)">Edit</BaseButton>
-          <BaseConfirmButton @confirm="remove(s.id)" />
-        </td>
-      </tr>
+        <template v-if="expandedPeriods.has(row.period)">
+          <tr
+            v-for="snap in snapshotsForPeriod(row.period)"
+            :key="snap.id"
+            class="detail-row"
+            :class="{ removing: snap.id === removingId }"
+          >
+            <td></td>
+            <td :colspan="1 + allCurrencies.length + allAccounts.length" class="detail-cell">
+              <div class="detail-content">
+                <span class="detail-date">{{ snap.date }}</span>
+                <span class="detail-account">{{ refs.storageAccountLabelById(snap.storage_account_id) }}</span>
+                <span class="detail-amount">{{ fmtAmount(snap.amount) }}</span>
+                <div class="detail-actions">
+                  <BaseButton v-show="deletePendingId !== snap.id" variant="secondary" size="sm" @click.stop="openEdit(snap)">Edit</BaseButton>
+                  <BaseConfirmButton
+                    @confirm="remove(snap.id)"
+                    @pending-change="(v: boolean) => deletePendingId = v ? snap.id : null"
+                  />
+                </div>
+              </div>
+            </td>
+          </tr>
+          <tr v-if="!snapshotsForPeriod(row.period).length" class="detail-row">
+            <td></td>
+            <td :colspan="1 + allCurrencies.length + allAccounts.length" class="detail-cell" style="font-style: italic; color: rgba(255,255,255,0.35);">
+              No individual snapshots in this period
+            </td>
+          </tr>
+        </template>
+      </template>
     </template>
   </BaseDataTable>
 
@@ -142,7 +238,82 @@ async function remove(id: number) {
     </div>
     <div class="form-group">
       <label>Amount</label>
-      <input v-model.number="form.amount" type="number" step="0.01" min="0" required />
+      <input
+        v-model.number="form.amount"
+        type="number"
+        step="0.01"
+        min="0"
+        required
+        :class="{ 'input-invalid': formErrors.amount && touchedFields.has('amount') }"
+        @blur="touchedFields = new Set([...touchedFields, 'amount'])"
+      />
+      <p v-if="formErrors.amount && touchedFields.has('amount')" class="field-error">{{ formErrors.amount }}</p>
     </div>
   </BaseModal>
 </template>
+
+<style scoped>
+.period-row {
+  cursor: pointer;
+}
+
+.expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.6rem;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: color 0.15s, transform 0.2s;
+  pointer-events: none;
+}
+
+.period-row:hover .expand-btn {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.expand-btn.expanded {
+  transform: rotate(90deg);
+  color: #a78bfa;
+}
+
+.detail-row td {
+  background: rgba(0, 0, 0, 0.18);
+  border-top: none;
+}
+
+.detail-cell {
+  padding: 6px 14px 6px 20px !important;
+}
+
+.detail-content {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.detail-date {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.45);
+  min-width: 90px;
+}
+
+.detail-account {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.65);
+  flex: 1;
+}
+
+.detail-amount {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.detail-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+</style>

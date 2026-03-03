@@ -51,6 +51,7 @@ export interface AnalyticsParams {
   date_from: string
   date_to: string
   group_by?: GroupBy
+  currency_id?: number
 }
 
 export interface ExpenseVsBudgetItem {
@@ -59,6 +60,14 @@ export interface ExpenseVsBudgetItem {
   budgeted: number
   actual: number
   remaining: number
+}
+
+export interface BalanceBreakdownItem {
+  account_id: number
+  account_label: string
+  currency: string
+  latest_snapshot_date: string
+  latest_snapshot_amount: number
 }
 
 export const analyticsApi = {
@@ -70,4 +79,5 @@ export const analyticsApi = {
   expenseTemplate: () => api.get<ExpenseTemplate>('/analytics/expense-template'),
   expenseVsBudget: (params?: { year?: number; month?: number }) =>
     api.get<ExpenseVsBudgetItem[]>('/analytics/expense-vs-budget', { params }),
+  balanceBreakdown: () => api.get<BalanceBreakdownItem[]>('/analytics/balance-breakdown'),
 }

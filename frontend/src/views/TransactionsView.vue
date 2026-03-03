@@ -1,19 +1,30 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, useTemplateRef, onMounted, onUnmounted, watch } from 'vue'
 import { transactionsApi, type Transaction, type TransactionCreate, type TransactionFilters } from '../api/transactions'
 import { useReferencesStore } from '../stores/references'
 import { fmtAmount } from '../utils/format'
+import { useSuccessAnimation } from '../composables/useSuccessAnimation'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseConfirmButton from '../components/BaseConfirmButton.vue'
 import BaseButton from '../components/BaseButton.vue'
+import PeriodFilterBar from '../components/PeriodFilterBar.vue'
 
 const refs = useReferencesStore()
+const { spawn } = useSuccessAnimation()
+const addBtnRef = useTemplateRef<HTMLElement>('addBtn')
+const sentinel = useTemplateRef<HTMLElement>('sentinel')
 const items = ref<Transaction[]>([])
 const loading = ref(false)
 
-const filterDateFrom = ref('')
-const filterDateTo = ref('')
+const PAGE_SIZE = 50
+const offset = ref(0)
+const hasMore = ref(true)
+
+const today = new Date().toISOString().slice(0, 10)
+const dateFrom = ref('2000-01-01')
+const dateTo = ref(today)
+const activePreset = ref('All')
 
 const showModal = ref(false)
 const editing = ref<Transaction | null>(null)
@@ -23,18 +34,60 @@ const form = ref<TransactionCreate>({
   income_source_id: null, expense_category_id: null, description: '',
 })
 
-async function load() {
+const deletePendingId = ref<number | null>(null)
+const removingId = ref<number | null>(null)
+
+const touchedFields = ref(new Set<string>())
+
+const formErrors = computed(() => ({
+  amount: (form.value.amount ?? 0) <= 0 ? 'Must be greater than 0' : null,
+}))
+
+watch(showModal, (val) => {
+  if (!val) touchedFields.value = new Set()
+})
+
+async function loadPage(reset = false) {
+  if (reset) {
+    offset.value = 0
+    items.value = []
+    hasMore.value = true
+  }
+  if (!hasMore.value || loading.value) return
   loading.value = true
-  const params: TransactionFilters = { type: 'income' }
-  if (filterDateFrom.value) params.date_from = filterDateFrom.value
-  if (filterDateTo.value) params.date_to = filterDateTo.value
+  const params: TransactionFilters = {
+    type: 'income',
+    limit: PAGE_SIZE,
+    offset: offset.value,
+    ...(dateFrom.value && { date_from: dateFrom.value }),
+    ...(dateTo.value && { date_to: dateTo.value }),
+  }
   const { data } = await transactionsApi.list(params)
-  items.value = data
+  items.value = reset ? data : [...items.value, ...data]
+  hasMore.value = data.length === PAGE_SIZE
+  offset.value += data.length
   loading.value = false
 }
 
-onMounted(load)
-watch([filterDateFrom, filterDateTo], load)
+let observer: IntersectionObserver | null = null
+
+onMounted(() => {
+  loadPage(true)
+  observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) loadPage(false)
+  }, { rootMargin: '200px' })
+  if (sentinel.value) observer.observe(sentinel.value)
+})
+
+onUnmounted(() => {
+  observer?.disconnect()
+})
+
+watch(sentinel, (el) => {
+  if (el && observer) observer.observe(el)
+})
+
+watch([dateFrom, dateTo], () => loadPage(true))
 
 function openCreate() {
   editing.value = null
@@ -56,18 +109,30 @@ function openEdit(tx: Transaction) {
 }
 
 async function save() {
+  if (formErrors.value.amount) {
+    touchedFields.value = new Set([...touchedFields.value, 'amount'])
+    return
+  }
+  const isCreate = !editing.value
   if (editing.value) {
     await transactionsApi.update(editing.value.id, form.value)
   } else {
     await transactionsApi.create(form.value)
   }
   showModal.value = false
-  await load()
+  await loadPage(true)
+  if (isCreate && addBtnRef.value) {
+    const rect = addBtnRef.value.getBoundingClientRect()
+    spawn({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
+  }
 }
 
 async function remove(id: number) {
+  removingId.value = id
+  await new Promise((resolve) => setTimeout(resolve, 280))
   await transactionsApi.delete(id)
-  await load()
+  removingId.value = null
+  await loadPage(true)
 }
 
 function sourceName(id: number | null) {
@@ -79,13 +144,16 @@ function sourceName(id: number | null) {
 <template>
   <h1 class="page-title">Income</h1>
 
-  <div class="toolbar">
-    <input v-model="filterDateFrom" type="date" placeholder="From" />
-    <input v-model="filterDateTo" type="date" placeholder="To" />
-    <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Income</BaseButton>
-  </div>
+  <PeriodFilterBar
+    v-model:dateFrom="dateFrom"
+    v-model:dateTo="dateTo"
+    v-model:activePreset="activePreset"
+    :showGroupBy="false"
+  >
+    <div ref="addBtn"><BaseButton variant="primary" size="sm" @click="openCreate">+ Add Income</BaseButton></div>
+  </PeriodFilterBar>
 
-  <BaseDataTable :loading="loading" :empty="!items.length" empty-message="No income transactions yet.">
+  <BaseDataTable :loading="loading && !items.length" :empty="!loading && !items.length" empty-message="No income transactions yet.">
     <template #head>
       <tr>
         <th>Date</th>
@@ -97,19 +165,31 @@ function sourceName(id: number | null) {
       </tr>
     </template>
     <template #body>
-      <tr v-for="tx in items" :key="tx.id">
+      <tr
+        v-for="(tx, index) in items"
+        :key="tx.id"
+        class="table-row"
+        :style="{ '--i': Math.min(index, 15) }"
+        :class="{ removing: tx.id === removingId }"
+      >
         <td>{{ tx.date }}</td>
         <td class="amount-positive">{{ fmtAmount(tx.amount) }}</td>
         <td>{{ refs.storageAccountLabelById(tx.storage_account_id) }}</td>
         <td>{{ sourceName(tx.income_source_id) }}</td>
         <td>{{ tx.description || '' }}</td>
         <td style="white-space: nowrap">
-          <BaseButton variant="secondary" size="sm" @click="openEdit(tx)">Edit</BaseButton>
-          <BaseConfirmButton @confirm="remove(tx.id)" />
+          <BaseButton v-show="deletePendingId !== tx.id" variant="secondary" size="sm" @click="openEdit(tx)">Edit</BaseButton>
+          <BaseConfirmButton
+            @confirm="remove(tx.id)"
+            @pending-change="(v: boolean) => deletePendingId = v ? tx.id : null"
+          />
         </td>
       </tr>
     </template>
   </BaseDataTable>
+
+  <div ref="sentinel" style="height: 1px;" />
+  <p v-if="loading && items.length" class="text-muted" style="text-align: center; padding: 1rem;">Loading more...</p>
 
   <BaseModal :show="showModal" :title="`${editing ? 'Edit' : 'New'} Income`" @close="showModal = false" @submit="save">
     <div class="form-group">
@@ -118,7 +198,16 @@ function sourceName(id: number | null) {
     </div>
     <div class="form-group">
       <label>Amount</label>
-      <input v-model.number="form.amount" type="number" step="0.01" min="0" required />
+      <input
+        v-model.number="form.amount"
+        type="number"
+        step="0.01"
+        min="0"
+        required
+        :class="{ 'input-invalid': formErrors.amount && touchedFields.has('amount') }"
+        @blur="touchedFields = new Set([...touchedFields, 'amount'])"
+      />
+      <p v-if="formErrors.amount && touchedFields.has('amount')" class="field-error">{{ formErrors.amount }}</p>
     </div>
     <div class="form-group">
       <label>Account</label>

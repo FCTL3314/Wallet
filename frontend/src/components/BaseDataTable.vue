@@ -13,9 +13,11 @@ defineProps<{
   <BaseCard :title="title">
     <p v-if="loading">Loading...</p>
     <p v-else-if="empty" class="text-muted">{{ emptyMessage ?? 'No items yet.' }}</p>
-    <table v-else class="data-table">
-      <thead><slot name="head" /></thead>
-      <tbody><slot name="body" /></tbody>
-    </table>
+    <div v-else style="overflow-x: auto;">
+      <table class="data-table">
+        <thead><slot name="head" /></thead>
+        <tbody><slot name="body" /></tbody>
+      </table>
+    </div>
   </BaseCard>
 </template>

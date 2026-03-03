@@ -68,13 +68,13 @@ async function remove(id: number) {
     <BaseStatCard label="Total Monthly">
       <div class="stat-value">{{ fmtAmount(template.total) }}</div>
     </BaseStatCard>
-    <BaseStatCard label="Without Tax">
-      <div class="stat-value">{{ fmtAmount(template.without_tax) }}</div>
+    <BaseStatCard label="Annual Total">
+      <div class="stat-value">{{ fmtAmount(template.total * 12) }}</div>
     </BaseStatCard>
-    <BaseStatCard label="Without Rent">
-      <div class="stat-value">{{ fmtAmount(template.without_rent) }}</div>
+    <BaseStatCard label="Fixed Costs">
+      <div class="stat-value">{{ fmtAmount(template.total - template.without_tax_and_rent) }}</div>
     </BaseStatCard>
-    <BaseStatCard label="Without Tax & Rent">
+    <BaseStatCard label="Discretionary">
       <div class="stat-value">{{ fmtAmount(template.without_tax_and_rent) }}</div>
     </BaseStatCard>
   </div>
@@ -84,8 +84,7 @@ async function remove(id: number) {
       <tr>
         <th>Name</th>
         <th>Budget / Month</th>
-        <th>Tax</th>
-        <th>Rent</th>
+        <th>Tags</th>
         <th></th>
       </tr>
     </template>
@@ -93,8 +92,10 @@ async function remove(id: number) {
       <tr v-for="item in template?.items" :key="item.id">
         <td>{{ item.name }}</td>
         <td>{{ fmtAmount(item.budgeted_amount) }}</td>
-        <td>{{ item.is_tax ? 'Yes' : '' }}</td>
-        <td>{{ item.is_rent ? 'Yes' : '' }}</td>
+        <td>
+          <span v-if="item.is_tax" class="type-tag">tax</span>
+          <span v-if="item.is_rent" class="type-tag">rent</span>
+        </td>
         <td style="white-space: nowrap">
           <BaseButton variant="secondary" size="sm" @click="openEdit(item)">Edit</BaseButton>
           <BaseConfirmButton @confirm="remove(item.id)" />
@@ -120,3 +121,16 @@ async function remove(id: number) {
     </div>
   </BaseModal>
 </template>
+
+<style scoped>
+.type-tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.35);
+  margin-right: 4px;
+  letter-spacing: 0.02em;
+}
+</style>
