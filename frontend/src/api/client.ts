@@ -33,10 +33,11 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
     const status = error.response?.status
-    const code = error.response?.data?.code
-    const isAuthError = code?.startsWith('auth/')
+    const isAuthEndpoint = ['/auth/login', '/auth/register', '/auth/refresh'].some((path) =>
+      originalRequest.url?.includes(path),
+    )
 
-    if (status === 401 && !isAuthError && !originalRequest._retry) {
+    if (status === 401 && !isAuthEndpoint && !originalRequest._retry) {
       const refreshToken = localStorage.getItem('refresh_token')
 
       if (!refreshToken) {
@@ -76,7 +77,7 @@ api.interceptors.response.use(
       }
     }
 
-    if (toastService && !isAuthError) {
+    if (toastService && !isAuthEndpoint) {
       toastService.add({
         severity: 'error',
         summary: 'Error',
