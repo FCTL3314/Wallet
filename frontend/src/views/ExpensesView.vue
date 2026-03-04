@@ -118,7 +118,7 @@ async function remove(id: number) {
         v-for="(item, index) in template?.items"
         :key="item.id"
         class="table-row"
-        :style="{ '--i': Math.min(index, 15) }"
+        :style="{ '--i': String(Math.min(index, 15)) }"
         :class="{ removing: item.id === removingId, 'row-new': item.id === newId }"
       >
         <td>{{ item.name }}</td>

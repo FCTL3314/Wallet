@@ -189,7 +189,7 @@ async function remove(id: number) {
       <template v-for="(row, index) in storageData" :key="row.period">
         <tr
           class="table-row period-row"
-          :style="{ '--i': Math.min(index, 15) }"
+          :style="{ '--i': String(Math.min(index, 15)) }"
           @click="togglePeriod(row.period)"
         >
           <td>

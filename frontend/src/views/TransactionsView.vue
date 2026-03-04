@@ -85,7 +85,7 @@ onMounted(() => {
     }
   })
   observer = new IntersectionObserver((entries) => {
-    if (entries[0].isIntersecting) loadPage(false)
+    if (entries[0]?.isIntersecting) loadPage(false)
   }, { rootMargin: '200px' })
   if (sentinel.value) observer.observe(sentinel.value)
 })
@@ -185,7 +185,7 @@ function sourceName(id: number | null) {
         v-for="(tx, index) in items"
         :key="tx.id"
         class="table-row"
-        :style="{ '--i': Math.min(index, 15) }"
+        :style="{ '--i': String(Math.min(index, 15)) }"
         :class="{ removing: tx.id === removingId, 'row-new': tx.id === newId }"
       >
         <td>{{ tx.date }}</td>
