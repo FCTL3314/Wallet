@@ -144,7 +144,7 @@ const donutChartData = computed(() => {
   return {
     labels,
     datasets: [{
-      data: labels.map((l) => totals[l]),
+      data: labels.map((l) => totals[l] ?? 0),
       backgroundColor: DONUT_COLORS.slice(0, labels.length),
       borderWidth: 0,
     }],

@@ -57,7 +57,8 @@ function snapshotsForPeriod(period: string): BalanceSnapshot[] {
     const [year, q] = period.split('-Q')
     const startM = (parseInt(q) - 1) * 3 + 1
     return snapshots.value.filter(s => {
-      const [y, m] = s.date.split('-').map(Number)
+      const parts = s.date.split('-').map(Number)
+      const [y, m] = parts as [number, number]
       return String(y) === year && m >= startM && m <= startM + 2
     })
   }
