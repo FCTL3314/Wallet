@@ -1,0 +1,28 @@
+/* ============================================================
+   SETTINGS
+   ============================================================ */
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+.settings-item-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.settings-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--card-border);
+    font-size: 0.875rem;
+}
+
+.settings-item:last-child {
+    border-bottom: none;
+}

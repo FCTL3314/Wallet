@@ -1,0 +1,28 @@
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+
+.page-title {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 28px;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+}
+
+.text-muted {
+    color: var(--text-secondary);
+}
+
+.amount-positive {
+    color: var(--color-income);
+    font-family: var(--font-number);
+    font-weight: 600;
+}
+
+.amount-negative {
+    color: var(--color-expense);
+    font-family: var(--font-number);
+    font-weight: 600;
+}

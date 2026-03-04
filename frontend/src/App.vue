@@ -28,11 +28,6 @@ function logout() {
 <template>
   <Toast position="top-right" />
 
-  <!-- Aurora background orbs -->
-  <div class="aurora-orb aurora-orb-1"></div>
-  <div class="aurora-orb aurora-orb-2"></div>
-  <div class="aurora-orb aurora-orb-3"></div>
-
   <div v-if="auth.isAuthenticated" class="app-layout">
     <aside class="sidebar">
       <div class="sidebar-brand">

@@ -1,0 +1,24 @@
+/* ============================================================
+   PRIMEVUE TOAST OVERRIDES
+   ============================================================ */
+
+.p-toast .p-toast-message {
+    background: #1e1e48 !important;
+    backdrop-filter: var(--blur-modal) !important;
+    -webkit-backdrop-filter: var(--blur-modal) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 16px !important;
+    color: var(--text-primary) !important;
+    box-shadow: var(--shadow-card-solid) !important;
+}
+
+.p-toast .p-toast-message .p-toast-summary {
+    color: var(--text-primary) !important;
+    font-family: var(--font-heading) !important;
+    font-weight: 600 !important;
+}
+
+.p-toast .p-toast-message .p-toast-detail {
+    color: var(--text-secondary) !important;
+    font-family: var(--font-body) !important;
+}

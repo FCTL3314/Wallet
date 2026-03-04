@@ -1,0 +1,158 @@
+/* ============================================================
+   FORM ELEMENTS
+   ============================================================ */
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-family: var(--font-body);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text-label);
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-input);
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    outline: none;
+    transition: all 0.2s var(--ease-smooth);
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+    color: var(--text-placeholder);
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: rgba(167, 139, 250, 0.70);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25), 0 0 16px rgba(124, 58, 237, 0.15);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.form-group select option {
+    background: #1a1040;
+    color: var(--text-primary);
+}
+
+.form-group input.input-invalid {
+    border-color: rgba(251, 113, 133, 0.70);
+    box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.15);
+    animation: field-shake 0.35s ease;
+}
+
+.field-error {
+    color: rgba(251, 113, 133, 0.90);
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+    margin-bottom: 0;
+}
+
+/* Settings small inputs */
+.form-input-sm {
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-size: 0.8125rem;
+    color: var(--text-primary);
+    outline: none;
+    transition: all 0.2s var(--ease-smooth);
+}
+
+.form-input-sm::placeholder {
+    color: var(--text-placeholder);
+}
+
+.form-input-sm:focus {
+    border-color: rgba(167, 139, 250, 0.70);
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.20);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* ============================================================
+   CHECKBOX GROUP
+   ============================================================ */
+
+.checkbox-group {
+    display: flex;
+    gap: 24px;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--color-accent);
+}
+
+/* ============================================================
+   PASSWORD REQUIREMENTS CHECKLIST
+   ============================================================ */
+
+.password-requirements {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.req-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    font-family: var(--font-body);
+    transition: color 0.2s;
+}
+
+.req-met {
+    color: var(--color-income);
+}
+
+.req-unmet {
+    color: var(--text-secondary);
+}
+
+.req-icon {
+    font-size: 0.75rem;
+    width: 14px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+/* ============================================================
+   MESSAGES
+   ============================================================ */
+
+.error-msg {
+    color: var(--color-expense);
+    font-size: 0.8125rem;
+    margin-top: 4px;
+}
+
+.success-msg {
+    color: var(--color-income);
+    font-size: 0.8125rem;
+}

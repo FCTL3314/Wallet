@@ -1,0 +1,98 @@
+/* ============================================================
+   CARDS
+   ============================================================ */
+
+.card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-card);
+    padding: 24px;
+    box-shadow: var(--shadow-card-solid);
+    margin-bottom: 24px;
+    animation: fade-up 0.4s var(--ease-spring) both;
+    transition: transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-smooth);
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 28px 72px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(124, 58, 237, 0.15);
+}
+
+.card-title {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text-primary);
+}
+
+/* ============================================================
+   STAT CARDS
+   ============================================================ */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-stat);
+    padding: 22px;
+    box-shadow: var(--shadow-card-solid);
+    position: relative;
+    overflow: hidden;
+    animation: fade-up 0.4s var(--ease-spring) both;
+    transition: transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-smooth);
+}
+
+.stat-card:hover {
+    transform: translateY(-3px) scale(1.01);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55), 0 0 32px rgba(124, 58, 237, 0.12);
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: -40px;
+    left: -40px;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    filter: blur(40px);
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.stat-card--income::before {
+    background: var(--color-income);
+}
+
+.stat-card--expense::before {
+    background: var(--color-expense);
+}
+
+.stat-card--profit::before {
+    background: var(--color-accent-light);
+}
+
+.stat-label {
+    font-family: var(--font-body);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--text-label);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+}
+
+.stat-value {
+    font-family: var(--font-number);
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.1;
+}

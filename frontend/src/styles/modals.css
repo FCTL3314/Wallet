@@ -1,0 +1,55 @@
+/* ============================================================
+   MODAL OVERLAY & MODAL
+   ============================================================ */
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: var(--blur-overlay);
+    -webkit-backdrop-filter: var(--blur-overlay);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+.modal {
+    background: #1e1e48;
+    backdrop-filter: var(--blur-modal);
+    -webkit-backdrop-filter: var(--blur-modal);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-modal);
+    padding: 32px;
+    width: 100%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-card-solid), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+    animation: modal-in 0.22s var(--ease-spring) both;
+}
+
+.modal h2 {
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: var(--text-primary);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 24px;
+}
+
+/* ============================================================
+   CONFIRM BUTTON WRAP
+   ============================================================ */
+
+.confirm-btn-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
