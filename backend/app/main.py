@@ -1,17 +1,17 @@
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
 
 from app.api import (
-    auth,
-    currencies,
-    storage,
-    income_sources,
-    expense_categories,
-    transactions,
-    balance_snapshots,
     analytics,
+    auth,
+    balance_snapshots,
+    currencies,
+    expense_categories,
+    income_sources,
+    storage,
+    transactions,
 )
 from app.core.config import settings
 from app.core.exceptions import AppException, ErrorResponse
@@ -29,7 +29,7 @@ if settings.CORS_ORIGINS:
 
 
 @app.exception_handler(AppException)
-async def app_exception_handler(request: Request, exc: AppException):
+async def app_exception_handler(_: Request, exc: AppException):
     return JSONResponse(
         status_code=exc.status_code,
         content=ErrorResponse(
@@ -41,7 +41,7 @@ async def app_exception_handler(request: Request, exc: AppException):
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(_: Request, exc: RequestValidationError):
     errors = exc.errors()
     first_error = errors[0] if errors else {}
     field = ".".join(str(loc) for loc in first_error.get("loc", [])[1:])

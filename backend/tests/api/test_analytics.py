@@ -6,11 +6,10 @@ from app.models.transaction import TransactionType
 
 
 async def _seed_transactions(db_session, user, ref_data):
-    """Create a set of transactions for analytics tests."""
+    """Create a set of income transactions for analytics tests."""
     account = ref_data["account"]
     currency = ref_data["currency"]
     income_source = ref_data["income_source"]
-    expense_category = ref_data["expense_category"]
 
     txns = [
         Transaction(
@@ -24,30 +23,12 @@ async def _seed_transactions(db_session, user, ref_data):
         ),
         Transaction(
             user_id=user.id,
-            type=TransactionType.expense,
-            date=date(2025, 1, 20),
-            amount=Decimal("500.00"),
-            currency_id=currency.id,
-            storage_account_id=account.id,
-            expense_category_id=expense_category.id,
-        ),
-        Transaction(
-            user_id=user.id,
             type=TransactionType.income,
             date=date(2025, 2, 15),
             amount=Decimal("3200.00"),
             currency_id=currency.id,
             storage_account_id=account.id,
             income_source_id=income_source.id,
-        ),
-        Transaction(
-            user_id=user.id,
-            type=TransactionType.expense,
-            date=date(2025, 2, 20),
-            amount=Decimal("600.00"),
-            currency_id=currency.id,
-            storage_account_id=account.id,
-            expense_category_id=expense_category.id,
         ),
     ]
     for t in txns:
@@ -57,16 +38,66 @@ async def _seed_transactions(db_session, user, ref_data):
 
 
 async def test_summary_empty_period(auth_client, test_user, ref_data):
+    """Summary for a period with no data returns one entry per calendar month, all zeroed."""
     resp = await auth_client.get(
         "/api/analytics/summary",
-        params={"date_from": "2099-01-01", "date_to": "2099-12-31"},
+        params={
+            "date_from": "2099-01-01",
+            "date_to": "2099-03-31",
+            "group_by": "month",
+        },
     )
     assert resp.status_code == 200
-    assert resp.json() == []
+    data = resp.json()
+    assert len(data) == 3
+    assert all(float(row["income"]) == 0.0 for row in data)
+    assert all(float(row["profit"]) == 0.0 for row in data)
 
 
 async def test_summary_with_transactions(auth_client, test_user, ref_data, db_session):
-    await _seed_transactions(db_session, test_user, ref_data)
+    account = ref_data["account"]
+    currency = ref_data["currency"]
+    income_source = ref_data["income_source"]
+
+    db_session.add_all(
+        [
+            Transaction(
+                user_id=test_user.id,
+                type=TransactionType.income,
+                date=date(2025, 1, 15),
+                amount=Decimal("3000.00"),
+                currency_id=currency.id,
+                storage_account_id=account.id,
+                income_source_id=income_source.id,
+            ),
+            Transaction(
+                user_id=test_user.id,
+                type=TransactionType.income,
+                date=date(2025, 2, 15),
+                amount=Decimal("3200.00"),
+                currency_id=currency.id,
+                storage_account_id=account.id,
+                income_source_id=income_source.id,
+            ),
+        ]
+    )
+    db_session.add_all(
+        [
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 1, 31),
+                amount=Decimal("2500.00"),
+            ),
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 2, 28),
+                amount=Decimal("5100.00"),
+            ),
+        ]
+    )
+    await db_session.flush()
 
     resp = await auth_client.get(
         "/api/analytics/summary",
@@ -82,8 +113,54 @@ async def test_summary_with_transactions(auth_client, test_user, ref_data, db_se
 
     jan = data[0]
     assert float(jan["income"]) == 3000.0
-    assert float(jan["expenses"]) == 500.0
     assert float(jan["profit"]) == 2500.0
+    assert jan["is_bootstrap"] is True
+    assert float(jan["derived_expense"]) == 0.0
+
+    feb = data[1]
+    assert float(feb["income"]) == 3200.0
+    assert float(feb["profit"]) == 2600.0
+    assert feb["is_bootstrap"] is False
+    assert float(feb["derived_expense"]) == 600.0
+
+
+async def test_summary_income_only_no_snapshots(
+    auth_client, test_user, ref_data, db_session
+):
+    """Income with no snapshots: profit=0, derived_expense=income."""
+    account = ref_data["account"]
+    currency = ref_data["currency"]
+    income_source = ref_data["income_source"]
+
+    db_session.add(
+        Transaction(
+            user_id=test_user.id,
+            type=TransactionType.income,
+            date=date(2025, 3, 10),
+            amount=Decimal("4000.00"),
+            currency_id=currency.id,
+            storage_account_id=account.id,
+            income_source_id=income_source.id,
+        )
+    )
+    await db_session.flush()
+
+    resp = await auth_client.get(
+        "/api/analytics/summary",
+        params={
+            "date_from": "2025-03-01",
+            "date_to": "2025-03-31",
+            "group_by": "month",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    row = data[0]
+    assert float(row["income"]) == 4000.0
+    assert float(row["profit"]) == 0.0
+    assert row["is_bootstrap"] is False
+    assert float(row["derived_expense"]) == 4000.0
 
 
 async def test_summary_with_balance_snapshots(
@@ -167,7 +244,7 @@ async def test_expense_template(auth_client, test_user, ref_data, db_session):
     tax_cat = ExpenseCategory(
         name="Tax",
         budgeted_amount=Decimal("200.00"),
-        is_tax=True,
+        tags=["tax"],
         user_id=test_user.id,
     )
     db_session.add(tax_cat)
@@ -186,7 +263,6 @@ async def test_expense_template(auth_client, test_user, ref_data, db_session):
 async def test_expense_vs_budget_with_transactions(
     auth_client, test_user, ref_data, db_session
 ):
-    # Create a transaction for January
     db_session.add(
         Transaction(
             user_id=test_user.id,
@@ -224,3 +300,55 @@ async def test_expense_vs_budget_no_transactions(auth_client, test_user, ref_dat
     assert len(data) == 1
     assert float(data[0]["actual"]) == 0
     assert float(data[0]["remaining"]) == 500.0
+
+
+async def test_expense_vs_budget_multi_category(
+    auth_client, test_user, ref_data, db_session
+):
+    from app.models import ExpenseCategory
+
+    transport_cat = ExpenseCategory(
+        name="Transport",
+        budgeted_amount=Decimal("300.00"),
+        user_id=test_user.id,
+    )
+    db_session.add(transport_cat)
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            Transaction(
+                user_id=test_user.id,
+                type=TransactionType.expense,
+                date=date(2025, 2, 10),
+                amount=Decimal("450.00"),
+                currency_id=ref_data["currency"].id,
+                storage_account_id=ref_data["account"].id,
+                expense_category_id=ref_data["expense_category"].id,
+            ),
+            Transaction(
+                user_id=test_user.id,
+                type=TransactionType.expense,
+                date=date(2025, 2, 15),
+                amount=Decimal("100.00"),
+                currency_id=ref_data["currency"].id,
+                storage_account_id=ref_data["account"].id,
+                expense_category_id=transport_cat.id,
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    resp = await auth_client.get(
+        "/api/analytics/expense-vs-budget",
+        params={"year": 2025, "month": 2},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 2
+
+    by_name = {item["name"]: item for item in data}
+    assert float(by_name["Food"]["actual"]) == 450.0
+    assert float(by_name["Food"]["remaining"]) == 50.0
+    assert float(by_name["Transport"]["actual"]) == 100.0
+    assert float(by_name["Transport"]["remaining"]) == 200.0

@@ -34,14 +34,3 @@ export function getErrorMessage(error: unknown): string {
     }
     return 'An unexpected error occurred'
 }
-
-export function getErrorCode(error: unknown): string | null {
-    if (typeof error === 'object' && error !== null) {
-        const axiosError = error as { response?: { data?: unknown } }
-        const data = axiosError.response?.data
-        if (isApiError(data)) {
-            return data.code
-        }
-    }
-    return null
-}

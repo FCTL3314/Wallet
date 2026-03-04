@@ -41,6 +41,11 @@ make prod-build   # Rebuild and start
 make prod-down    # Stop production
 ```
 
+### Tests
+```bash
+docker exec -it dev-backend-1 uv run pytest .
+```
+
 ### Local Development (without Docker)
 
 **Database:**

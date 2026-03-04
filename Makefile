@@ -10,16 +10,6 @@ dev-build:
 dev-down:
 	docker compose -f docker/dev/docker-compose.yml down
 
-# Production
-prod:
-	docker compose -f docker/prod/docker-compose.yml up -d
-
-prod-build:
-	docker compose -f docker/prod/docker-compose.yml up -d --build
-
-prod-down:
-	docker compose -f docker/prod/docker-compose.yml down
-
 # Setup
 setup:
 	pre-commit install

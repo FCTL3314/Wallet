@@ -16,7 +16,7 @@ async def test_create_income(auth_client, ref_data):
     assert float(data["amount"]) == 3000.0
 
 
-async def test_create_expense(auth_client, ref_data):
+async def test_create_expense_blocked(auth_client, ref_data):
     resp = await auth_client.post(
         "/api/transactions/",
         json={
@@ -25,11 +25,10 @@ async def test_create_expense(auth_client, ref_data):
             "amount": "50.00",
             "currency_id": ref_data["currency"].id,
             "storage_account_id": ref_data["account"].id,
-            "expense_category_id": ref_data["expense_category"].id,
         },
     )
-    assert resp.status_code == 201
-    assert resp.json()["type"] == "expense"
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "transaction/expense_not_allowed"
 
 
 async def test_update_transaction(auth_client, ref_data):
@@ -47,6 +46,23 @@ async def test_update_transaction(auth_client, ref_data):
     resp = await auth_client.put(f"/api/transactions/{tid}", json={"amount": "200.00"})
     assert resp.status_code == 200
     assert float(resp.json()["amount"]) == 200.0
+
+
+async def test_expense_type_update_blocked(auth_client, ref_data):
+    create = await auth_client.post(
+        "/api/transactions/",
+        json={
+            "type": "income",
+            "date": "2025-02-01",
+            "amount": "100.00",
+            "currency_id": ref_data["currency"].id,
+            "storage_account_id": ref_data["account"].id,
+        },
+    )
+    tid = create.json()["id"]
+    resp = await auth_client.put(f"/api/transactions/{tid}", json={"type": "expense"})
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "transaction/expense_not_allowed"
 
 
 async def test_delete_transaction(auth_client, ref_data):
@@ -121,7 +137,7 @@ async def test_fk_ownership_income_source(
 async def test_fk_ownership_expense_category(
     auth_client, other_user, db_session, ref_data
 ):
-    """expense_category_id belonging to another user should be rejected."""
+    """expense_category_id belonging to another user should be rejected (using type=income)."""
     from app.models import ExpenseCategory
 
     other_cat = ExpenseCategory(name="Other Food", user_id=other_user.id)
@@ -131,7 +147,7 @@ async def test_fk_ownership_expense_category(
     resp = await auth_client.post(
         "/api/transactions/",
         json={
-            "type": "expense",
+            "type": "income",
             "date": "2025-04-01",
             "amount": "100.00",
             "currency_id": ref_data["currency"].id,
@@ -143,12 +159,63 @@ async def test_fk_ownership_expense_category(
     assert resp.json()["code"] == "resource/expense_category_not_found"
 
 
+async def test_currency_mismatch_rejected(auth_client, ref_data, db_session, test_user):
+    """Transaction currency that differs from storage account currency should be rejected."""
+    from app.models import Currency
+
+    other_currency = Currency(code="EUR", symbol="€", user_id=test_user.id)
+    db_session.add(other_currency)
+    await db_session.flush()
+
+    resp = await auth_client.post(
+        "/api/transactions/",
+        json={
+            "type": "income",
+            "date": "2025-06-01",
+            "amount": "100.00",
+            "currency_id": other_currency.id,
+            "storage_account_id": ref_data["account"].id,
+        },
+    )
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "transaction/currency_mismatch"
+
+
+async def test_update_income_source_to_other_user(
+    auth_client, other_user, db_session, ref_data
+):
+    """Updating income_source_id to another user's source should be rejected."""
+    from app.models import IncomeSource
+
+    create = await auth_client.post(
+        "/api/transactions/",
+        json={
+            "type": "income",
+            "date": "2025-06-01",
+            "amount": "100.00",
+            "currency_id": ref_data["currency"].id,
+            "storage_account_id": ref_data["account"].id,
+        },
+    )
+    tid = create.json()["id"]
+
+    other_source = IncomeSource(name="Other Source", user_id=other_user.id)
+    db_session.add(other_source)
+    await db_session.flush()
+
+    resp = await auth_client.put(
+        f"/api/transactions/{tid}", json={"income_source_id": other_source.id}
+    )
+    assert resp.status_code == 404
+    assert resp.json()["code"] == "resource/income_source_not_found"
+
+
 async def test_filter_by_type(auth_client, ref_data):
-    for tx_type in ("income", "expense"):
+    for _ in range(2):
         await auth_client.post(
             "/api/transactions/",
             json={
-                "type": tx_type,
+                "type": "income",
                 "date": "2025-05-01",
                 "amount": "100.00",
                 "currency_id": ref_data["currency"].id,
@@ -158,7 +225,16 @@ async def test_filter_by_type(auth_client, ref_data):
 
     resp = await auth_client.get("/api/transactions/", params={"type": "income"})
     assert resp.status_code == 200
-    assert all(t["type"] == "income" for t in resp.json())
+    data = resp.json()
+    assert len(data) == 2
+    assert all(t["type"] == "income" for t in data)
+
+
+async def test_filter_by_type_no_expense(auth_client, ref_data):
+    """Filtering by expense type returns empty since expense transactions cannot be created."""
+    resp = await auth_client.get("/api/transactions/", params={"type": "expense"})
+    assert resp.status_code == 200
+    assert resp.json() == []
 
 
 async def test_filter_by_date_range(auth_client, ref_data):

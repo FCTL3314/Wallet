@@ -12,24 +12,18 @@ async def test_create_defaults(auth_client):
     data = resp.json()
     assert data["name"] == "Transport"
     assert float(data["budgeted_amount"]) == 0.0
-    assert data["is_tax"] is False
-    assert data["is_rent"] is False
+    assert data["tags"] == []
 
 
 async def test_create_with_all_fields(auth_client):
     resp = await auth_client.post(
         "/api/expense-categories/",
-        json={
-            "name": "Rent",
-            "budgeted_amount": "1200.00",
-            "is_tax": False,
-            "is_rent": True,
-        },
+        json={"name": "Rent", "budgeted_amount": "1200.00", "tags": ["rent"]},
     )
     assert resp.status_code == 201
     data = resp.json()
     assert float(data["budgeted_amount"]) == 1200.0
-    assert data["is_rent"] is True
+    assert data["tags"] == ["rent"]
 
 
 async def test_update_budgeted_amount(auth_client):
@@ -42,14 +36,14 @@ async def test_update_budgeted_amount(auth_client):
     assert float(resp.json()["budgeted_amount"]) == 750.5
 
 
-async def test_update_flags(auth_client):
+async def test_update_tags(auth_client):
     create = await auth_client.post("/api/expense-categories/", json={"name": "Tax"})
     cid = create.json()["id"]
     resp = await auth_client.put(
-        f"/api/expense-categories/{cid}", json={"is_tax": True}
+        f"/api/expense-categories/{cid}", json={"tags": ["tax"]}
     )
     assert resp.status_code == 200
-    assert resp.json()["is_tax"] is True
+    assert resp.json()["tags"] == ["tax"]
 
 
 async def test_delete(auth_client):

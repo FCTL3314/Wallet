@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, field_validator
 
-from app.schemas._validators import validate_amount_non_negative
+from app.schemas._validators import validate_amount_positive
 
 
 class BalanceSnapshotCreate(BaseModel):
@@ -13,8 +13,8 @@ class BalanceSnapshotCreate(BaseModel):
 
     @field_validator("amount")
     @classmethod
-    def amount_non_negative(cls, v: Decimal) -> Decimal:
-        return validate_amount_non_negative(v)
+    def amount_positive(cls, v: Decimal) -> Decimal:
+        return validate_amount_positive(v)
 
 
 class BalanceSnapshotUpdate(BaseModel):
@@ -24,8 +24,8 @@ class BalanceSnapshotUpdate(BaseModel):
 
     @field_validator("amount")
     @classmethod
-    def amount_non_negative(cls, v: Decimal | None) -> Decimal | None:
-        return validate_amount_non_negative(v) if v is not None else v
+    def amount_positive(cls, v: Decimal | None) -> Decimal | None:
+        return validate_amount_positive(v) if v is not None else v
 
 
 class BalanceSnapshotResponse(BaseModel):
