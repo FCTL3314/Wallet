@@ -15,6 +15,7 @@ from app.services.analytics import (
     get_expense_template,
     get_expense_vs_budget,
     get_balance_breakdown,
+    get_date_range,
 )
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -94,3 +95,12 @@ async def balance_breakdown(
 ):
     """Return the latest balance snapshot per storage account for the authenticated user."""
     return await get_balance_breakdown(db, user.id)
+
+
+@router.get("/date-range")
+async def date_range(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the earliest and latest dates across the user's transactions and balance snapshots."""
+    return await get_date_range(db, user.id)

@@ -103,9 +103,9 @@ async def create_transaction(
     return obj
 
 
-@router.put("/{tx_id}", response_model=TransactionResponse)
+@router.put("/{transaction_id}", response_model=TransactionResponse)
 async def update_transaction(
-    tx_id: int,
+    transaction_id: int,
     body: TransactionUpdate,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -116,7 +116,7 @@ async def update_transaction(
             message="Expense transactions are not supported. Record balance snapshots instead.",
             status_code=422,
         )
-    obj = await get_or_404(db, Transaction, tx_id, user.id, "transaction")
+    obj = await get_or_404(db, Transaction, transaction_id, user.id, "transaction")
     data = body.model_dump(exclude_unset=True)
     await _validate_fk_ownership(
         db, user.id, data.get("income_source_id"), data.get("expense_category_id")
@@ -128,11 +128,11 @@ async def update_transaction(
     return obj
 
 
-@router.delete("/{tx_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_transaction(
-    tx_id: int,
+    transaction_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    obj = await get_or_404(db, Transaction, tx_id, user.id, "transaction")
+    obj = await get_or_404(db, Transaction, transaction_id, user.id, "transaction")
     await db.delete(obj)

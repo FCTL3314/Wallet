@@ -28,11 +28,11 @@ async def create_source(
     return obj
 
 
-@router.put("/{source_id}", response_model=IncomeSourceResponse)
+@router.put("/{income_source_id}", response_model=IncomeSourceResponse)
 async def update_source(
-    source_id: int, body: IncomeSourceUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    income_source_id: int, body: IncomeSourceUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    obj = await get_or_404(db, IncomeSource, source_id, user.id, "income_source")
+    obj = await get_or_404(db, IncomeSource, income_source_id, user.id, "income_source")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -40,9 +40,9 @@ async def update_source(
     return obj
 
 
-@router.delete("/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{income_source_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_source(
-    source_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    income_source_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    obj = await get_or_404(db, IncomeSource, source_id, user.id, "income_source")
+    obj = await get_or_404(db, IncomeSource, income_source_id, user.id, "income_source")
     await db.delete(obj)

@@ -140,6 +140,11 @@ const { data, loading, error, execute } = useAsync(() => api.list())
 - Use `storeToRefs()` in components: `const { token } = storeToRefs(authStore)`
 - Lookup helpers (e.g. `currencyById`) use `Map` not linear `find()` for O(1) access
 
+### Component-First Interactive Patterns
+- Never duplicate interactive patterns inline — always encapsulate in a shared component
+- Edit + Delete pair → always use `EditDeleteActions.vue` (handles pending state + animations)
+- Any pattern used in 2+ places must become a base/feature component
+
 ### Avoid
 - `confirm()` for deletion — use a modal or inline confirmation
 - `refs.fetchAll()` after every CRUD op — update local state or fetch only changed resource

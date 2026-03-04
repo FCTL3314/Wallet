@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, useTemplateRef, onMounted, onUnmounted, watch } from 'vue'
 import { transactionsApi, type Transaction, type TransactionCreate, type TransactionFilters } from '../api/transactions'
+import { analyticsApi } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
 import { fmtAmount } from '../utils/format'
 import { useSuccessAnimation } from '../composables/useSuccessAnimation'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
-import BaseConfirmButton from '../components/BaseConfirmButton.vue'
 import BaseButton from '../components/BaseButton.vue'
+import EditDeleteActions from '../components/EditDeleteActions.vue'
 import PeriodFilterBar from '../components/PeriodFilterBar.vue'
 
 const refs = useReferencesStore()
@@ -25,6 +26,7 @@ const today = new Date().toISOString().slice(0, 10)
 const dateFrom = ref('2000-01-01')
 const dateTo = ref(today)
 const activePreset = ref('All')
+const allRange = ref<{ from: string; to: string } | null>(null)
 
 const showModal = ref(false)
 const editing = ref<Transaction | null>(null)
@@ -34,8 +36,8 @@ const form = ref<TransactionCreate>({
   income_source_id: null, expense_category_id: null, description: '',
 })
 
-const deletePendingId = ref<number | null>(null)
 const removingId = ref<number | null>(null)
+const newId = ref<number | null>(null)
 
 const touchedFields = ref(new Set<string>())
 
@@ -73,6 +75,15 @@ let observer: IntersectionObserver | null = null
 
 onMounted(() => {
   loadPage(true)
+  analyticsApi.dateRange().then(({ data }) => {
+    if (data.min_date && data.max_date) {
+      allRange.value = { from: data.min_date, to: data.max_date }
+      if (activePreset.value === 'All') {
+        dateFrom.value = data.min_date
+        dateTo.value = data.max_date
+      }
+    }
+  })
   observer = new IntersectionObserver((entries) => {
     if (entries[0].isIntersecting) loadPage(false)
   }, { rootMargin: '200px' })
@@ -117,13 +128,17 @@ async function save() {
   if (editing.value) {
     await transactionsApi.update(editing.value.id, form.value)
   } else {
-    await transactionsApi.create(form.value)
+    const { data } = await transactionsApi.create(form.value)
+    newId.value = (data as { id: number }).id
   }
   showModal.value = false
   await loadPage(true)
   if (isCreate && addBtnRef.value) {
     const rect = addBtnRef.value.getBoundingClientRect()
     spawn({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
+  }
+  if (newId.value !== null) {
+    setTimeout(() => { newId.value = null }, 1500)
   }
 }
 
@@ -149,6 +164,7 @@ function sourceName(id: number | null) {
     v-model:dateTo="dateTo"
     v-model:activePreset="activePreset"
     :showGroupBy="false"
+    :allRange="allRange"
   >
     <div ref="addBtn"><BaseButton variant="primary" size="sm" @click="openCreate">+ Add Income</BaseButton></div>
   </PeriodFilterBar>
@@ -170,7 +186,7 @@ function sourceName(id: number | null) {
         :key="tx.id"
         class="table-row"
         :style="{ '--i': Math.min(index, 15) }"
-        :class="{ removing: tx.id === removingId }"
+        :class="{ removing: tx.id === removingId, 'row-new': tx.id === newId }"
       >
         <td>{{ tx.date }}</td>
         <td class="amount-positive">{{ fmtAmount(tx.amount) }}</td>
@@ -178,11 +194,7 @@ function sourceName(id: number | null) {
         <td>{{ sourceName(tx.income_source_id) }}</td>
         <td>{{ tx.description || '' }}</td>
         <td style="white-space: nowrap">
-          <BaseButton v-show="deletePendingId !== tx.id" variant="secondary" size="sm" @click="openEdit(tx)">Edit</BaseButton>
-          <BaseConfirmButton
-            @confirm="remove(tx.id)"
-            @pending-change="(v: boolean) => deletePendingId = v ? tx.id : null"
-          />
+          <EditDeleteActions @edit="openEdit(tx)" @confirm="remove(tx.id)" />
         </td>
       </tr>
     </template>

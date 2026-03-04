@@ -404,6 +404,12 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.25);
     margin-bottom: 24px;
     animation: fade-up 0.4s var(--ease-spring) both;
+    transition: transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-smooth);
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 28px 72px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(124, 58, 237, 0.15);
 }
 
 .card-title {
@@ -437,6 +443,12 @@ body {
     position: relative;
     overflow: hidden;
     animation: fade-up 0.4s var(--ease-spring) both;
+    transition: transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-smooth);
+}
+
+.stat-card:hover {
+    transform: translateY(-3px) scale(1.01);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.32), 0 0 32px rgba(124, 58, 237, 0.12);
 }
 
 .stat-card::before {
@@ -1017,6 +1029,22 @@ table.data-table tbody tr:hover {
 }
 
 /* ============================================================
+   PAGE ROUTE TRANSITIONS
+   ============================================================ */
+
+.page-enter-active { transition: opacity 0.2s ease, transform 0.25s var(--ease-smooth); }
+.page-leave-active { transition: opacity 0.15s ease; }
+.page-enter-from   { opacity: 0; transform: translateY(8px); }
+.page-leave-to     { opacity: 0; }
+
+/* ============================================================
+   MODAL TRANSITIONS
+   ============================================================ */
+
+.modal-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
+.modal-leave-to     { opacity: 0; transform: scale(0.94); }
+
+/* ============================================================
    PRIMEVUE TOAST OVERRIDES
    ============================================================ */
 
@@ -1098,3 +1126,19 @@ tr.removing {
     pointer-events: none;
     animation: row-remove 0.28s ease forwards;
 }
+
+@keyframes row-new {
+    0%   { opacity: 0; transform: translateY(-8px); background: rgba(124, 58, 237, 0.25); }
+    35%  { opacity: 1; transform: translateY(0);    background: rgba(124, 58, 237, 0.12); }
+    100% { background: transparent; }
+}
+
+tr.row-new {
+    animation: row-new 1.4s var(--ease-spring) both;
+}
+
+.settings-item-enter-active { transition: opacity 0.3s var(--ease-spring), transform 0.3s var(--ease-spring); }
+.settings-item-leave-active  { transition: opacity 0.22s var(--ease-smooth), transform 0.22s var(--ease-smooth); }
+.settings-item-enter-from    { opacity: 0; transform: translateY(-6px); }
+.settings-item-leave-to      { opacity: 0; transform: translateX(16px); }
+.settings-item-move          { transition: transform 0.28s var(--ease-smooth); }

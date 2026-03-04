@@ -4,6 +4,7 @@ from decimal import Decimal
 from pydantic import BaseModel, field_validator
 
 from app.models.transaction import TransactionType
+from app.schemas._validators import validate_amount_positive
 
 
 class TransactionCreate(BaseModel):
@@ -19,9 +20,7 @@ class TransactionCreate(BaseModel):
     @field_validator("amount")
     @classmethod
     def amount_positive(cls, v: Decimal) -> Decimal:
-        if v <= 0:
-            raise ValueError("amount must be greater than 0")
-        return v
+        return validate_amount_positive(v)
 
 
 class TransactionUpdate(BaseModel):
@@ -37,9 +36,7 @@ class TransactionUpdate(BaseModel):
     @field_validator("amount")
     @classmethod
     def amount_positive(cls, v: Decimal | None) -> Decimal | None:
-        if v is not None and v <= 0:
-            raise ValueError("amount must be greater than 0")
-        return v
+        return validate_amount_positive(v) if v is not None else v
 
 
 class TransactionResponse(BaseModel):

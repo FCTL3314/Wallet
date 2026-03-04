@@ -28,11 +28,11 @@ async def create_category(
     return obj
 
 
-@router.put("/{cat_id}", response_model=ExpenseCategoryResponse)
+@router.put("/{category_id}", response_model=ExpenseCategoryResponse)
 async def update_category(
-    cat_id: int, body: ExpenseCategoryUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    category_id: int, body: ExpenseCategoryUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    obj = await get_or_404(db, ExpenseCategory, cat_id, user.id, "expense_category")
+    obj = await get_or_404(db, ExpenseCategory, category_id, user.id, "expense_category")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -40,9 +40,9 @@ async def update_category(
     return obj
 
 
-@router.delete("/{cat_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_category(
-    cat_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    category_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    obj = await get_or_404(db, ExpenseCategory, cat_id, user.id, "expense_category")
+    obj = await get_or_404(db, ExpenseCategory, category_id, user.id, "expense_category")
     await db.delete(obj)

@@ -53,8 +53,12 @@ function logout() {
       </div>
     </aside>
     <main class="main-content">
-      <RouterView />
+      <Transition name="page" mode="out-in">
+        <RouterView />
+      </Transition>
     </main>
   </div>
-  <RouterView v-else />
+  <Transition name="page" mode="out-in">
+    <RouterView v-if="!auth.isAuthenticated" />
+  </Transition>
 </template>

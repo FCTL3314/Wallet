@@ -8,6 +8,7 @@ import {
 import { useCrudSection } from '../composables/useCrudSection'
 import BaseButton from '../components/BaseButton.vue'
 import BaseConfirmButton from '../components/BaseConfirmButton.vue'
+import EditDeleteActions from '../components/EditDeleteActions.vue'
 import SettingsSection from '../components/SettingsSection.vue'
 
 const refs = useReferencesStore()
@@ -114,10 +115,7 @@ async function saveEditSource() {
         </template>
         <template v-else>
           <span>{{ c.code }} ({{ c.symbol }})</span>
-          <div style="display: flex; gap: 8px">
-            <BaseButton variant="secondary" size="sm" @click="openEditCurrency(c)">Edit</BaseButton>
-            <BaseConfirmButton @confirm="deleteCurrency(c.id)" />
-          </div>
+          <EditDeleteActions @edit="openEditCurrency(c)" @confirm="deleteCurrency(c.id)" />
         </template>
       </template>
     </SettingsSection>
@@ -137,10 +135,7 @@ async function saveEditSource() {
         </template>
         <template v-else>
           <span>{{ l.name }}</span>
-          <div style="display: flex; gap: 8px">
-            <BaseButton variant="secondary" size="sm" @click="openEditLocation(l)">Edit</BaseButton>
-            <BaseConfirmButton @confirm="deleteLocation(l.id)" />
-          </div>
+          <EditDeleteActions @edit="openEditLocation(l)" @confirm="deleteLocation(l.id)" />
         </template>
       </template>
     </SettingsSection>
@@ -178,10 +173,7 @@ async function saveEditSource() {
         </template>
         <template v-else>
           <span>{{ s.name }}</span>
-          <div style="display: flex; gap: 8px">
-            <BaseButton variant="secondary" size="sm" @click="openEditSource(s)">Edit</BaseButton>
-            <BaseConfirmButton @confirm="deleteSource(s.id)" />
-          </div>
+          <EditDeleteActions @edit="openEditSource(s)" @confirm="deleteSource(s.id)" />
         </template>
       </template>
     </SettingsSection>

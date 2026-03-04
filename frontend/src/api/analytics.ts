@@ -11,6 +11,7 @@ export interface SummaryEntry {
   avg_profit: number
   balances: Record<string, number>
   balance_change: Record<string, number>
+  is_bootstrap?: boolean
 }
 
 export interface IncomeBySourceEntry {
@@ -35,16 +36,12 @@ export interface ExpenseTemplateItem {
   id: number
   name: string
   budgeted_amount: number
-  is_tax: boolean
-  is_rent: boolean
+  tags: string[]
 }
 
 export interface ExpenseTemplate {
   items: ExpenseTemplateItem[]
   total: number
-  without_tax: number
-  without_rent: number
-  without_tax_and_rent: number
 }
 
 export interface AnalyticsParams {
@@ -70,6 +67,11 @@ export interface BalanceBreakdownItem {
   latest_snapshot_amount: number
 }
 
+export interface DateRange {
+  min_date: string | null
+  max_date: string | null
+}
+
 export const analyticsApi = {
   summary: (params: AnalyticsParams) => api.get<SummaryEntry[]>('/analytics/summary', { params }),
   incomeBySource: (params: AnalyticsParams) =>
@@ -80,4 +82,5 @@ export const analyticsApi = {
   expenseVsBudget: (params?: { year?: number; month?: number }) =>
     api.get<ExpenseVsBudgetItem[]>('/analytics/expense-vs-budget', { params }),
   balanceBreakdown: () => api.get<BalanceBreakdownItem[]>('/analytics/balance-breakdown'),
+  dateRange: () => api.get<DateRange>('/analytics/date-range'),
 }

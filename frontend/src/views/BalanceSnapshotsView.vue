@@ -6,8 +6,8 @@ import { useReferencesStore } from '../stores/references'
 import { fmtAmount, fmtPeriod } from '../utils/format'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
-import BaseConfirmButton from '../components/BaseConfirmButton.vue'
 import BaseButton from '../components/BaseButton.vue'
+import EditDeleteActions from '../components/EditDeleteActions.vue'
 import PeriodFilterBar from '../components/PeriodFilterBar.vue'
 import { useSuccessAnimation } from '../composables/useSuccessAnimation'
 
@@ -72,8 +72,8 @@ const dateFrom = ref(`${today.getFullYear()}-01-01`)
 const dateTo = ref(today.toISOString().slice(0, 10))
 const groupBy = ref<GroupBy>('month')
 const activePreset = ref('YTD')
+const allRange = ref<{ from: string; to: string } | null>(null)
 
-const deletePendingId = ref<number | null>(null)
 const removingId = ref<number | null>(null)
 
 const touchedFields = ref(new Set<string>())
@@ -103,7 +103,18 @@ async function load() {
   loading.value = false
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  analyticsApi.dateRange().then(({ data: dr }) => {
+    if (dr.min_date && dr.max_date) {
+      allRange.value = { from: dr.min_date, to: dr.max_date }
+      if (activePreset.value === 'All') {
+        dateFrom.value = dr.min_date
+        dateTo.value = dr.max_date
+      }
+    }
+  })
+})
 watch([dateFrom, dateTo, groupBy], load)
 
 function openCreate() {
@@ -158,6 +169,7 @@ async function remove(id: number) {
     v-model:dateTo="dateTo"
     v-model:groupBy="groupBy"
     v-model:activePreset="activePreset"
+    :allRange="allRange"
   >
     <div ref="addBtn"><BaseButton variant="primary" size="sm" @click="openCreate">+ Add Snapshot</BaseButton></div>
   </PeriodFilterBar>
@@ -203,11 +215,7 @@ async function remove(id: number) {
                 <span class="detail-account">{{ refs.storageAccountLabelById(snap.storage_account_id) }}</span>
                 <span class="detail-amount">{{ fmtAmount(snap.amount) }}</span>
                 <div class="detail-actions">
-                  <BaseButton v-show="deletePendingId !== snap.id" variant="secondary" size="sm" @click.stop="openEdit(snap)">Edit</BaseButton>
-                  <BaseConfirmButton
-                    @confirm="remove(snap.id)"
-                    @pending-change="(v: boolean) => deletePendingId = v ? snap.id : null"
-                  />
+                  <EditDeleteActions @edit="openEdit(snap)" @confirm="remove(snap.id)" />
                 </div>
               </div>
             </td>

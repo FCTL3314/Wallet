@@ -1,4 +1,8 @@
+from __future__ import annotations
+
 from pydantic import BaseModel
+
+from app.schemas.currency import CurrencyResponse
 
 
 class StorageLocationCreate(BaseModel):
@@ -30,11 +34,6 @@ class StorageAccountResponse(BaseModel):
     storage_location_id: int
     currency_id: int
     storage_location: StorageLocationResponse | None = None
-    currency: "CurrencyResponse | None" = None
+    currency: CurrencyResponse | None = None
 
     model_config = {"from_attributes": True}
-
-
-from app.schemas.currency import CurrencyResponse  # noqa: E402
-
-StorageAccountResponse.model_rebuild()

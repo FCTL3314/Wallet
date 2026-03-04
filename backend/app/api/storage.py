@@ -38,11 +38,11 @@ async def create_location(
     return obj
 
 
-@router.put("/storage-locations/{loc_id}", response_model=StorageLocationResponse)
+@router.put("/storage-locations/{location_id}", response_model=StorageLocationResponse)
 async def update_location(
-    loc_id: int, body: StorageLocationUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    location_id: int, body: StorageLocationUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    obj = await get_or_404(db, StorageLocation, loc_id, user.id, "storage_location")
+    obj = await get_or_404(db, StorageLocation, location_id, user.id, "storage_location")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -50,11 +50,11 @@ async def update_location(
     return obj
 
 
-@router.delete("/storage-locations/{loc_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/storage-locations/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_location(
-    loc_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    location_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    obj = await get_or_404(db, StorageLocation, loc_id, user.id, "storage_location")
+    obj = await get_or_404(db, StorageLocation, location_id, user.id, "storage_location")
     await db.delete(obj)
 
 
@@ -81,12 +81,12 @@ async def create_account(
     return obj
 
 
-@router.put("/storage-accounts/{acc_id}", response_model=StorageAccountResponse)
+@router.put("/storage-accounts/{account_id}", response_model=StorageAccountResponse)
 async def update_account(
-    acc_id: int, body: StorageAccountUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    account_id: int, body: StorageAccountUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
     obj = await get_or_404(
-        db, StorageAccount, acc_id, user.id, "storage_account",
+        db, StorageAccount, account_id, user.id, "storage_account",
         options=[selectinload(StorageAccount.storage_location), selectinload(StorageAccount.currency)],
     )
     for k, v in body.model_dump(exclude_unset=True).items():
@@ -96,9 +96,9 @@ async def update_account(
     return obj
 
 
-@router.delete("/storage-accounts/{acc_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/storage-accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_account(
-    acc_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    account_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    obj = await get_or_404(db, StorageAccount, acc_id, user.id, "storage_account")
+    obj = await get_or_404(db, StorageAccount, account_id, user.id, "storage_account")
     await db.delete(obj)

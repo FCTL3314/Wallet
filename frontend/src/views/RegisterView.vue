@@ -3,6 +3,7 @@ import { useForm, useField } from 'vee-validate'
 import * as yup from 'yup'
 import { useAuthStore } from '../stores/auth'
 import { useAuthForm } from '../composables/useAuthForm'
+import PasswordRequirements from '../components/PasswordRequirements.vue'
 
 const auth = useAuthStore()
 const { serverError, submitAuthAction } = useAuthForm()
@@ -63,24 +64,7 @@ const submit = handleSubmit((values) => {
             }"
           />
           <p v-if="formErrors.password" class="field-error">{{ formErrors.password }}</p>
-          <div class="password-requirements" v-if="password">
-            <div :class="['req-item', password.length >= 8 ? 'req-met' : 'req-unmet']">
-              <span class="req-icon">{{ password.length >= 8 ? '✓' : '✗' }}</span>
-              At least 8 characters
-            </div>
-            <div :class="['req-item', /[A-Z]/.test(password) ? 'req-met' : 'req-unmet']">
-              <span class="req-icon">{{ /[A-Z]/.test(password) ? '✓' : '✗' }}</span>
-              Uppercase letter (A–Z)
-            </div>
-            <div :class="['req-item', /[a-z]/.test(password) ? 'req-met' : 'req-unmet']">
-              <span class="req-icon">{{ /[a-z]/.test(password) ? '✓' : '✗' }}</span>
-              Lowercase letter (a–z)
-            </div>
-            <div :class="['req-item', /\d/.test(password) ? 'req-met' : 'req-unmet']">
-              <span class="req-icon">{{ /\d/.test(password) ? '✓' : '✗' }}</span>
-              At least one digit (0–9)
-            </div>
-          </div>
+          <PasswordRequirements :password="password ?? ''" />
         </div>
         <div class="form-group">
           <label>Confirm Password</label>

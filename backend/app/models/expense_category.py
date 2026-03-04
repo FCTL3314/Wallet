@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import String, ForeignKey, Numeric, Boolean, UniqueConstraint
+from sqlalchemy import String, ForeignKey, Numeric, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -13,8 +13,7 @@ class ExpenseCategory(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
     budgeted_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
-    is_tax: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_rent: Mapped[bool] = mapped_column(Boolean, default=False)
+    tags: Mapped[list] = mapped_column(JSON, default=list)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
 
     user = relationship("User", back_populates="expense_categories")

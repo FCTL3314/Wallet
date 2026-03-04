@@ -8,6 +8,7 @@ import { authApi } from '../api/auth'
 import { getErrorMessage } from '../api/errors'
 import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
+import PasswordRequirements from '../components/PasswordRequirements.vue'
 
 const auth = useAuthStore()
 const { user } = storeToRefs(auth)
@@ -141,24 +142,7 @@ const submitPassword = handlePasswordSubmit(async (values) => {
             }"
           />
           <p v-if="passwordErrors.newPassword" class="field-error">{{ passwordErrors.newPassword }}</p>
-          <div class="password-requirements" v-if="newPassword">
-            <div :class="['req-item', newPassword.length >= 8 ? 'req-met' : 'req-unmet']">
-              <span class="req-icon">{{ newPassword.length >= 8 ? '✓' : '✗' }}</span>
-              At least 8 characters
-            </div>
-            <div :class="['req-item', /[A-Z]/.test(newPassword) ? 'req-met' : 'req-unmet']">
-              <span class="req-icon">{{ /[A-Z]/.test(newPassword) ? '✓' : '✗' }}</span>
-              Uppercase letter (A–Z)
-            </div>
-            <div :class="['req-item', /[a-z]/.test(newPassword) ? 'req-met' : 'req-unmet']">
-              <span class="req-icon">{{ /[a-z]/.test(newPassword) ? '✓' : '✗' }}</span>
-              Lowercase letter (a–z)
-            </div>
-            <div :class="['req-item', /\d/.test(newPassword) ? 'req-met' : 'req-unmet']">
-              <span class="req-icon">{{ /\d/.test(newPassword) ? '✓' : '✗' }}</span>
-              At least one digit (0–9)
-            </div>
-          </div>
+          <PasswordRequirements :password="newPassword ?? ''" />
         </div>
         <div class="form-group">
           <label>Confirm New Password</label>

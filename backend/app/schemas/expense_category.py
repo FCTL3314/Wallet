@@ -6,22 +6,19 @@ from pydantic import BaseModel
 class ExpenseCategoryCreate(BaseModel):
     name: str
     budgeted_amount: Decimal = Decimal("0")
-    is_tax: bool = False
-    is_rent: bool = False
+    tags: list[str] = []
 
 
 class ExpenseCategoryUpdate(BaseModel):
     name: str | None = None
     budgeted_amount: Decimal | None = None
-    is_tax: bool | None = None
-    is_rent: bool | None = None
+    tags: list[str] | None = None
 
 
 class ExpenseCategoryResponse(BaseModel):
     id: int
     name: str
     budgeted_amount: Decimal
-    is_tax: bool
-    is_rent: bool
+    tags: list[str]
 
     model_config = {"from_attributes": True}

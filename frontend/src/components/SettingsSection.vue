@@ -12,8 +12,10 @@ const emit = defineEmits<{ add: [] }>()
       <slot name="add-form" />
       <BaseButton variant="primary" size="sm" @click="emit('add')">Add</BaseButton>
     </div>
-    <div v-for="item in items" :key="item.id" class="settings-item">
-      <slot :item="item" />
-    </div>
+    <TransitionGroup tag="div" name="settings-item">
+      <div v-for="item in items" :key="item.id" class="settings-item">
+        <slot :item="item" />
+      </div>
+    </TransitionGroup>
   </BaseCard>
 </template>

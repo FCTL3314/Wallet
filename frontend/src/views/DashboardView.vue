@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { analyticsApi, type SummaryEntry, type GroupBy, type IncomeBySourceEntry, type BalanceBreakdownItem } from '../api/analytics'
+import { analyticsApi, type GroupBy, type IncomeBySourceEntry, type BalanceBreakdownItem } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
 import { storeToRefs } from 'pinia'
 import { fmtAmount, fmtPeriod } from '../utils/format'
+import { buildLineChartOptions, donutOptions, DONUT_COLORS } from '../utils/charts'
 import { Line, Doughnut } from 'vue-chartjs'
 import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler,
@@ -13,20 +14,30 @@ import BaseCard from '../components/BaseCard.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseStatCard from '../components/BaseStatCard.vue'
 import PeriodFilterBar from '../components/PeriodFilterBar.vue'
+import type { Preset, SummaryEntry } from '../types/index'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler, ArcElement)
 
 const refs = useReferencesStore()
 const { currencies } = storeToRefs(refs)
 
-type Preset = 'YTD' | '3M' | '6M' | '12M' | 'custom'
-
 const groupBy = ref<GroupBy>('month')
 const data = ref<SummaryEntry[]>([])
 const sourceData = ref<IncomeBySourceEntry[]>([])
 const loading = ref(false)
 const selectedCurrencyId = ref<number | null>(null)
+
+watch(
+  currencies,
+  () => {
+    if (selectedCurrencyId.value === null) {
+      selectedCurrencyId.value = refs.currencyByCode('USD')?.id ?? currencies.value[0]?.id ?? null
+    }
+  },
+  { immediate: true },
+)
 const activePreset = ref<Preset>('YTD')
+const allRange = ref<{ from: string; to: string } | null>(null)
 
 const today = new Date()
 const dateFrom = ref(`${today.getFullYear()}-01-01`)
@@ -34,6 +45,7 @@ const dateTo = ref(today.toISOString().slice(0, 10))
 
 const breakdown = ref<BalanceBreakdownItem[]>([])
 const showBreakdown = ref(false)
+const hoveredPeriod = ref<string | null>(null)
 
 async function loadBreakdown() {
   const { data: bd } = await analyticsApi.balanceBreakdown()
@@ -60,7 +72,19 @@ async function load() {
   }
 }
 
-onMounted(() => { load(); loadBreakdown() })
+onMounted(() => {
+  load()
+  loadBreakdown()
+  analyticsApi.dateRange().then(({ data: dr }) => {
+    if (dr.min_date && dr.max_date) {
+      allRange.value = { from: dr.min_date, to: dr.max_date }
+      if (activePreset.value === 'All') {
+        dateFrom.value = dr.min_date
+        dateTo.value = dr.max_date
+      }
+    }
+  })
+})
 watch([dateFrom, dateTo, groupBy, selectedCurrencyId], load)
 
 const lastEntry = computed(() => data.value[data.value.length - 1] ?? null)
@@ -72,15 +96,7 @@ const selectedCurrencyCode = computed(() => {
   return refs.currencyById(selectedCurrencyId.value)?.code ?? null
 })
 
-const displayedBalances = computed(() => {
-  if (!lastEntry.value?.balances) return {}
-  if (selectedCurrencyId.value === null) return lastEntry.value.balances
-  const code = selectedCurrencyCode.value
-  if (!code) return lastEntry.value.balances
-  const filtered: Record<string, number> = {}
-  if (code in lastEntry.value.balances) filtered[code] = lastEntry.value.balances[code]
-  return filtered
-})
+const displayedBalances = computed(() => lastEntry.value?.balances ?? {})
 
 const chartData = computed(() => ({
   labels: data.value.map((e) => fmtPeriod(e.period)),
@@ -112,34 +128,9 @@ const chartData = computed(() => ({
   ],
 }))
 
-const chartOptions = computed(() => ({
-  responsive: true,
-  plugins: {
-    legend: {
-      position: 'top' as const,
-      labels: {
-        color: 'rgba(255,255,255,0.60)',
-        font: { family: 'DM Sans', size: 12 },
-      },
-    },
-  },
-  scales: {
-    y: {
-      beginAtZero: true,
-      grid: { color: 'rgba(255,255,255,0.07)' },
-      ticks: { color: 'rgba(255,255,255,0.50)' },
-      title: selectedCurrencyCode.value
-        ? { display: true, text: selectedCurrencyCode.value, color: 'rgba(255,255,255,0.50)' }
-        : { display: false },
-    },
-    x: {
-      grid: { color: 'rgba(255,255,255,0.07)' },
-      ticks: { color: 'rgba(255,255,255,0.50)' },
-    },
-  },
-}))
-
-const DONUT_COLORS = ['#fbbf24', '#34d399', '#06b6d4', '#a78bfa', '#fb7185', '#f97316']
+const chartOptions = computed(() =>
+  buildLineChartOptions(selectedCurrencyCode.value, (p) => { hoveredPeriod.value = p }, data.value)
+)
 
 const donutChartData = computed(() => {
   const totals: Record<string, number> = {}
@@ -159,18 +150,7 @@ const donutChartData = computed(() => {
   }
 })
 
-const donutOptions = {
-  responsive: true,
-  plugins: {
-    legend: {
-      position: 'right' as const,
-      labels: {
-        color: 'rgba(255,255,255,0.60)',
-        font: { family: 'DM Sans', size: 12 },
-      },
-    },
-  },
-}
+
 </script>
 
 <template>
@@ -181,14 +161,10 @@ const donutOptions = {
     v-model:dateTo="dateTo"
     v-model:groupBy="groupBy"
     v-model:activePreset="activePreset"
+    :allRange="allRange"
   />
 
   <div class="currency-tabs">
-    <button
-      class="tab-pill"
-      :class="{ 'tab-pill--active': selectedCurrencyId === null }"
-      @click="selectedCurrencyId = null"
-    >All</button>
     <button
       v-for="cur in currencies"
       :key="cur.id"
@@ -248,19 +224,20 @@ const donutOptions = {
       </tr>
     </template>
     <template #body>
-      <tr v-for="row in data" :key="row.period">
-        <td>{{ fmtPeriod(row.period) }}</td>
+      <tr v-for="row in data" :key="row.period" :class="{ 'row-highlighted': row.period === hoveredPeriod }">
         <td>
-          <template v-if="selectedCurrencyCode">
-            <span v-if="row.balances[selectedCurrencyCode] !== undefined">
-              {{ selectedCurrencyCode }} {{ fmtAmount(row.balances[selectedCurrencyCode]) }}
-            </span>
-            <span v-else>—</span>
+          {{ fmtPeriod(row.period) }}
+          <span
+            v-if="row.is_bootstrap"
+            class="badge-initial"
+            title="Starting balance snapshot — reflects initial capital entered by the user, not real earned income or profit."
+          >Initial</span>
+        </td>
+        <td>
+          <template v-if="Object.keys(row.balances).length">
+            <span v-for="(val, cur) in row.balances" :key="cur">{{ cur }} {{ fmtAmount(val) }}</span>
           </template>
-          <template v-else>
-            <span v-for="(val, cur) in row.balances" :key="cur">{{ cur }} {{ fmtAmount(val) }}&nbsp;</span>
-            <span v-if="!row.balances || !Object.keys(row.balances).length">—</span>
-          </template>
+          <span v-else>—</span>
         </td>
         <td class="amount-positive">{{ fmtAmount(row.income) }}</td>
         <td :class="row.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(row.profit) }}</td>
@@ -349,5 +326,24 @@ const donutOptions = {
 
 .breakdown-date {
   color: rgba(255, 255, 255, 0.35);
+}
+
+.row-highlighted {
+  background: rgba(167, 139, 250, 0.15);
+}
+
+.badge-initial {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  border-radius: 9999px;
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  vertical-align: middle;
+  cursor: default;
 }
 </style>

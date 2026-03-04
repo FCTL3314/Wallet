@@ -28,8 +28,7 @@ export interface ExpenseCategory {
   id: number
   name: string
   budgeted_amount: number
-  is_tax: boolean
-  is_rent: boolean
+  tags: string[]
 }
 
 export const currenciesApi = {
