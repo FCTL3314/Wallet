@@ -19,7 +19,7 @@ async def get_summary(
     currency_id: int | None = None,
 ) -> list[dict]:
     """
-    Excel-model summary: profit = balance_change, derived_expense = profit - income.
+    Excel-model summary: profit = balance_change, derived_expense = income - profit.
     Generates one row per calendar period in the requested range.
     """
     periods = _generate_periods(date_from, date_to, group_by)
@@ -38,7 +38,7 @@ async def get_summary(
     income_count = 0
     profit_count = 0
 
-    for i, (period_start, period_end) in enumerate(periods):
+    for period_start, period_end in periods:
         period_key = period_start.isoformat()
         income = income_map.get(period_key, Decimal("0"))
 
@@ -51,11 +51,9 @@ async def get_summary(
         }
 
         profit = sum(balance_change.values(), Decimal("0"))
-        total_cur_balance = sum(cur_balances.values(), Decimal("0"))
-        derived_expense = Decimal("0") if total_cur_balance == Decimal("0") else profit - income
-
         # Detect bootstrap period: no prior snapshots, so balance_change = initial capital entry.
-        is_bootstrap = i == 0 and not prev_balances and total_cur_balance > 0
+        is_bootstrap = not prev_balances and sum(cur_balances.values(), Decimal("0")) > 0
+        derived_expense = Decimal("0") if is_bootstrap else max(Decimal("0"), income - profit)
 
         if not is_bootstrap:
             if income > 0:

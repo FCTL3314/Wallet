@@ -61,7 +61,9 @@ function snapshotsForPeriod(period: string): BalanceSnapshot[] {
       return String(y) === year && m >= startM && m <= startM + 2
     })
   }
-  return snapshots.value.filter(s => s.date.startsWith(period))
+  // period is "YYYY-MM-01" for month, "YYYY-01-01" for year — use appropriate prefix
+  const prefix = groupBy.value === 'year' ? period.slice(0, 4) : period.slice(0, 7)
+  return snapshots.value.filter(s => s.date.startsWith(prefix))
 }
 
 const showModal = ref(false)

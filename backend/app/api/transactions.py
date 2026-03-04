@@ -8,7 +8,7 @@ from app.core.database import get_db
 from app.core.db_helpers import get_or_404
 from app.core.dependencies import get_current_user
 from app.core.exceptions import AppException, ResourceNotFound
-from app.models import ExpenseCategory, IncomeSource, Transaction, User
+from app.models import ExpenseCategory, IncomeSource, StorageAccount, Transaction, User
 from app.models.transaction import TransactionType
 from app.schemas.transaction import (
     TransactionCreate,
@@ -17,6 +17,26 @@ from app.schemas.transaction import (
 )
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
+
+
+async def _validate_currency_matches_account(
+    db: AsyncSession,
+    user_id: int,
+    storage_account_id: int,
+    currency_id: int,
+) -> None:
+    result = await db.execute(
+        select(StorageAccount).where(
+            StorageAccount.id == storage_account_id, StorageAccount.user_id == user_id
+        )
+    )
+    account = result.scalar_one_or_none()
+    if account and account.currency_id != currency_id:
+        raise AppException(
+            code="transaction/currency_mismatch",
+            message="Transaction currency must match the storage account currency.",
+            status_code=422,
+        )
 
 
 async def _validate_fk_ownership(
@@ -96,6 +116,7 @@ async def create_transaction(
     await _validate_fk_ownership(
         db, user.id, body.income_source_id, body.expense_category_id
     )
+    await _validate_currency_matches_account(db, user.id, body.storage_account_id, body.currency_id)
     obj = Transaction(**body.model_dump(), user_id=user.id)
     db.add(obj)
     await db.flush()
@@ -121,6 +142,9 @@ async def update_transaction(
     await _validate_fk_ownership(
         db, user.id, data.get("income_source_id"), data.get("expense_category_id")
     )
+    account_id = data.get("storage_account_id", obj.storage_account_id)
+    currency_id = data.get("currency_id", obj.currency_id)
+    await _validate_currency_matches_account(db, user.id, account_id, currency_id)
     for k, v in data.items():
         setattr(obj, k, v)
     await db.flush()

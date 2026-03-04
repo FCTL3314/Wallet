@@ -88,6 +88,7 @@ onMounted(() => {
 watch([dateFrom, dateTo, groupBy, selectedCurrencyId], load)
 
 const lastEntry = computed(() => data.value[data.value.length - 1] ?? null)
+const chartEntries = computed(() => data.value.filter((e) => !e.is_bootstrap))
 const avgIncome = computed(() => lastEntry.value?.avg_income ?? 0)
 const avgProfit = computed(() => lastEntry.value?.avg_profit ?? 0)
 
@@ -99,11 +100,11 @@ const selectedCurrencyCode = computed(() => {
 const displayedBalances = computed(() => lastEntry.value?.balances ?? {})
 
 const chartData = computed(() => ({
-  labels: data.value.map((e) => fmtPeriod(e.period)),
+  labels: chartEntries.value.map((e) => fmtPeriod(e.period)),
   datasets: [
     {
       label: 'Income',
-      data: data.value.map((e) => e.income),
+      data: chartEntries.value.map((e) => e.income),
       borderColor: '#34d399',
       backgroundColor: 'rgba(52,211,153,0.15)',
       fill: true,
@@ -111,7 +112,7 @@ const chartData = computed(() => ({
     },
     {
       label: 'Expense',
-      data: data.value.map((e) => e.income - e.profit),
+      data: chartEntries.value.map((e) => e.derived_expense),
       borderColor: '#fb7185',
       backgroundColor: 'rgba(251,113,133,0.15)',
       fill: true,
@@ -119,7 +120,7 @@ const chartData = computed(() => ({
     },
     {
       label: 'Profit',
-      data: data.value.map((e) => e.profit),
+      data: chartEntries.value.map((e) => e.profit),
       borderColor: '#a78bfa',
       backgroundColor: 'rgba(167,139,250,0.15)',
       fill: true,
@@ -129,7 +130,7 @@ const chartData = computed(() => ({
 }))
 
 const chartOptions = computed(() =>
-  buildLineChartOptions(selectedCurrencyCode.value, (p) => { hoveredPeriod.value = p }, data.value)
+  buildLineChartOptions(selectedCurrencyCode.value, (p) => { hoveredPeriod.value = p }, chartEntries.value)
 )
 
 const donutChartData = computed(() => {
@@ -241,8 +242,8 @@ const donutChartData = computed(() => {
         </td>
         <td class="amount-positive">{{ fmtAmount(row.income) }}</td>
         <td :class="row.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(row.profit) }}</td>
-        <td :class="(row.income - row.profit) > 0 ? 'amount-negative' : 'amount-positive'">
-          {{ row.income === 0 && row.profit === 0 ? '—' : fmtAmount(row.income - row.profit) }}
+        <td :class="row.derived_expense > 0 ? 'amount-negative' : 'amount-positive'">
+          {{ row.income === 0 && row.profit === 0 ? '—' : fmtAmount(row.derived_expense) }}
         </td>
         <td>{{ fmtAmount(row.avg_income) }}</td>
         <td>{{ fmtAmount(row.avg_profit) }}</td>

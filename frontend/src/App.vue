@@ -36,7 +36,6 @@ function logout() {
   <div v-if="auth.isAuthenticated" class="app-layout">
     <aside class="sidebar">
       <div class="sidebar-brand">
-        <span class="sidebar-brand-icon">💎</span>
         <span class="sidebar-brand-name">Wallet</span>
       </div>
       <nav class="sidebar-nav">
