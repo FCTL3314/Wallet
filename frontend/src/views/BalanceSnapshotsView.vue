@@ -54,7 +54,7 @@ function togglePeriod(period: string) {
 
 function snapshotsForPeriod(period: string): BalanceSnapshot[] {
   if (period.includes('-Q')) {
-    const [year, q] = period.split('-Q')
+    const [year, q] = period.split('-Q') as [string, string]
     const startM = (parseInt(q) - 1) * 3 + 1
     return snapshots.value.filter(s => {
       const parts = s.date.split('-').map(Number)

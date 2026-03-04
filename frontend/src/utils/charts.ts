@@ -15,7 +15,7 @@ export function buildLineChartOptions(
     },
     onHover: (_event: unknown, elements: Array<{ index: number }>) => {
       if (elements.length > 0) {
-        onHover(data[elements[0].index]?.period ?? null)
+        onHover(data[elements[0]!.index]?.period ?? null)
       } else {
         onHover(null)
       }
