@@ -33,9 +33,7 @@ async def test_create_with_all_fields(auth_client):
 
 
 async def test_update_budgeted_amount(auth_client):
-    create = await auth_client.post(
-        "/api/expense-categories/", json={"name": "Food"}
-    )
+    create = await auth_client.post("/api/expense-categories/", json={"name": "Food"})
     cid = create.json()["id"]
     resp = await auth_client.put(
         f"/api/expense-categories/{cid}", json={"budgeted_amount": "750.50"}
@@ -45,9 +43,7 @@ async def test_update_budgeted_amount(auth_client):
 
 
 async def test_update_flags(auth_client):
-    create = await auth_client.post(
-        "/api/expense-categories/", json={"name": "Tax"}
-    )
+    create = await auth_client.post("/api/expense-categories/", json={"name": "Tax"})
     cid = create.json()["id"]
     resp = await auth_client.put(
         f"/api/expense-categories/{cid}", json={"is_tax": True}
@@ -57,9 +53,7 @@ async def test_update_flags(auth_client):
 
 
 async def test_delete(auth_client):
-    create = await auth_client.post(
-        "/api/expense-categories/", json={"name": "Temp"}
-    )
+    create = await auth_client.post("/api/expense-categories/", json={"name": "Temp"})
     cid = create.json()["id"]
     resp = await auth_client.delete(f"/api/expense-categories/{cid}")
     assert resp.status_code == 204

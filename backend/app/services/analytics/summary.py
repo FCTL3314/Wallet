@@ -26,7 +26,9 @@ async def get_summary(
     if not periods:
         return []
 
-    income_map = await _get_income_per_period(db, user_id, date_from, date_to, group_by, currency_id)
+    income_map = await _get_income_per_period(
+        db, user_id, date_from, date_to, group_by, currency_id
+    )
 
     # Balance at the end of the period immediately before the first period
     prev_end = periods[0][0] - timedelta(days=1)
@@ -46,14 +48,19 @@ async def get_summary(
 
         all_currencies = set(cur_balances) | set(prev_balances)
         balance_change = {
-            cur: cur_balances.get(cur, Decimal("0")) - prev_balances.get(cur, Decimal("0"))
+            cur: cur_balances.get(cur, Decimal("0"))
+            - prev_balances.get(cur, Decimal("0"))
             for cur in all_currencies
         }
 
         profit = sum(balance_change.values(), Decimal("0"))
         # Detect bootstrap period: no prior snapshots, so balance_change = initial capital entry.
-        is_bootstrap = not prev_balances and sum(cur_balances.values(), Decimal("0")) > 0
-        derived_expense = Decimal("0") if is_bootstrap else max(Decimal("0"), income - profit)
+        is_bootstrap = (
+            not prev_balances and sum(cur_balances.values(), Decimal("0")) > 0
+        )
+        derived_expense = (
+            Decimal("0") if is_bootstrap else max(Decimal("0"), income - profit)
+        )
 
         if not is_bootstrap:
             if income > 0:
@@ -63,29 +70,43 @@ async def get_summary(
                 cumulative_profit += profit
                 profit_count += 1
 
-        avg_income = (cumulative_income / income_count).quantize(Decimal("0.01")) if income_count > 0 else Decimal("0")
-        avg_profit = (cumulative_profit / profit_count).quantize(Decimal("0.01")) if profit_count > 0 else Decimal("0")
+        avg_income = (
+            (cumulative_income / income_count).quantize(Decimal("0.01"))
+            if income_count > 0
+            else Decimal("0")
+        )
+        avg_profit = (
+            (cumulative_profit / profit_count).quantize(Decimal("0.01"))
+            if profit_count > 0
+            else Decimal("0")
+        )
 
-        summary.append({
-            "period": period_key,
-            "income": income,
-            "profit": profit,
-            "derived_expense": derived_expense,
-            "avg_income": avg_income,
-            "avg_profit": avg_profit,
-            "balances": cur_balances,
-            "balance_change": balance_change,
-            "is_bootstrap": is_bootstrap,
-        })
+        summary.append(
+            {
+                "period": period_key,
+                "income": income,
+                "profit": profit,
+                "derived_expense": derived_expense,
+                "avg_income": avg_income,
+                "avg_profit": avg_profit,
+                "balances": cur_balances,
+                "balance_change": balance_change,
+                "is_bootstrap": is_bootstrap,
+            }
+        )
 
         prev_balances = cur_balances
 
     return summary
 
 
-async def get_expense_vs_budget(db: AsyncSession, user_id: int, year: int, month: int) -> list[dict]:
+async def get_expense_vs_budget(
+    db: AsyncSession, user_id: int, year: int, month: int
+) -> list[dict]:
     result = await db.execute(
-        select(ExpenseCategory).where(ExpenseCategory.user_id == user_id).order_by(ExpenseCategory.name)
+        select(ExpenseCategory)
+        .where(ExpenseCategory.user_id == user_id)
+        .order_by(ExpenseCategory.name)
     )
     rows = result.scalars().all()
 
@@ -104,18 +125,22 @@ async def get_expense_vs_budget(db: AsyncSession, user_id: int, year: int, month
 async def get_date_range(db: AsyncSession, user_id: int) -> dict:
     """Return the earliest and latest dates across transactions and balance snapshots."""
     tx_result = await db.execute(
-        select(func.min(Transaction.date), func.max(Transaction.date))
-        .where(Transaction.user_id == user_id)
+        select(func.min(Transaction.date), func.max(Transaction.date)).where(
+            Transaction.user_id == user_id
+        )
     )
     tx_row = tx_result.one()
 
     snap_result = await db.execute(
-        select(func.min(BalanceSnapshot.date), func.max(BalanceSnapshot.date))
-        .where(BalanceSnapshot.user_id == user_id)
+        select(func.min(BalanceSnapshot.date), func.max(BalanceSnapshot.date)).where(
+            BalanceSnapshot.user_id == user_id
+        )
     )
     snap_row = snap_result.one()
 
-    dates = [d for d in [tx_row[0], tx_row[1], snap_row[0], snap_row[1]] if d is not None]
+    dates = [
+        d for d in [tx_row[0], tx_row[1], snap_row[0], snap_row[1]] if d is not None
+    ]
     if not dates:
         return {"min_date": None, "max_date": None}
 
@@ -125,19 +150,23 @@ async def get_date_range(db: AsyncSession, user_id: int) -> dict:
 
 
 async def get_expense_template(db: AsyncSession, user_id: int) -> dict:
-    result = await db.execute(select(ExpenseCategory).where(ExpenseCategory.user_id == user_id))
+    result = await db.execute(
+        select(ExpenseCategory).where(ExpenseCategory.user_id == user_id)
+    )
     categories = result.scalars().all()
 
     items = []
     total = Decimal("0")
 
     for cat in categories:
-        items.append({
-            "id": cat.id,
-            "name": cat.name,
-            "budgeted_amount": cat.budgeted_amount,
-            "tags": cat.tags,
-        })
+        items.append(
+            {
+                "id": cat.id,
+                "name": cat.name,
+                "budgeted_amount": cat.budgeted_amount,
+                "tags": cat.tags,
+            }
+        )
         total += cat.budgeted_amount
 
     return {

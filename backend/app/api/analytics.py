@@ -50,7 +50,9 @@ async def income_by_source(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await get_income_by_source(db, user.id, date_from, date_to, group_by, currency_id)
+    return await get_income_by_source(
+        db, user.id, date_from, date_to, group_by, currency_id
+    )
 
 
 @router.get("/balance-by-storage")

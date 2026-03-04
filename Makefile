@@ -1,4 +1,4 @@
-.PHONY: dev prod down dev-build prod-build logs
+.PHONY: dev prod down dev-build prod-build logs lint lint-fix setup
 
 # Development
 dev:
@@ -19,6 +19,18 @@ prod-build:
 
 prod-down:
 	docker compose -f docker/prod/docker-compose.yml down
+
+# Setup
+setup:
+	pre-commit install
+	@echo "pre-commit hooks installed."
+
+# Linting
+lint:
+	cd backend && uv run ruff check .
+
+lint-fix:
+	cd backend && uv run ruff check --fix . && uv run ruff format .
 
 # Utilities
 logs:

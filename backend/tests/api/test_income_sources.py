@@ -5,9 +5,7 @@ async def test_list_empty(auth_client):
 
 
 async def test_create(auth_client):
-    resp = await auth_client.post(
-        "/api/income-sources/", json={"name": "Freelance"}
-    )
+    resp = await auth_client.post("/api/income-sources/", json={"name": "Freelance"})
     assert resp.status_code == 201
     data = resp.json()
     assert data["name"] == "Freelance"
@@ -21,9 +19,7 @@ async def test_list_after_create(auth_client):
 
 
 async def test_update(auth_client):
-    create = await auth_client.post(
-        "/api/income-sources/", json={"name": "Old Name"}
-    )
+    create = await auth_client.post("/api/income-sources/", json={"name": "Old Name"})
     sid = create.json()["id"]
     resp = await auth_client.put(
         f"/api/income-sources/{sid}", json={"name": "New Name"}
@@ -33,9 +29,7 @@ async def test_update(auth_client):
 
 
 async def test_delete(auth_client):
-    create = await auth_client.post(
-        "/api/income-sources/", json={"name": "Temp"}
-    )
+    create = await auth_client.post("/api/income-sources/", json={"name": "Temp"})
     sid = create.json()["id"]
     resp = await auth_client.delete(f"/api/income-sources/{sid}")
     assert resp.status_code == 204

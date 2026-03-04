@@ -6,7 +6,9 @@ from app.core.database import Base
 
 class IncomeSource(Base):
     __tablename__ = "income_sources"
-    __table_args__ = (UniqueConstraint("name", "user_id", name="uq_income_source_name_user"),)
+    __table_args__ = (
+        UniqueConstraint("name", "user_id", name="uq_income_source_name_user"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))

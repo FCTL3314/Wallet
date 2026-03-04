@@ -116,7 +116,9 @@ async def create_transaction(
     await _validate_fk_ownership(
         db, user.id, body.income_source_id, body.expense_category_id
     )
-    await _validate_currency_matches_account(db, user.id, body.storage_account_id, body.currency_id)
+    await _validate_currency_matches_account(
+        db, user.id, body.storage_account_id, body.currency_id
+    )
     obj = Transaction(**body.model_dump(), user_id=user.id)
     db.add(obj)
     await db.flush()

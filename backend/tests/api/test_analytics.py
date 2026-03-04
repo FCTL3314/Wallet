@@ -65,9 +65,7 @@ async def test_summary_empty_period(auth_client, test_user, ref_data):
     assert resp.json() == []
 
 
-async def test_summary_with_transactions(
-    auth_client, test_user, ref_data, db_session
-):
+async def test_summary_with_transactions(auth_client, test_user, ref_data, db_session):
     await _seed_transactions(db_session, test_user, ref_data)
 
     resp = await auth_client.get(
@@ -216,9 +214,7 @@ async def test_expense_vs_budget_with_transactions(
     assert float(item["remaining"]) == 200.0
 
 
-async def test_expense_vs_budget_no_transactions(
-    auth_client, test_user, ref_data
-):
+async def test_expense_vs_budget_no_transactions(auth_client, test_user, ref_data):
     resp = await auth_client.get(
         "/api/analytics/expense-vs-budget",
         params={"year": 2099, "month": 1},

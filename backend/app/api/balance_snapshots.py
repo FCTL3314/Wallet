@@ -8,7 +8,11 @@ from app.core.database import get_db
 from app.core.db_helpers import get_or_404
 from app.core.dependencies import get_current_user
 from app.models import User, BalanceSnapshot
-from app.schemas.balance_snapshot import BalanceSnapshotCreate, BalanceSnapshotUpdate, BalanceSnapshotResponse
+from app.schemas.balance_snapshot import (
+    BalanceSnapshotCreate,
+    BalanceSnapshotUpdate,
+    BalanceSnapshotResponse,
+)
 
 router = APIRouter(prefix="/balance-snapshots", tags=["balance-snapshots"])
 
@@ -23,7 +27,11 @@ async def list_snapshots(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(BalanceSnapshot).where(BalanceSnapshot.user_id == user.id).order_by(BalanceSnapshot.date.desc())
+    q = (
+        select(BalanceSnapshot)
+        .where(BalanceSnapshot.user_id == user.id)
+        .order_by(BalanceSnapshot.date.desc())
+    )
     if storage_account_id:
         q = q.where(BalanceSnapshot.storage_account_id == storage_account_id)
     if date_from:
@@ -35,9 +43,13 @@ async def list_snapshots(
     return result.scalars().all()
 
 
-@router.post("/", response_model=BalanceSnapshotResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/", response_model=BalanceSnapshotResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_snapshot(
-    body: BalanceSnapshotCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    body: BalanceSnapshotCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     obj = BalanceSnapshot(**body.model_dump(), user_id=user.id)
     db.add(obj)
@@ -48,9 +60,14 @@ async def create_snapshot(
 
 @router.put("/{snapshot_id}", response_model=BalanceSnapshotResponse)
 async def update_snapshot(
-    snapshot_id: int, body: BalanceSnapshotUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    snapshot_id: int,
+    body: BalanceSnapshotUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    obj = await get_or_404(db, BalanceSnapshot, snapshot_id, user.id, "balance_snapshot")
+    obj = await get_or_404(
+        db, BalanceSnapshot, snapshot_id, user.id, "balance_snapshot"
+    )
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -60,7 +77,11 @@ async def update_snapshot(
 
 @router.delete("/{snapshot_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_snapshot(
-    snapshot_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    snapshot_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    obj = await get_or_404(db, BalanceSnapshot, snapshot_id, user.id, "balance_snapshot")
+    obj = await get_or_404(
+        db, BalanceSnapshot, snapshot_id, user.id, "balance_snapshot"
+    )
     await db.delete(obj)

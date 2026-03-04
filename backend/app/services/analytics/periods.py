@@ -18,7 +18,9 @@ def _period_label(group_by: GroupBy):
     return func.date_trunc(group_by.value, Transaction.date)
 
 
-def _generate_periods(date_from: date, date_to: date, group_by: GroupBy) -> list[tuple[date, date]]:
+def _generate_periods(
+    date_from: date, date_to: date, group_by: GroupBy
+) -> list[tuple[date, date]]:
     """Generate (period_start, period_end) tuples covering the date range."""
     periods = []
     if group_by == GroupBy.month:

@@ -7,12 +7,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.core.exceptions import AuthEmailTaken, AuthInvalidCredentials, AuthInvalidRefreshToken, AuthWeakPassword
+from app.core.exceptions import (
+    AuthEmailTaken,
+    AuthInvalidCredentials,
+    AuthInvalidRefreshToken,
+    AuthWeakPassword,
+)
 from app.core.password_policy import validate_password
-from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token, hash_refresh_token
+from app.core.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    hash_refresh_token,
+)
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
-from app.schemas.auth import RegisterRequest, LoginRequest, RefreshRequest, TokenResponse, UserResponse, ChangeEmailRequest, ChangePasswordRequest
+from app.schemas.auth import (
+    RegisterRequest,
+    LoginRequest,
+    RefreshRequest,
+    TokenResponse,
+    UserResponse,
+    ChangeEmailRequest,
+    ChangePasswordRequest,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -31,12 +50,18 @@ async def _issue_tokens(user_id: int, db: AsyncSession) -> TokenResponse:
     await _cleanup_tokens(user_id, db)
     access_token = create_access_token(user_id)
     raw_refresh, hashed_refresh = create_refresh_token()
-    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    db.add(RefreshToken(user_id=user_id, token_hash=hashed_refresh, expires_at=expires_at))
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+    )
+    db.add(
+        RefreshToken(user_id=user_id, token_hash=hashed_refresh, expires_at=expires_at)
+    )
     return TokenResponse(access_token=access_token, refresh_token=raw_refresh)
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
+)
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     violations = validate_password(body.password)
     if violations:
@@ -64,7 +89,9 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     token_hash = hash_refresh_token(body.refresh_token)
-    result = await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
+    result = await db.execute(
+        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+    )
     token = result.scalar_one_or_none()
 
     now = datetime.now(timezone.utc)
@@ -82,7 +109,9 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     token_hash = hash_refresh_token(body.refresh_token)
-    result = await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
+    result = await db.execute(
+        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+    )
     token = result.scalar_one_or_none()
     if token and not token.revoked:
         token.revoked = True

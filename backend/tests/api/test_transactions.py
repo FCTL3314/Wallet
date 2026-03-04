@@ -1,6 +1,3 @@
-from datetime import date
-
-
 async def test_create_income(auth_client, ref_data):
     resp = await auth_client.post(
         "/api/transactions/",
@@ -47,9 +44,7 @@ async def test_update_transaction(auth_client, ref_data):
         },
     )
     tid = create.json()["id"]
-    resp = await auth_client.put(
-        f"/api/transactions/{tid}", json={"amount": "200.00"}
-    )
+    resp = await auth_client.put(f"/api/transactions/{tid}", json={"amount": "200.00"})
     assert resp.status_code == 200
     assert float(resp.json()["amount"]) == 200.0
 
@@ -226,7 +221,7 @@ async def test_pagination(auth_client, ref_data):
             "/api/transactions/",
             json={
                 "type": "income",
-                "date": f"2025-08-{i+1:02d}",
+                "date": f"2025-08-{i + 1:02d}",
                 "amount": "10.00",
                 "currency_id": ref_data["currency"].id,
                 "storage_account_id": ref_data["account"].id,

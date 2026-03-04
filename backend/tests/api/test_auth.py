@@ -1,6 +1,3 @@
-import pytest
-
-
 async def test_register_success(client):
     resp = await client.post(
         "/api/auth/register",
@@ -67,9 +64,7 @@ async def test_refresh_success(client, test_user):
     )
     refresh_token = login.json()["refresh_token"]
 
-    resp = await client.post(
-        "/api/auth/refresh", json={"refresh_token": refresh_token}
-    )
+    resp = await client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
     assert resp.status_code == 200
     data = resp.json()
     assert "access_token" in data
@@ -89,17 +84,13 @@ async def test_refresh_revoked_token(client, test_user):
     await client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
 
     # Try again — should fail
-    resp = await client.post(
-        "/api/auth/refresh", json={"refresh_token": refresh_token}
-    )
+    resp = await client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
     assert resp.status_code == 401
     assert resp.json()["code"] == "auth/invalid_refresh_token"
 
 
 async def test_refresh_invalid_token(client):
-    resp = await client.post(
-        "/api/auth/refresh", json={"refresh_token": "bogus-token"}
-    )
+    resp = await client.post("/api/auth/refresh", json={"refresh_token": "bogus-token"})
     assert resp.status_code == 401
 
 
@@ -110,15 +101,11 @@ async def test_logout(client, test_user):
     )
     refresh_token = login.json()["refresh_token"]
 
-    resp = await client.post(
-        "/api/auth/logout", json={"refresh_token": refresh_token}
-    )
+    resp = await client.post("/api/auth/logout", json={"refresh_token": refresh_token})
     assert resp.status_code == 204
 
     # Refresh should now fail
-    resp = await client.post(
-        "/api/auth/refresh", json={"refresh_token": refresh_token}
-    )
+    resp = await client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
     assert resp.status_code == 401
 
 

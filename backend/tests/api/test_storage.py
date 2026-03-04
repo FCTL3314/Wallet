@@ -1,13 +1,8 @@
-import pytest
-
-
 # --- Storage Locations ---
 
 
 async def test_create_location(auth_client):
-    resp = await auth_client.post(
-        "/api/storage-locations/", json={"name": "Bank"}
-    )
+    resp = await auth_client.post("/api/storage-locations/", json={"name": "Bank"})
     assert resp.status_code == 201
     data = resp.json()
     assert data["name"] == "Bank"
@@ -15,21 +10,15 @@ async def test_create_location(auth_client):
 
 
 async def test_update_location(auth_client):
-    create = await auth_client.post(
-        "/api/storage-locations/", json={"name": "Old"}
-    )
+    create = await auth_client.post("/api/storage-locations/", json={"name": "Old"})
     lid = create.json()["id"]
-    resp = await auth_client.put(
-        f"/api/storage-locations/{lid}", json={"name": "New"}
-    )
+    resp = await auth_client.put(f"/api/storage-locations/{lid}", json={"name": "New"})
     assert resp.status_code == 200
     assert resp.json()["name"] == "New"
 
 
 async def test_delete_location(auth_client):
-    create = await auth_client.post(
-        "/api/storage-locations/", json={"name": "Temp"}
-    )
+    create = await auth_client.post("/api/storage-locations/", json={"name": "Temp"})
     lid = create.json()["id"]
     resp = await auth_client.delete(f"/api/storage-locations/{lid}")
     assert resp.status_code == 204
@@ -45,9 +34,7 @@ async def test_delete_location_nonexistent(auth_client):
 
 async def _create_loc_and_cur(auth_client):
     """Helper to create a location and currency, returns (loc_id, cur_id)."""
-    loc = await auth_client.post(
-        "/api/storage-locations/", json={"name": "Bank"}
-    )
+    loc = await auth_client.post("/api/storage-locations/", json={"name": "Bank"})
     cur = await auth_client.post(
         "/api/currencies/", json={"code": "USD", "symbol": "$"}
     )
@@ -88,9 +75,7 @@ async def test_update_account_location(auth_client):
     )
     acc_id = acc.json()["id"]
 
-    new_loc = await auth_client.post(
-        "/api/storage-locations/", json={"name": "Wallet"}
-    )
+    new_loc = await auth_client.post("/api/storage-locations/", json={"name": "Wallet"})
     new_loc_id = new_loc.json()["id"]
 
     resp = await auth_client.put(

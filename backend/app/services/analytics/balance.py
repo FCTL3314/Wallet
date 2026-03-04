@@ -24,10 +24,13 @@ async def _get_balance_at_date(
 
     q = (
         select(Currency.code, func.sum(BalanceSnapshot.amount).label("total"))
-        .join(subq, and_(
-            BalanceSnapshot.storage_account_id == subq.c.storage_account_id,
-            BalanceSnapshot.date == subq.c.max_date,
-        ))
+        .join(
+            subq,
+            and_(
+                BalanceSnapshot.storage_account_id == subq.c.storage_account_id,
+                BalanceSnapshot.date == subq.c.max_date,
+            ),
+        )
         .join(StorageAccount, BalanceSnapshot.storage_account_id == StorageAccount.id)
         .join(Currency, StorageAccount.currency_id == Currency.id)
         .where(BalanceSnapshot.user_id == user_id)
@@ -43,9 +46,7 @@ async def get_balance_by_storage(
     db: AsyncSession, user_id: int, date_from: date, date_to: date, group_by: GroupBy
 ) -> list[dict]:
     """For each period, get balance per storage account from the latest snapshot in that period."""
-    period = (
-        func.date_trunc(group_by.value, BalanceSnapshot.date)
-    ).label("period")
+    period = (func.date_trunc(group_by.value, BalanceSnapshot.date)).label("period")
 
     subq = (
         select(
@@ -69,10 +70,13 @@ async def get_balance_by_storage(
             Currency.code.label("currency"),
             BalanceSnapshot.amount,
         )
-        .join(subq, and_(
-            BalanceSnapshot.storage_account_id == subq.c.storage_account_id,
-            BalanceSnapshot.date == subq.c.max_date,
-        ))
+        .join(
+            subq,
+            and_(
+                BalanceSnapshot.storage_account_id == subq.c.storage_account_id,
+                BalanceSnapshot.date == subq.c.max_date,
+            ),
+        )
         .join(StorageAccount, BalanceSnapshot.storage_account_id == StorageAccount.id)
         .join(StorageLocation, StorageAccount.storage_location_id == StorageLocation.id)
         .join(Currency, StorageAccount.currency_id == Currency.id)
@@ -89,8 +93,12 @@ async def get_balance_by_storage(
             grouped[p] = {"period": p, "accounts": [], "totals": {}}
         acc_name = f"{row.location} {row.currency}"
         amount = Decimal(str(row.amount))
-        grouped[p]["accounts"].append({"name": acc_name, "currency": row.currency, "amount": amount})
-        grouped[p]["totals"][row.currency] = grouped[p]["totals"].get(row.currency, Decimal("0")) + amount
+        grouped[p]["accounts"].append(
+            {"name": acc_name, "currency": row.currency, "amount": amount}
+        )
+        grouped[p]["totals"][row.currency] = (
+            grouped[p]["totals"].get(row.currency, Decimal("0")) + amount
+        )
 
     return list(grouped.values())
 
@@ -119,10 +127,13 @@ async def get_balance_breakdown(db: AsyncSession, user_id: int) -> list[dict]:
             subq.c.max_date.label("latest_snapshot_date"),
             BalanceSnapshot.amount.label("latest_snapshot_amount"),
         )
-        .join(subq, and_(
-            BalanceSnapshot.storage_account_id == subq.c.storage_account_id,
-            BalanceSnapshot.date == subq.c.max_date,
-        ))
+        .join(
+            subq,
+            and_(
+                BalanceSnapshot.storage_account_id == subq.c.storage_account_id,
+                BalanceSnapshot.date == subq.c.max_date,
+            ),
+        )
         .join(StorageAccount, BalanceSnapshot.storage_account_id == StorageAccount.id)
         .join(StorageLocation, StorageAccount.storage_location_id == StorageLocation.id)
         .join(Currency, StorageAccount.currency_id == Currency.id)

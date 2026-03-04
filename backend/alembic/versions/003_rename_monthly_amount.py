@@ -5,6 +5,7 @@ Revises: 002
 Create Date: 2026-02-24
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -16,8 +17,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.alter_column("expense_categories", "monthly_amount", new_column_name="budgeted_amount")
+    op.alter_column(
+        "expense_categories", "monthly_amount", new_column_name="budgeted_amount"
+    )
 
 
 def downgrade() -> None:
-    op.alter_column("expense_categories", "budgeted_amount", new_column_name="monthly_amount")
+    op.alter_column(
+        "expense_categories", "budgeted_amount", new_column_name="monthly_amount"
+    )

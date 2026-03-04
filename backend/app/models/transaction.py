@@ -17,14 +17,20 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     type: Mapped[TransactionType] = mapped_column(Enum(TransactionType))
     date: Mapped[date] = mapped_column(Date, index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-    currency_id: Mapped[int] = mapped_column(ForeignKey("currencies.id", ondelete="CASCADE"))
-    storage_account_id: Mapped[int] = mapped_column(ForeignKey("storage_accounts.id", ondelete="CASCADE"))
+    currency_id: Mapped[int] = mapped_column(
+        ForeignKey("currencies.id", ondelete="CASCADE")
+    )
+    storage_account_id: Mapped[int] = mapped_column(
+        ForeignKey("storage_accounts.id", ondelete="CASCADE")
+    )
     income_source_id: Mapped[int | None] = mapped_column(
         ForeignKey("income_sources.id", ondelete="SET NULL"), nullable=True
     )

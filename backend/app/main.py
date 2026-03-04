@@ -3,7 +3,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
-from app.api import auth, currencies, storage, income_sources, expense_categories, transactions, balance_snapshots, analytics
+from app.api import (
+    auth,
+    currencies,
+    storage,
+    income_sources,
+    expense_categories,
+    transactions,
+    balance_snapshots,
+    analytics,
+)
 from app.core.config import settings
 from app.core.exceptions import AppException, ErrorResponse
 
@@ -17,6 +26,7 @@ if settings.CORS_ORIGINS:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
 
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException):
@@ -40,7 +50,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=422,
         content=ErrorResponse(
             code="validation/invalid_input",
-            message=f"Invalid value for '{field}'" if field else "Please check your input",
+            message=f"Invalid value for '{field}'"
+            if field
+            else "Please check your input",
         ).model_dump(exclude_none=True),
     )
 

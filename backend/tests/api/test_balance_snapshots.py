@@ -107,9 +107,7 @@ async def test_filter_by_storage_account(auth_client, ref_data, db_session, test
         params={"storage_account_id": ref_data["account"].id},
     )
     assert resp.status_code == 200
-    assert all(
-        s["storage_account_id"] == ref_data["account"].id for s in resp.json()
-    )
+    assert all(s["storage_account_id"] == ref_data["account"].id for s in resp.json())
 
 
 async def test_filter_by_date_range(auth_client, ref_data):

@@ -21,15 +21,26 @@ router = APIRouter(tags=["storage"])
 
 # --- Storage Locations ---
 
+
 @router.get("/storage-locations/", response_model=list[StorageLocationResponse])
-async def list_locations(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(StorageLocation).where(StorageLocation.user_id == user.id))
+async def list_locations(
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(StorageLocation).where(StorageLocation.user_id == user.id)
+    )
     return result.scalars().all()
 
 
-@router.post("/storage-locations/", response_model=StorageLocationResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/storage-locations/",
+    response_model=StorageLocationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_location(
-    body: StorageLocationCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    body: StorageLocationCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     obj = StorageLocation(**body.model_dump(), user_id=user.id)
     db.add(obj)
@@ -40,9 +51,14 @@ async def create_location(
 
 @router.put("/storage-locations/{location_id}", response_model=StorageLocationResponse)
 async def update_location(
-    location_id: int, body: StorageLocationUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    location_id: int,
+    body: StorageLocationUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    obj = await get_or_404(db, StorageLocation, location_id, user.id, "storage_location")
+    obj = await get_or_404(
+        db, StorageLocation, location_id, user.id, "storage_location"
+    )
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
     await db.flush()
@@ -50,29 +66,47 @@ async def update_location(
     return obj
 
 
-@router.delete("/storage-locations/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/storage-locations/{location_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def delete_location(
-    location_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    location_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    obj = await get_or_404(db, StorageLocation, location_id, user.id, "storage_location")
+    obj = await get_or_404(
+        db, StorageLocation, location_id, user.id, "storage_location"
+    )
     await db.delete(obj)
 
 
 # --- Storage Accounts ---
 
+
 @router.get("/storage-accounts/", response_model=list[StorageAccountResponse])
-async def list_accounts(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def list_accounts(
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(
         select(StorageAccount)
         .where(StorageAccount.user_id == user.id)
-        .options(selectinload(StorageAccount.storage_location), selectinload(StorageAccount.currency))
+        .options(
+            selectinload(StorageAccount.storage_location),
+            selectinload(StorageAccount.currency),
+        )
     )
     return result.scalars().all()
 
 
-@router.post("/storage-accounts/", response_model=StorageAccountResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/storage-accounts/",
+    response_model=StorageAccountResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_account(
-    body: StorageAccountCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    body: StorageAccountCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     obj = StorageAccount(**body.model_dump(), user_id=user.id)
     db.add(obj)
@@ -83,11 +117,21 @@ async def create_account(
 
 @router.put("/storage-accounts/{account_id}", response_model=StorageAccountResponse)
 async def update_account(
-    account_id: int, body: StorageAccountUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    account_id: int,
+    body: StorageAccountUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     obj = await get_or_404(
-        db, StorageAccount, account_id, user.id, "storage_account",
-        options=[selectinload(StorageAccount.storage_location), selectinload(StorageAccount.currency)],
+        db,
+        StorageAccount,
+        account_id,
+        user.id,
+        "storage_account",
+        options=[
+            selectinload(StorageAccount.storage_location),
+            selectinload(StorageAccount.currency),
+        ],
     )
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
@@ -98,7 +142,9 @@ async def update_account(
 
 @router.delete("/storage-accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_account(
-    account_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    account_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     obj = await get_or_404(db, StorageAccount, account_id, user.id, "storage_account")
     await db.delete(obj)

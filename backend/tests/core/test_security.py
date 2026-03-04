@@ -38,7 +38,9 @@ def test_expired_token_returns_none():
         "sub": "1",
         "exp": datetime.now(timezone.utc) - timedelta(hours=1),
     }
-    token = jwt.encode(expired_payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    token = jwt.encode(
+        expired_payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+    )
     assert decode_access_token(token) is None
 
 

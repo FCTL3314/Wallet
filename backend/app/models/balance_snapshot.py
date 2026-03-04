@@ -11,8 +11,12 @@ class BalanceSnapshot(Base):
     __tablename__ = "balance_snapshots"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    storage_account_id: Mapped[int] = mapped_column(ForeignKey("storage_accounts.id", ondelete="CASCADE"))
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    storage_account_id: Mapped[int] = mapped_column(
+        ForeignKey("storage_accounts.id", ondelete="CASCADE")
+    )
     date: Mapped[date] = mapped_column(Date, index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
 

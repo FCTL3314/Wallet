@@ -33,13 +33,16 @@ async def _get_income_per_period(
         q = q.where(Transaction.currency_id == currency_id)
     result = await db.execute(q)
     return {
-        row.period.date().isoformat(): Decimal(str(row.income))
-        for row in result.all()
+        row.period.date().isoformat(): Decimal(str(row.income)) for row in result.all()
     }
 
 
 async def get_income_by_source(
-    db: AsyncSession, user_id: int, date_from: date, date_to: date, group_by: GroupBy,
+    db: AsyncSession,
+    user_id: int,
+    date_from: date,
+    date_to: date,
+    group_by: GroupBy,
     currency_id: int | None = None,
 ) -> list[dict]:
     period = _period_label(group_by).label("period")
@@ -49,7 +52,9 @@ async def get_income_by_source(
             IncomeSource.name.label("source"),
             func.coalesce(func.sum(Transaction.amount), 0).label("total"),
         )
-        .join(IncomeSource, Transaction.income_source_id == IncomeSource.id, isouter=True)
+        .join(
+            IncomeSource, Transaction.income_source_id == IncomeSource.id, isouter=True
+        )
         .where(
             Transaction.user_id == user_id,
             Transaction.type == TransactionType.income,

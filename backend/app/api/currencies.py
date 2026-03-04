@@ -12,14 +12,18 @@ router = APIRouter(prefix="/currencies", tags=["currencies"])
 
 
 @router.get("/", response_model=list[CurrencyResponse])
-async def list_currencies(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def list_currencies(
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(select(Currency).where(Currency.user_id == user.id))
     return result.scalars().all()
 
 
 @router.post("/", response_model=CurrencyResponse, status_code=status.HTTP_201_CREATED)
 async def create_currency(
-    body: CurrencyCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    body: CurrencyCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     obj = Currency(**body.model_dump(), user_id=user.id)
     db.add(obj)
@@ -30,7 +34,10 @@ async def create_currency(
 
 @router.put("/{currency_id}", response_model=CurrencyResponse)
 async def update_currency(
-    currency_id: int, body: CurrencyUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    currency_id: int,
+    body: CurrencyUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     obj = await get_or_404(db, Currency, currency_id, user.id, "currency")
     for k, v in body.model_dump(exclude_unset=True).items():
@@ -42,7 +49,9 @@ async def update_currency(
 
 @router.delete("/{currency_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_currency(
-    currency_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    currency_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     obj = await get_or_404(db, Currency, currency_id, user.id, "currency")
     await db.delete(obj)
