@@ -6,7 +6,6 @@ import { useReferencesStore } from '../stores/references'
 import { fmtAmount } from '../utils/format'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
-import BaseCard from '../components/BaseCard.vue'
 import BaseStatCard from '../components/BaseStatCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import EditDeleteActions from '../components/EditDeleteActions.vue'
@@ -91,10 +90,6 @@ async function remove(id: number) {
 
 <template>
   <div class="page-sections">
-  <BaseCard>
-    <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Category</BaseButton>
-  </BaseCard>
-
   <div v-if="template" class="stats-grid">
     <BaseStatCard label="Total Monthly">
       <div class="stat-value">{{ fmtAmount(template.total) }}</div>
@@ -104,7 +99,10 @@ async function remove(id: number) {
     </BaseStatCard>
   </div>
 
-  <BaseDataTable :loading="loading" :empty="!template?.items.length" empty-message="No expense categories yet.">
+  <BaseDataTable title="Regular Expenses" :loading="loading" :empty="!template?.items.length" empty-message="No expense categories yet.">
+    <template #actions>
+      <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Category</BaseButton>
+    </template>
     <template #head>
       <tr>
         <th>Name</th>

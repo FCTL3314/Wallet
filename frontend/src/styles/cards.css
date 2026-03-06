@@ -2,19 +2,17 @@
    CARDS
    ============================================================ */
 
-.card {
+.card,
+.stat-card {
     background: var(--card-bg);
     border: 1px solid var(--card-border);
-    border-radius: var(--radius-card);
-    padding: 24px;
     box-shadow: var(--shadow-card-solid);
     animation: fade-up 0.4s var(--ease-spring) both;
-    transition: transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-smooth);
 }
 
-.card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(14, 96, 192, 0.12);
+.card {
+    border-radius: var(--radius-card);
+    padding: 24px;
 }
 
 .card-title {
@@ -36,20 +34,10 @@
 }
 
 .stat-card {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
     border-radius: var(--radius-stat);
     padding: 22px;
-    box-shadow: var(--shadow-card-solid);
     position: relative;
     overflow: hidden;
-    animation: fade-up 0.4s var(--ease-spring) both;
-    transition: transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-smooth);
-}
-
-.stat-card:hover {
-    transform: translateY(-3px) scale(1.01);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 0 16px rgba(14, 96, 192, 0.08);
 }
 
 .stat-card::before {

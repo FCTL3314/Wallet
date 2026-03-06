@@ -9,6 +9,8 @@ export function buildLineChartOptions(
 ) {
   return {
     responsive: true,
+    maintainAspectRatio: true,
+    aspectRatio: 4,
     interaction: {
       mode: 'index' as const,
       intersect: false,

@@ -99,35 +99,34 @@ const selectedCurrencyCode = computed(() => {
 
 const displayedBalances = computed(() => lastEntry.value?.balances ?? {})
 
-const chartData = computed(() => ({
-  labels: chartEntries.value.map((e) => fmtPeriod(e.period)),
-  datasets: [
-    {
-      label: 'Income',
-      data: chartEntries.value.map((e) => e.income),
-      borderColor: '#059669',
-      backgroundColor: 'rgba(5,150,105,0.10)',
+type TrendKey = 'income' | 'expense' | 'profit'
+const selectedTrend = ref<TrendKey>('income')
+
+const TREND_OPTIONS: { key: TrendKey; label: string; borderColor: string; backgroundColor: string }[] = [
+  { key: 'income',  label: 'Income',  borderColor: '#059669', backgroundColor: 'rgba(5,150,105,0.10)' },
+  { key: 'expense', label: 'Expense', borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.08)' },
+  { key: 'profit',  label: 'Profit',  borderColor: '#0e60c0', backgroundColor: 'rgba(14,96,192,0.08)' },
+]
+
+const chartData = computed(() => {
+  const t = TREND_OPTIONS.find((o) => o.key === selectedTrend.value)!
+  const dataMap: Record<TrendKey, (e: SummaryEntry) => number> = {
+    income:  (e) => e.income,
+    expense: (e) => e.derived_expense,
+    profit:  (e) => e.profit,
+  }
+  return {
+    labels: chartEntries.value.map((e) => fmtPeriod(e.period)),
+    datasets: [{
+      label: t.label,
+      data: chartEntries.value.map(dataMap[selectedTrend.value]),
+      borderColor: t.borderColor,
+      backgroundColor: t.backgroundColor,
       fill: true,
       tension: 0.3,
-    },
-    {
-      label: 'Expense',
-      data: chartEntries.value.map((e) => e.derived_expense),
-      borderColor: '#dc2626',
-      backgroundColor: 'rgba(220,38,38,0.08)',
-      fill: true,
-      tension: 0.3,
-    },
-    {
-      label: 'Profit',
-      data: chartEntries.value.map((e) => e.profit),
-      borderColor: '#0e60c0',
-      backgroundColor: 'rgba(14,96,192,0.08)',
-      fill: true,
-      tension: 0.3,
-    },
-  ],
-}))
+    }],
+  }
+})
 
 const chartOptions = computed(() =>
   buildLineChartOptions(selectedCurrencyCode.value, (p) => { hoveredPeriod.value = p }, chartEntries.value)
@@ -203,6 +202,17 @@ const donutChartData = computed(() => {
   </div>
 
   <BaseCard v-if="data.length" title="Trends">
+    <template #actions>
+      <div class="trend-tabs">
+        <button
+          v-for="t in TREND_OPTIONS"
+          :key="t.key"
+          class="tab-pill"
+          :class="{ 'tab-pill--active': selectedTrend === t.key }"
+          @click="selectedTrend = t.key"
+        >{{ t.label }}</button>
+      </div>
+    </template>
     <Line :data="chartData" :options="chartOptions" />
   </BaseCard>
 
@@ -254,6 +264,16 @@ const donutChartData = computed(() => {
 </template>
 
 <style scoped>
+.trend-tabs {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.trend-tabs .tab-pill {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.72rem;
+}
+
 .currency-tabs {
   display: flex;
   gap: 0.5rem;
