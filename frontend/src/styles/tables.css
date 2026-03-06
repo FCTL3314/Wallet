@@ -29,8 +29,8 @@
 
 .toolbar select:focus,
 .toolbar input:focus {
-    border-color: rgba(14, 96, 192, 0.60);
-    box-shadow: 0 0 0 2px rgba(14, 96, 192, 0.15);
+    border-color: rgba(34, 114, 204, 0.60);
+    box-shadow: 0 0 0 2px rgba(34, 114, 204, 0.15);
 }
 
 /* ============================================================

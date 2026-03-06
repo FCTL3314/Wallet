@@ -289,7 +289,7 @@ async function remove(id: number) {
 
 .expand-btn.expanded {
   transform: rotate(90deg);
-  color: #0e60c0;
+  color: #2272cc;
 }
 
 .detail-row td {

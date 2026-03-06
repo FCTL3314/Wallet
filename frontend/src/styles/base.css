@@ -18,11 +18,11 @@ body {
 }
 
 ::selection {
-    background: rgba(14, 96, 192, 0.25);
+    background: rgba(34, 114, 204, 0.25);
 }
 
 :focus-visible {
-    outline: 2px solid rgba(14, 96, 192, 0.60);
+    outline: 2px solid rgba(34, 114, 204, 0.60);
     outline-offset: 2px;
 }
 

@@ -144,12 +144,12 @@ This comes directly from the reference's `ComponentWrapper.vue` pattern:
 | Token | Value | Meaning |
 |---|---|---|
 | `--bg-base` | `rgb(245,244,251)` | Page background (light lavender from reference) |
-| `--color-accent` | `#0e60c0` | Primary blue (`$color-main` in reference) |
-| `--color-accent-light` | `#2983ec` | Light blue (`$color-main-light`) |
-| `--color-income` | `#198754` | Bootstrap success green |
-| `--color-expense` | `#dc3545` | Bootstrap danger red |
-| `--color-warning` | `#ffc107` | Bootstrap warning yellow |
-| `--color-cyan` | `#06b6d4` | Cyan accent |
+| `--color-accent` | `#5585c5` | Pastel cornflower blue |
+| `--color-accent-light` | `#78a8e0` | Light pastel blue |
+| `--color-income` | `#4aaa80` | Pastel mint green |
+| `--color-expense` | `#d46878` | Pastel rose red |
+| `--color-warning` | `#e0b84a` | Pastel amber |
+| `--color-cyan` | `#4cbecb` | Pastel teal |
 | `--card-bg` | `#ffffff` | Card surface |
 
 **Variable naming rule**: variable names must match their actual color/purpose. Never `--color-gold` for yellow, never `--color-coral` for unused pinks.

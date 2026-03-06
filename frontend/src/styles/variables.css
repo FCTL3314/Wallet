@@ -15,12 +15,12 @@
 
     /* Color tokens */
     --bg-base: rgb(245, 244, 251);
-    --color-accent: #0e60c0;
-    --color-accent-light: #2983ec;
-    --color-cyan: #06b6d4;
-    --color-warning: #ffc107;
-    --color-income: #198754;
-    --color-expense: #dc3545;
+    --color-accent: #2272cc;
+    --color-accent-light: #4298f5;
+    --color-cyan: #17c4de;
+    --color-warning: #f5c832;
+    --color-income: #1fa068;
+    --color-expense: #e84565;
 
     /* Solid surfaces */
     --card-bg: #ffffff;
@@ -29,8 +29,8 @@
     /* Shadows */
     --shadow-card-solid: 0 2px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
     --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
-    --shadow-btn-accent: 0 4px 24px rgba(14, 96, 192, 0.30);
-    --shadow-btn-danger: 0 4px 24px rgba(220, 53, 69, 0.30);
+    --shadow-btn-accent: 0 4px 24px rgba(34, 114, 204, 0.30);
+    --shadow-btn-danger: 0 4px 24px rgba(232, 69, 101, 0.30);
 
     /* Spacing */
     --gap-section: 24px;

@@ -38,9 +38,9 @@
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
-    border-color: rgba(14, 96, 192, 0.60);
-    box-shadow: 0 0 0 3px rgba(14, 96, 192, 0.15);
-    background: rgba(14, 96, 192, 0.03);
+    border-color: rgba(34, 114, 204, 0.60);
+    box-shadow: 0 0 0 3px rgba(34, 114, 204, 0.15);
+    background: rgba(34, 114, 204, 0.03);
 }
 
 .form-group select option {
@@ -49,13 +49,13 @@
 }
 
 .form-group input.input-invalid {
-    border-color: rgba(251, 113, 133, 0.70);
-    box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.15);
+    border-color: rgba(232, 69, 101, 0.70);
+    box-shadow: 0 0 0 3px rgba(232, 69, 101, 0.15);
     animation: field-shake 0.35s ease;
 }
 
 .field-error {
-    color: #dc2626;
+    color: #e84565;
     font-size: 0.75rem;
     margin-top: 0.25rem;
     margin-bottom: 0;
@@ -79,9 +79,9 @@
 }
 
 .form-input-sm:focus {
-    border-color: rgba(14, 96, 192, 0.60);
-    box-shadow: 0 0 0 2px rgba(14, 96, 192, 0.15);
-    background: rgba(14, 96, 192, 0.03);
+    border-color: rgba(34, 114, 204, 0.60);
+    box-shadow: 0 0 0 2px rgba(34, 114, 204, 0.15);
+    background: rgba(34, 114, 204, 0.03);
 }
 
 /* ============================================================

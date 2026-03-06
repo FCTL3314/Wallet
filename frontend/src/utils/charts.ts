@@ -1,6 +1,6 @@
 import type { SummaryEntry } from '../types/index'
 
-export const DONUT_COLORS = ['#0e60c0', '#198754', '#ffc107', '#dc3545', '#2983ec', '#06b6d4']
+export const DONUT_COLORS = ['#2272cc', '#1fa068', '#f5c832', '#e84565', '#4298f5', '#17c4de']
 
 export function buildLineChartOptions(
   currencyCode: string | null,

@@ -103,9 +103,9 @@ type TrendKey = 'income' | 'expense' | 'profit'
 const selectedTrend = ref<TrendKey>('income')
 
 const TREND_OPTIONS: { key: TrendKey; label: string; borderColor: string; backgroundColor: string }[] = [
-  { key: 'income',  label: 'Income',  borderColor: '#059669', backgroundColor: 'rgba(5,150,105,0.10)' },
-  { key: 'expense', label: 'Expense', borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.08)' },
-  { key: 'profit',  label: 'Profit',  borderColor: '#0e60c0', backgroundColor: 'rgba(14,96,192,0.08)' },
+  { key: 'income',  label: 'Income',  borderColor: '#1fa068', backgroundColor: 'rgba(31,160,104,0.10)' },
+  { key: 'expense', label: 'Expense', borderColor: '#e84565', backgroundColor: 'rgba(232,69,101,0.08)' },
+  { key: 'profit',  label: 'Profit',  borderColor: '#2272cc', backgroundColor: 'rgba(34,114,204,0.08)' },
 ]
 
 const chartData = computed(() => {
@@ -303,9 +303,9 @@ const donutChartData = computed(() => {
 }
 
 .tab-pill--active {
-  background: rgba(14, 96, 192, 0.10);
-  border-color: rgba(14, 96, 192, 0.40);
-  color: #0e60c0;
+  background: rgba(34, 114, 204, 0.10);
+  border-color: rgba(34, 114, 204, 0.40);
+  color: #2272cc;
 }
 
 .donut-wrap {
@@ -331,7 +331,7 @@ const donutChartData = computed(() => {
   margin-top: 0.5rem;
   background: none;
   border: none;
-  color: #0e60c0;
+  color: #2272cc;
   font-size: 0.75rem;
   cursor: pointer;
   padding: 0;

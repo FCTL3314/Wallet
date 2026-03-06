@@ -23,28 +23,28 @@
 }
 
 .btn-primary {
-    background: #0e60c0;
+    background: #2272cc;
     color: #fff;
-    border-color: #0e60c0;
+    border-color: #2272cc;
     box-shadow: var(--shadow-btn-accent);
 }
 
 .btn-primary:hover {
-    background: #0b4fa0;
-    border-color: #0b4fa0;
-    box-shadow: 0 4px 32px rgba(14, 96, 192, 0.40);
+    background: #1861b8;
+    border-color: #1861b8;
+    box-shadow: 0 4px 32px rgba(34, 114, 204, 0.40);
 }
 
 .btn-danger {
-    background: #dc2626;
+    background: #e84565;
     color: #fff;
-    border-color: #dc2626;
+    border-color: #e84565;
     box-shadow: var(--shadow-btn-danger);
 }
 
 .btn-danger:hover {
-    background: #b91c1c;
-    border-color: #b91c1c;
+    background: #d43555;
+    border-color: #d43555;
 }
 
 .btn-secondary {
