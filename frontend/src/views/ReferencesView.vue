@@ -93,8 +93,6 @@ async function saveEditSource() {
 </script>
 
 <template>
-  <h1 class="page-title">References</h1>
-
   <div class="page-sections">
   <div class="settings-grid">
     <!-- Currencies -->

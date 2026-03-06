@@ -4,22 +4,19 @@
 
 :root {
     /* Layout */
-    --sidebar-width: 260px;
+    --header-height: 64px;
 
     /* Color tokens */
     --bg-base: rgb(245, 244, 251);
     --color-accent: #0e60c0;
     --color-accent-light: #2983ec;
     --color-cyan: #06b6d4;
-    --color-coral: #f43f5e;
-    --color-gold: #ffc107;
+    --color-warning: #ffc107;
     --color-income: #198754;
     --color-expense: #dc3545;
-    --color-info: #38bdf8;
 
     /* Solid surfaces */
     --card-bg: #ffffff;
-    --sidebar-bg: #0f0f23;
     --card-border: rgba(0, 0, 0, 0.08);
 
     /* Shadows */

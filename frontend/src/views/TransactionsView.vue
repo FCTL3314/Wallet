@@ -158,8 +158,6 @@ function sourceName(id: number | null) {
 </script>
 
 <template>
-  <h1 class="page-title">Income</h1>
-
   <div class="page-sections">
   <BaseCard>
     <PeriodFilterBar

@@ -115,8 +115,8 @@ function handleDateInput(field: 'dateFrom' | 'dateTo', value: string) {
 }
 
 .tab-pill--active {
-  background: rgba(167, 139, 250, 0.25);
-  border-color: rgba(167, 139, 250, 0.6);
-  color: #a78bfa;
+  background: rgba(14, 96, 192, 0.10);
+  border-color: rgba(14, 96, 192, 0.40);
+  color: #0e60c0;
 }
 </style>

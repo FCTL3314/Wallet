@@ -106,6 +106,60 @@ Transaction links to ExpenseCategory (for expenses) or IncomeSource (for income)
 ### API Prefix
 All backend routes use `/api` prefix. Frontend proxied through Nginx in production.
 
+## Frontend Design System
+
+Design reference: https://github.com/FCTL3314/HealthNutrition-Frontend
+
+### Core Concept: Everything is a Card ("плашка")
+
+**The one rule**: nothing floats on the bare background. Every piece of UI lives inside a card.
+
+This comes directly from the reference's `ComponentWrapper.vue` pattern:
+- White background (`#ffffff`)
+- Border radius: `var(--radius-card)` = `24px` (reference uses `2rem`)
+- Subtle border + drop shadow
+- Consistent gap between cards: `var(--gap-section)` = `24px` (reference: `$between-components-indentation: 1.5rem`)
+
+**What counts as a card:** `BaseCard` / `.card` class. Use it for everything:
+- Navigation header → floating card with margin from edges (`top: 16px; left/right: 24px`)
+- Filter bars / toolbars → inside a `<BaseCard>`
+- Data tables → `BaseDataTable` already wraps in `BaseCard`
+- Stat cards → `.stat-card` is its own surface
+- Modals → `.modal` is a card
+
+**Page layout pattern:**
+```
+[light-gray background rgb(245,244,251)]
+  [floating header card — fixed, margin 16px top / 24px sides]
+
+  [page-title — tiny muted label, not a hero heading]
+  [div.page-sections — flex-column, gap: 24px]
+    [BaseCard]   ← filters
+    [stats-grid] ← group of stat cards
+    [BaseDataTable] ← already a card
+```
+
+### Color Palette (from reference)
+
+| Token | Value | Meaning |
+|---|---|---|
+| `--bg-base` | `rgb(245,244,251)` | Page background (light lavender from reference) |
+| `--color-accent` | `#0e60c0` | Primary blue (`$color-main` in reference) |
+| `--color-accent-light` | `#2983ec` | Light blue (`$color-main-light`) |
+| `--color-income` | `#198754` | Bootstrap success green |
+| `--color-expense` | `#dc3545` | Bootstrap danger red |
+| `--color-warning` | `#ffc107` | Bootstrap warning yellow |
+| `--color-cyan` | `#06b6d4` | Cyan accent |
+| `--card-bg` | `#ffffff` | Card surface |
+
+**Variable naming rule**: variable names must match their actual color/purpose. Never `--color-gold` for yellow, never `--color-coral` for unused pinks.
+
+### Avoid
+- Full-width edge-to-edge bars (header, toolbars) — they must be cards with margin/padding
+- Floating content directly on `--bg-base` — always wrap in a card first
+- Dark theme colors (rgba white overlays, dark backgrounds in main content)
+- Inventing new accent colors — use only the 4 semantic colors above + cyan
+
 ## Frontend Standards (Vue 3 + TypeScript)
 
 ### File Structure

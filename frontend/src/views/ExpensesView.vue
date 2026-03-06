@@ -90,8 +90,6 @@ async function remove(id: number) {
 </script>
 
 <template>
-  <h1 class="page-title">Regular Expenses</h1>
-
   <div class="page-sections">
   <BaseCard>
     <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Category</BaseButton>

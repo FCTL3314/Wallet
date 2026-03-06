@@ -38,9 +38,9 @@
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
-    border-color: rgba(167, 139, 250, 0.70);
-    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25), 0 0 16px rgba(124, 58, 237, 0.15);
-    background: rgba(124, 58, 237, 0.04);
+    border-color: rgba(14, 96, 192, 0.60);
+    box-shadow: 0 0 0 3px rgba(14, 96, 192, 0.15);
+    background: rgba(14, 96, 192, 0.03);
 }
 
 .form-group select option {
@@ -79,9 +79,9 @@
 }
 
 .form-input-sm:focus {
-    border-color: rgba(167, 139, 250, 0.70);
-    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.20);
-    background: rgba(124, 58, 237, 0.04);
+    border-color: rgba(14, 96, 192, 0.60);
+    box-shadow: 0 0 0 2px rgba(14, 96, 192, 0.15);
+    background: rgba(14, 96, 192, 0.03);
 }
 
 /* ============================================================

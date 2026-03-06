@@ -75,8 +75,6 @@ const submitPassword = handlePasswordSubmit(async (values) => {
 </script>
 
 <template>
-  <h1 class="page-title">Settings</h1>
-
   <div class="page-sections">
   <div class="settings-grid">
     <BaseCard title="Change Email">

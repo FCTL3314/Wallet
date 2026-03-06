@@ -166,8 +166,6 @@ async function remove(id: number) {
 </script>
 
 <template>
-  <h1 class="page-title">Balance Snapshots</h1>
-
   <div class="page-sections">
   <BaseCard>
     <PeriodFilterBar
@@ -291,7 +289,7 @@ async function remove(id: number) {
 
 .expand-btn.expanded {
   transform: rotate(90deg);
-  color: #a78bfa;
+  color: #0e60c0;
 }
 
 .detail-row td {

@@ -32,7 +32,7 @@
     transform: translateX(-50%);
     width: 160px;
     height: 160px;
-    background: radial-gradient(circle, rgba(124, 58, 237, 0.60) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(14, 96, 192, 0.40) 0%, transparent 70%);
     border-radius: 50%;
     filter: blur(40px);
     pointer-events: none;
@@ -74,11 +74,11 @@
 }
 
 .auth-link a {
-    color: var(--color-accent-light);
+    color: var(--color-accent);
     text-decoration: none;
     font-weight: 600;
 }
 
 .auth-link a:hover {
-    color: var(--color-accent);
+    color: var(--color-accent-light);
 }

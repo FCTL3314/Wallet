@@ -121,8 +121,8 @@ const chartData = computed(() => ({
     {
       label: 'Profit',
       data: chartEntries.value.map((e) => e.profit),
-      borderColor: '#a78bfa',
-      backgroundColor: 'rgba(167,139,250,0.15)',
+      borderColor: '#0e60c0',
+      backgroundColor: 'rgba(14,96,192,0.08)',
       fill: true,
       tension: 0.3,
     },
@@ -155,8 +155,6 @@ const donutChartData = computed(() => {
 </script>
 
 <template>
-  <h1 class="page-title">Dashboard</h1>
-
   <div class="page-sections">
   <BaseCard>
     <PeriodFilterBar
@@ -285,9 +283,9 @@ const donutChartData = computed(() => {
 }
 
 .tab-pill--active {
-  background: rgba(167, 139, 250, 0.25);
-  border-color: rgba(167, 139, 250, 0.6);
-  color: #7c3aed;
+  background: rgba(14, 96, 192, 0.10);
+  border-color: rgba(14, 96, 192, 0.40);
+  color: #0e60c0;
 }
 
 .donut-wrap {
@@ -299,7 +297,7 @@ const donutChartData = computed(() => {
   margin-top: 0.5rem;
   background: none;
   border: none;
-  color: #7c3aed;
+  color: #0e60c0;
   font-size: 0.75rem;
   cursor: pointer;
   padding: 0;
@@ -333,7 +331,7 @@ const donutChartData = computed(() => {
 }
 
 .row-highlighted {
-  background: rgba(167, 139, 250, 0.15);
+  background: rgba(14, 96, 192, 0.08);
 }
 
 .badge-initial {
@@ -344,9 +342,9 @@ const donutChartData = computed(() => {
   font-weight: 600;
   letter-spacing: 0.03em;
   border-radius: 9999px;
-  background: rgba(251, 191, 36, 0.15);
-  color: #fbbf24;
-  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(255, 193, 7, 0.15);
+  color: #b45309;
+  border: 1px solid rgba(255, 193, 7, 0.40);
   vertical-align: middle;
   cursor: default;
 }

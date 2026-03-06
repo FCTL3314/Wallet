@@ -20,7 +20,7 @@ function injectStyles() {
   document.head.appendChild(style)
 }
 
-const COLORS = ['#fbbf24', '#34d399', '#06b6d4', '#a78bfa']
+const COLORS = ['#0e60c0', '#198754', '#ffc107', '#dc3545']
 
 export function useSuccessAnimation() {
   function spawn({ x, y, count = 12 }: { x: number; y: number; count?: number }) {
