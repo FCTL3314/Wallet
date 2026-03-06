@@ -18,8 +18,8 @@
     padding: 48px 40px;
     width: 100%;
     max-width: 420px;
-    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.55),
-                0 8px 32px rgba(0, 0, 0, 0.40);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12),
+                0 2px 8px rgba(0, 0, 0, 0.06);
     position: relative;
     overflow: hidden;
     animation: fade-up 0.5s var(--ease-spring) both;
@@ -80,5 +80,5 @@
 }
 
 .auth-link a:hover {
-    color: #fff;
+    color: var(--color-accent);
 }

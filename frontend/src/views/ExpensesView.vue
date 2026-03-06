@@ -6,6 +6,7 @@ import { useReferencesStore } from '../stores/references'
 import { fmtAmount } from '../utils/format'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
+import BaseCard from '../components/BaseCard.vue'
 import BaseStatCard from '../components/BaseStatCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import EditDeleteActions from '../components/EditDeleteActions.vue'
@@ -91,9 +92,10 @@ async function remove(id: number) {
 <template>
   <h1 class="page-title">Regular Expenses</h1>
 
-  <div class="toolbar">
+  <div class="page-sections">
+  <BaseCard>
     <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Category</BaseButton>
-  </div>
+  </BaseCard>
 
   <div v-if="template" class="stats-grid">
     <BaseStatCard label="Total Monthly">
@@ -132,6 +134,7 @@ async function remove(id: number) {
       </tr>
     </template>
   </BaseDataTable>
+  </div>
 
   <BaseModal :show="showModal" :title="`${editing ? 'Edit' : 'New'} Expense Category`" @close="showModal = false" @submit="save">
     <div class="form-group">
@@ -168,8 +171,8 @@ async function remove(id: number) {
   font-size: 0.7rem;
   padding: 1px 6px;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  color: rgba(0, 0, 0, 0.40);
   margin-right: 4px;
   letter-spacing: 0.02em;
 }
@@ -177,7 +180,7 @@ async function remove(id: number) {
 .tag-remove {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(0, 0, 0, 0.35);
   cursor: pointer;
   font-size: 0.85rem;
   line-height: 1;
@@ -186,7 +189,7 @@ async function remove(id: number) {
 }
 
 .tag-remove:hover {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(0, 0, 0, 0.70);
 }
 
 .tag-input-wrap {
@@ -195,9 +198,9 @@ async function remove(id: number) {
   align-items: center;
   gap: 4px;
   padding: 6px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(0, 0, 0, 0.10);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(0, 0, 0, 0.03);
   min-height: 38px;
 }
 

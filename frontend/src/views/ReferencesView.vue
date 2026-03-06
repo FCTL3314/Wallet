@@ -95,6 +95,7 @@ async function saveEditSource() {
 <template>
   <h1 class="page-title">References</h1>
 
+  <div class="page-sections">
   <div class="settings-grid">
     <!-- Currencies -->
     <SettingsSection title="Currencies" :items="refs.currencies" @add="addCurrency">
@@ -177,5 +178,6 @@ async function saveEditSource() {
         </template>
       </template>
     </SettingsSection>
+  </div>
   </div>
 </template>

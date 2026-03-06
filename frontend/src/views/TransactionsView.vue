@@ -7,6 +7,7 @@ import { fmtAmount } from '../utils/format'
 import { useSuccessAnimation } from '../composables/useSuccessAnimation'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
+import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import EditDeleteActions from '../components/EditDeleteActions.vue'
 import PeriodFilterBar from '../components/PeriodFilterBar.vue'
@@ -159,15 +160,18 @@ function sourceName(id: number | null) {
 <template>
   <h1 class="page-title">Income</h1>
 
-  <PeriodFilterBar
-    v-model:dateFrom="dateFrom"
-    v-model:dateTo="dateTo"
-    v-model:activePreset="activePreset"
-    :showGroupBy="false"
-    :allRange="allRange"
-  >
-    <div ref="addBtn"><BaseButton variant="primary" size="sm" @click="openCreate">+ Add Income</BaseButton></div>
-  </PeriodFilterBar>
+  <div class="page-sections">
+  <BaseCard>
+    <PeriodFilterBar
+      v-model:dateFrom="dateFrom"
+      v-model:dateTo="dateTo"
+      v-model:activePreset="activePreset"
+      :showGroupBy="false"
+      :allRange="allRange"
+    >
+      <div ref="addBtn"><BaseButton variant="primary" size="sm" @click="openCreate">+ Add Income</BaseButton></div>
+    </PeriodFilterBar>
+  </BaseCard>
 
   <BaseDataTable :loading="loading && !items.length" :empty="!loading && !items.length" empty-message="No income transactions yet.">
     <template #head>
@@ -202,6 +206,7 @@ function sourceName(id: number | null) {
 
   <div ref="sentinel" style="height: 1px;" />
   <p v-if="loading && items.length" class="text-muted" style="text-align: center; padding: 1rem;">Loading more...</p>
+  </div>
 
   <BaseModal :show="showModal" :title="`${editing ? 'Edit' : 'New'} Income`" @close="showModal = false" @submit="save">
     <div class="form-group">

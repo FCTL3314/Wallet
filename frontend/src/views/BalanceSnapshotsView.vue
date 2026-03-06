@@ -6,6 +6,7 @@ import { useReferencesStore } from '../stores/references'
 import { fmtAmount, fmtPeriod } from '../utils/format'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
+import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import EditDeleteActions from '../components/EditDeleteActions.vue'
 import PeriodFilterBar from '../components/PeriodFilterBar.vue'
@@ -167,15 +168,18 @@ async function remove(id: number) {
 <template>
   <h1 class="page-title">Balance Snapshots</h1>
 
-  <PeriodFilterBar
-    v-model:dateFrom="dateFrom"
-    v-model:dateTo="dateTo"
-    v-model:groupBy="groupBy"
-    v-model:activePreset="activePreset"
-    :allRange="allRange"
-  >
-    <div ref="addBtn"><BaseButton variant="primary" size="sm" @click="openCreate">+ Add Snapshot</BaseButton></div>
-  </PeriodFilterBar>
+  <div class="page-sections">
+  <BaseCard>
+    <PeriodFilterBar
+      v-model:dateFrom="dateFrom"
+      v-model:dateTo="dateTo"
+      v-model:groupBy="groupBy"
+      v-model:activePreset="activePreset"
+      :allRange="allRange"
+    >
+      <div ref="addBtn"><BaseButton variant="primary" size="sm" @click="openCreate">+ Add Snapshot</BaseButton></div>
+    </PeriodFilterBar>
+  </BaseCard>
 
   <BaseDataTable title="Balances by Storage" :loading="loading" :empty="!storageData.length" empty-message="No balance data for selected period.">
     <template #head>
@@ -225,7 +229,7 @@ async function remove(id: number) {
           </tr>
           <tr v-if="!snapshotsForPeriod(row.period).length" class="detail-row">
             <td></td>
-            <td :colspan="1 + allCurrencies.length + allAccounts.length" class="detail-cell" style="font-style: italic; color: rgba(255,255,255,0.35);">
+            <td :colspan="1 + allCurrencies.length + allAccounts.length" class="detail-cell" style="font-style: italic; color: rgba(0,0,0,0.35);">
               No individual snapshots in this period
             </td>
           </tr>
@@ -233,6 +237,7 @@ async function remove(id: number) {
       </template>
     </template>
   </BaseDataTable>
+  </div>
 
   <BaseModal :show="showModal" :title="`${editing ? 'Edit' : 'New'} Balance Snapshot`" @close="showModal = false" @submit="save">
     <div class="form-group">
@@ -272,7 +277,7 @@ async function remove(id: number) {
   background: none;
   border: none;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(0, 0, 0, 0.35);
   font-size: 0.6rem;
   padding: 4px 6px;
   border-radius: 4px;
@@ -281,7 +286,7 @@ async function remove(id: number) {
 }
 
 .period-row:hover .expand-btn {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(0, 0, 0, 0.65);
 }
 
 .expand-btn.expanded {
@@ -290,7 +295,7 @@ async function remove(id: number) {
 }
 
 .detail-row td {
-  background: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.03);
   border-top: none;
 }
 
@@ -306,20 +311,20 @@ async function remove(id: number) {
 
 .detail-date {
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(0, 0, 0, 0.45);
   min-width: 90px;
 }
 
 .detail-account {
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(0, 0, 0, 0.60);
   flex: 1;
 }
 
 .detail-amount {
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(0, 0, 0, 0.80);
 }
 
 .detail-actions {

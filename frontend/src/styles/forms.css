@@ -20,8 +20,8 @@
 .form-group textarea {
     width: 100%;
     padding: 10px 14px;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(0, 0, 0, 0.10);
     border-radius: var(--radius-input);
     font-family: var(--font-body);
     font-size: 0.875rem;
@@ -40,11 +40,11 @@
 .form-group textarea:focus {
     border-color: rgba(167, 139, 250, 0.70);
     box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25), 0 0 16px rgba(124, 58, 237, 0.15);
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(124, 58, 237, 0.04);
 }
 
 .form-group select option {
-    background: #1a1040;
+    background: #ffffff;
     color: var(--text-primary);
 }
 
@@ -55,7 +55,7 @@
 }
 
 .field-error {
-    color: rgba(251, 113, 133, 0.90);
+    color: #dc2626;
     font-size: 0.75rem;
     margin-top: 0.25rem;
     margin-bottom: 0;
@@ -64,8 +64,8 @@
 /* Settings small inputs */
 .form-input-sm {
     padding: 6px 10px;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(0, 0, 0, 0.10);
     border-radius: 8px;
     font-family: var(--font-body);
     font-size: 0.8125rem;
@@ -81,7 +81,7 @@
 .form-input-sm:focus {
     border-color: rgba(167, 139, 250, 0.70);
     box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.20);
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(124, 58, 237, 0.04);
 }
 
 /* ============================================================

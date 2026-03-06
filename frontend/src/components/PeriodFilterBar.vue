@@ -99,15 +99,15 @@ function handleDateInput(field: 'dateFrom' | 'dateTo', value: string) {
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.55);
   transition: background 0.15s, color 0.15s;
 }
 
 .tab-pill:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.10);
-  color: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.10);
+  color: rgba(0, 0, 0, 0.80);
 }
 
 .tab-pill:disabled {

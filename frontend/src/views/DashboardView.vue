@@ -157,23 +157,25 @@ const donutChartData = computed(() => {
 <template>
   <h1 class="page-title">Dashboard</h1>
 
-  <PeriodFilterBar
-    v-model:dateFrom="dateFrom"
-    v-model:dateTo="dateTo"
-    v-model:groupBy="groupBy"
-    v-model:activePreset="activePreset"
-    :allRange="allRange"
-  />
-
-  <div class="currency-tabs">
-    <button
-      v-for="cur in currencies"
-      :key="cur.id"
-      class="tab-pill"
-      :class="{ 'tab-pill--active': selectedCurrencyId === cur.id }"
-      @click="selectedCurrencyId = cur.id"
-    >{{ cur.code }}</button>
-  </div>
+  <div class="page-sections">
+  <BaseCard>
+    <PeriodFilterBar
+      v-model:dateFrom="dateFrom"
+      v-model:dateTo="dateTo"
+      v-model:groupBy="groupBy"
+      v-model:activePreset="activePreset"
+      :allRange="allRange"
+    />
+    <div v-if="currencies.length" class="currency-tabs">
+      <button
+        v-for="cur in currencies"
+        :key="cur.id"
+        class="tab-pill"
+        :class="{ 'tab-pill--active': selectedCurrencyId === cur.id }"
+        @click="selectedCurrencyId = cur.id"
+      >{{ cur.code }}</button>
+    </div>
+  </BaseCard>
 
   <div v-if="data.length" class="stats-grid">
     <BaseStatCard label="Current Balance">
@@ -250,6 +252,7 @@ const donutChartData = computed(() => {
       </tr>
     </template>
   </BaseDataTable>
+  </div>
 </template>
 
 <style scoped>
@@ -257,7 +260,7 @@ const donutChartData = computed(() => {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  margin-bottom: 1rem;
+  margin-top: 0.75rem;
 }
 
 .tab-pill {
@@ -266,15 +269,15 @@ const donutChartData = computed(() => {
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.55);
   transition: background 0.15s, color 0.15s;
 }
 
 .tab-pill:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.10);
-  color: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.10);
+  color: rgba(0, 0, 0, 0.80);
 }
 
 .tab-pill:disabled {
@@ -284,7 +287,7 @@ const donutChartData = computed(() => {
 .tab-pill--active {
   background: rgba(167, 139, 250, 0.25);
   border-color: rgba(167, 139, 250, 0.6);
-  color: #a78bfa;
+  color: #7c3aed;
 }
 
 .donut-wrap {
@@ -296,7 +299,7 @@ const donutChartData = computed(() => {
   margin-top: 0.5rem;
   background: none;
   border: none;
-  color: rgba(167, 139, 250, 0.8);
+  color: #7c3aed;
   font-size: 0.75rem;
   cursor: pointer;
   padding: 0;
@@ -314,7 +317,7 @@ const donutChartData = computed(() => {
   display: flex;
   gap: 0.5rem;
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(0, 0, 0, 0.55);
 }
 
 .breakdown-label {
@@ -322,11 +325,11 @@ const donutChartData = computed(() => {
 }
 
 .breakdown-amount {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(0, 0, 0, 0.80);
 }
 
 .breakdown-date {
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(0, 0, 0, 0.40);
 }
 
 .row-highlighted {

@@ -77,6 +77,7 @@ const submitPassword = handlePasswordSubmit(async (values) => {
 <template>
   <h1 class="page-title">Settings</h1>
 
+  <div class="page-sections">
   <div class="settings-grid">
     <BaseCard title="Change Email">
       <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 16px">
@@ -162,5 +163,6 @@ const submitPassword = handlePasswordSubmit(async (values) => {
         <BaseButton type="submit" variant="primary" style="margin-top: 4px">Update Password</BaseButton>
       </form>
     </BaseCard>
+  </div>
   </div>
 </template>

@@ -8,14 +8,13 @@
     border-radius: var(--radius-card);
     padding: 24px;
     box-shadow: var(--shadow-card-solid);
-    margin-bottom: 24px;
     animation: fade-up 0.4s var(--ease-spring) both;
     transition: transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-smooth);
 }
 
 .card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 28px 72px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(124, 58, 237, 0.15);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(124, 58, 237, 0.12);
 }
 
 .card-title {
@@ -34,7 +33,6 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 16px;
-    margin-bottom: 24px;
 }
 
 .stat-card {
@@ -51,7 +49,7 @@
 
 .stat-card:hover {
     transform: translateY(-3px) scale(1.01);
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55), 0 0 32px rgba(124, 58, 237, 0.12);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 0 16px rgba(124, 58, 237, 0.08);
 }
 
 .stat-card::before {

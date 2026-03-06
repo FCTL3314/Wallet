@@ -15,17 +15,17 @@
 }
 
 .modal {
-    background: #1e1e48;
+    background: var(--card-bg);
     backdrop-filter: var(--blur-modal);
     -webkit-backdrop-filter: var(--blur-modal);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(0, 0, 0, 0.10);
     border-radius: var(--radius-modal);
     padding: 32px;
     width: 100%;
     max-width: 500px;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: var(--shadow-card-solid), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+    box-shadow: var(--shadow-card);
     animation: modal-in 0.22s var(--ease-spring) both;
 }
 
