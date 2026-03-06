@@ -24,7 +24,7 @@ export function buildLineChartOptions(
       legend: {
         position: 'top' as const,
         labels: {
-          color: 'rgba(255,255,255,0.60)',
+          color: 'rgba(0,0,0,0.55)',
           font: { family: 'DM Sans', size: 12 },
         },
       },
@@ -36,15 +36,15 @@ export function buildLineChartOptions(
     scales: {
       y: {
         beginAtZero: true,
-        grid: { color: 'rgba(255,255,255,0.07)' },
-        ticks: { color: 'rgba(255,255,255,0.50)' },
+        grid: { color: 'rgba(0,0,0,0.06)' },
+        ticks: { color: 'rgba(0,0,0,0.45)' },
         title: currencyCode
-          ? { display: true, text: currencyCode, color: 'rgba(255,255,255,0.50)' }
+          ? { display: true, text: currencyCode, color: 'rgba(0,0,0,0.45)' }
           : { display: false },
       },
       x: {
-        grid: { color: 'rgba(255,255,255,0.07)' },
-        ticks: { color: 'rgba(255,255,255,0.50)' },
+        grid: { color: 'rgba(0,0,0,0.06)' },
+        ticks: { color: 'rgba(0,0,0,0.45)' },
       },
     },
   }
@@ -56,7 +56,7 @@ export const donutOptions = {
     legend: {
       position: 'right' as const,
       labels: {
-        color: 'rgba(255,255,255,0.60)',
+        color: 'rgba(0,0,0,0.55)',
         font: { family: 'DM Sans', size: 12 },
       },
     },

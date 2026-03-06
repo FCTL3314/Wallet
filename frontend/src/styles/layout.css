@@ -14,13 +14,10 @@
    ============================================================ */
 
 .sidebar {
-    --text-primary: rgba(255, 255, 255, 0.90);
-    --text-secondary: rgba(255, 255, 255, 0.55);
-    --text-label: rgba(255, 255, 255, 0.45);
-    --card-border: rgba(255, 255, 255, 0.10);
     width: var(--sidebar-width);
-    background: var(--sidebar-bg);
-    border-right: 1px solid var(--card-border);
+    background: #ffffff;
+    border-right: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 2px 0 16px rgba(0, 0, 0, 0.06);
     color: var(--text-primary);
     display: flex;
     flex-direction: column;
@@ -29,23 +26,62 @@
     left: 0;
     bottom: 0;
     z-index: 100;
+    transition: width 0.25s var(--ease-smooth);
+    overflow: hidden;
+}
+
+.sidebar--collapsed {
+    width: 72px;
 }
 
 .sidebar-brand {
-    padding: 24px 20px 20px;
+    padding: 0 16px;
+    height: 68px;
     display: flex;
     align-items: center;
     gap: 10px;
-    border-bottom: 1px solid var(--card-border);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    flex-shrink: 0;
 }
 
 .sidebar-brand-name {
     font-family: var(--font-display);
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: -0.02em;
-    color: var(--text-primary);
+    color: var(--color-accent);
     line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    transition: opacity 0.15s var(--ease-smooth), max-width 0.25s var(--ease-smooth);
+    max-width: 200px;
+}
+
+.sidebar--collapsed .sidebar-brand-name {
+    opacity: 0;
+    max-width: 0;
+}
+
+.sidebar-toggle {
+    margin-left: auto;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.10);
+    background: transparent;
+    color: rgba(0, 0, 0, 0.40);
+    cursor: pointer;
+    transition: all 0.15s var(--ease-smooth);
+}
+
+.sidebar-toggle:hover {
+    background: rgba(124, 58, 237, 0.08);
+    border-color: rgba(124, 58, 237, 0.25);
+    color: var(--color-accent);
 }
 
 .sidebar-nav {
@@ -55,21 +91,23 @@
     flex-direction: column;
     gap: 4px;
     overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .sidebar-nav a {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 11px 14px;
+    padding: 10px 14px;
     border-radius: 12px;
-    color: var(--text-secondary);
+    color: rgba(0, 0, 0, 0.55);
     text-decoration: none;
     font-family: var(--font-body);
     font-size: 0.875rem;
     font-weight: 500;
     transition: all 0.2s var(--ease-smooth);
-    position: relative;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .sidebar-nav a svg {
@@ -78,51 +116,118 @@
     flex-shrink: 0;
 }
 
+.sidebar-nav a span {
+    transition: opacity 0.15s var(--ease-smooth), max-width 0.25s var(--ease-smooth);
+    max-width: 200px;
+    overflow: hidden;
+}
+
+.sidebar--collapsed .sidebar-nav a {
+    justify-content: center;
+    padding: 10px;
+    border-left-color: transparent;
+}
+
+.sidebar--collapsed .sidebar-nav a span {
+    opacity: 0;
+    max-width: 0;
+}
+
 .sidebar-nav a:hover {
-    background: rgba(255, 255, 255, 0.10);
-    color: var(--text-primary);
+    background: rgba(124, 58, 237, 0.06);
+    color: rgba(0, 0, 0, 0.80);
 }
 
 .sidebar-nav a.router-link-exact-active {
-    background: rgba(255, 255, 255, 0.15);
-    color: var(--text-primary);
+    background: rgba(124, 58, 237, 0.10);
+    color: var(--color-accent);
     border-left: 2px solid var(--color-accent);
     padding-left: 12px;
 }
 
+.sidebar--collapsed .sidebar-nav a.router-link-exact-active {
+    padding-left: 10px;
+    border-left: none;
+}
+
+.sidebar--collapsed .sidebar-brand {
+    justify-content: center;
+    gap: 0;
+}
+
+.sidebar--collapsed .sidebar-toggle {
+    margin-left: 0;
+}
+
 .sidebar-footer {
-    padding: 16px;
-    border-top: 1px solid var(--card-border);
+    padding: 14px 16px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    flex-shrink: 0;
 }
 
 .sidebar-footer-email {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
+    font-size: 0.7rem;
+    color: rgba(0, 0, 0, 0.40);
     margin-bottom: 8px;
     font-family: var(--font-mono);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    transition: opacity 0.15s var(--ease-smooth), max-height 0.25s var(--ease-smooth);
+    max-height: 20px;
 }
 
-.sidebar-footer button {
+.sidebar--collapsed .sidebar-footer-email {
+    opacity: 0;
+    max-height: 0;
+    margin-bottom: 0;
+}
+
+.sidebar-logout {
     width: 100%;
     padding: 9px 14px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: var(--text-secondary);
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.10);
+    color: rgba(0, 0, 0, 0.55);
     border-radius: var(--radius-btn);
     cursor: pointer;
     font-family: var(--font-body);
     font-size: 0.8125rem;
     font-weight: 500;
     transition: all 0.2s var(--ease-smooth);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
-.sidebar-footer button:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: var(--text-primary);
-    border-color: rgba(255, 255, 255, 0.20);
+.sidebar-logout:hover {
+    background: rgba(220, 38, 38, 0.08);
+    border-color: rgba(220, 38, 38, 0.20);
+    color: #dc2626;
+}
+
+.sidebar-logout span {
+    transition: opacity 0.15s var(--ease-smooth), max-width 0.25s var(--ease-smooth);
+    max-width: 200px;
+    overflow: hidden;
+}
+
+.sidebar--collapsed .sidebar-footer {
+    padding: 14px 8px;
+}
+
+.sidebar--collapsed .sidebar-logout {
+    padding: 10px;
+    gap: 0;
+}
+
+.sidebar--collapsed .sidebar-logout span {
+    opacity: 0;
+    max-width: 0;
+    overflow: hidden;
 }
 
 /* ============================================================
@@ -136,6 +241,11 @@
     min-height: 100vh;
     position: relative;
     z-index: 1;
+    transition: margin-left 0.25s var(--ease-smooth);
+}
+
+.app-layout.sidebar-collapsed .main-content {
+    margin-left: 72px;
 }
 
 .page-sections {

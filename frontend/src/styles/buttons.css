@@ -36,15 +36,15 @@
 }
 
 .btn-danger {
-    background: rgba(244, 63, 94, 0.40);
+    background: #dc2626;
     color: #fff;
-    border-color: rgba(251, 113, 133, 0.55);
+    border-color: #dc2626;
     box-shadow: var(--shadow-btn-danger);
 }
 
 .btn-danger:hover {
-    background: rgba(244, 63, 94, 0.60);
-    border-color: rgba(251, 113, 133, 0.75);
+    background: #b91c1c;
+    border-color: #b91c1c;
 }
 
 .btn-secondary {
