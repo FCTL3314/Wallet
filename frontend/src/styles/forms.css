@@ -108,6 +108,23 @@
 }
 
 /* ============================================================
+   RESPONSIVE — MOBILE (< 640px)
+   ============================================================ */
+
+@media (max-width: 640px) {
+    .checkbox-group {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        padding: 10px 12px;
+    }
+}
+
+/* ============================================================
    PASSWORD REQUIREMENTS CHECKLIST
    ============================================================ */
 

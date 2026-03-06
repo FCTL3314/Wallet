@@ -26,3 +26,13 @@
 .settings-item:last-child {
     border-bottom: none;
 }
+
+/* ============================================================
+   RESPONSIVE — TABLET & MOBILE (< 1024px)
+   ============================================================ */
+
+@media (max-width: 1024px) {
+    .settings-grid {
+        grid-template-columns: 1fr;
+    }
+}

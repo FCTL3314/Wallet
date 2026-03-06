@@ -61,17 +61,19 @@ function handleDateInput(field: 'dateFrom' | 'dateTo', value: string) {
       >{{ p }}</button>
       <button class="tab-pill" :class="{ 'tab-pill--active': activePreset === 'custom' }" disabled>Custom</button>
     </div>
-    <input
-      :value="dateFrom"
-      type="date"
-      @input="handleDateInput('dateFrom', ($event.target as HTMLInputElement).value)"
-    />
-    <span class="text-muted">—</span>
-    <input
-      :value="dateTo"
-      type="date"
-      @input="handleDateInput('dateTo', ($event.target as HTMLInputElement).value)"
-    />
+    <div class="date-range-group">
+      <input
+        :value="dateFrom"
+        type="date"
+        @input="handleDateInput('dateFrom', ($event.target as HTMLInputElement).value)"
+      />
+      <span class="text-muted">—</span>
+      <input
+        :value="dateTo"
+        type="date"
+        @input="handleDateInput('dateTo', ($event.target as HTMLInputElement).value)"
+      />
+    </div>
     <select
       v-if="showGroupBy !== false"
       :value="groupBy"
@@ -118,5 +120,23 @@ function handleDateInput(field: 'dateFrom' | 'dateTo', value: string) {
   background: rgba(14, 96, 192, 0.10);
   border-color: rgba(14, 96, 192, 0.40);
   color: #0e60c0;
+}
+
+@media (max-width: 640px) {
+  .preset-pills {
+    flex-wrap: wrap;
+  }
+
+  .date-range-group {
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .date-range-group input[type="date"] {
+    flex: 1;
+    min-width: 0;
+  }
 }
 </style>

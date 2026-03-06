@@ -191,3 +191,25 @@
     flex-direction: column;
     gap: var(--gap-section);
 }
+
+/* ============================================================
+   RESPONSIVE — MOBILE (< 640px)
+   ============================================================ */
+
+@media (max-width: 640px) {
+    .app-header {
+        top: 8px;
+        left: 12px;
+        right: 12px;
+        height: 56px;
+    }
+
+    .header-nav {
+        display: none;
+    }
+
+    .main-content {
+        /* 8px offset + 56px header + 16px gap */
+        padding: calc(8px + 56px + 16px) 12px 80px;
+    }
+}

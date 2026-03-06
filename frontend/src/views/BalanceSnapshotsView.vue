@@ -330,4 +330,16 @@ async function remove(id: number) {
   gap: 0.5rem;
   margin-left: auto;
 }
+
+@media (max-width: 640px) {
+  .detail-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+
+  .detail-actions {
+    margin-left: 0;
+  }
+}
 </style>

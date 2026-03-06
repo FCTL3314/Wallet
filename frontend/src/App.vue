@@ -5,6 +5,7 @@ import Toast from 'primevue/toast'
 import { useAuthStore } from './stores/auth'
 import { useReferencesStore } from './stores/references'
 import { PhChartBar, PhArrowsLeftRight, PhWallet, PhReceipt, PhBooks, PhGear, PhSignOut } from '@phosphor-icons/vue'
+import TheBottomNav from './components/TheBottomNav.vue'
 
 const auth = useAuthStore()
 const refs = useReferencesStore()
@@ -52,6 +53,7 @@ function logout() {
         <RouterView />
       </Transition>
     </main>
+    <TheBottomNav />
   </div>
   <Transition name="page" mode="out-in">
     <RouterView v-if="!auth.isAuthenticated" />

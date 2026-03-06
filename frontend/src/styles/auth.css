@@ -82,3 +82,19 @@
 .auth-link a:hover {
     color: var(--color-accent-light);
 }
+
+/* ============================================================
+   RESPONSIVE — MOBILE (< 640px)
+   ============================================================ */
+
+@media (max-width: 640px) {
+    .auth-card {
+        padding: 32px 20px;
+        border-radius: 18px;
+    }
+
+    .auth-title,
+    .auth-card h1 {
+        font-size: 1.5rem;
+    }
+}

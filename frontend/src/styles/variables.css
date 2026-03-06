@@ -2,6 +2,13 @@
    CSS CUSTOM PROPERTIES — WALLET DESIGN SYSTEM
    ============================================================ */
 
+/*
+  Breakpoints (reference only — use in media queries, not as var()):
+  Mobile : max-width 640px
+  Tablet : 641px – 1024px
+  Desktop: > 1024px
+*/
+
 :root {
     /* Layout */
     --header-height: 64px;

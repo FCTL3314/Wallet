@@ -313,6 +313,20 @@ const donutChartData = computed(() => {
   margin: 0 auto;
 }
 
+@media (max-width: 640px) {
+  .trend-tabs {
+    flex-wrap: wrap;
+  }
+
+  .currency-tabs {
+    flex-wrap: wrap;
+  }
+
+  .donut-wrap {
+    max-width: 100%;
+  }
+}
+
 .breakdown-toggle {
   margin-top: 0.5rem;
   background: none;

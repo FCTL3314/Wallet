@@ -110,3 +110,23 @@ tr.row-new {
 .expanded .expand-btn {
     color: var(--color-accent-light);
 }
+
+/* ============================================================
+   RESPONSIVE — MOBILE (< 640px)
+   ============================================================ */
+
+@media (max-width: 640px) {
+    .toolbar {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    table.data-table th,
+    table.data-table td {
+        font-size: 0.82rem;
+    }
+
+    table.data-table th {
+        padding: 8px 10px;
+    }
+}
