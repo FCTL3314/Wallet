@@ -82,6 +82,16 @@ class AuthEmailTaken(AppException):
         )
 
 
+class AuthOAuthFailed(AppException):
+    def __init__(self, detail: str | None = None):
+        super().__init__(
+            code="auth/oauth_failed",
+            message="OAuth authentication failed",
+            status_code=400,
+            detail=detail,
+        )
+
+
 class ResourceNotFound(AppException):
     def __init__(self, resource_type: str = "item", detail: str | None = None):
         friendly_name = resource_type.replace("_", " ").capitalize()

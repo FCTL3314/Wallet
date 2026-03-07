@@ -10,6 +10,7 @@ from app.api import (
     currencies,
     expense_categories,
     income_sources,
+    oauth,
     storage,
     transactions,
 )
@@ -59,6 +60,7 @@ async def validation_exception_handler(_: Request, exc: RequestValidationError):
 
 for router in [
     auth.router,
+    oauth.router,
     currencies.router,
     storage.router,
     income_sources.router,

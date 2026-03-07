@@ -26,6 +26,11 @@ export const useAuthStore = defineStore('auth', () => {
     await fetchUser()
   }
 
+  async function loginWithTokens(accessToken: string, refreshToken: string) {
+    _saveTokens(accessToken, refreshToken)
+    await fetchUser()
+  }
+
   async function fetchUser() {
     try {
       const { data } = await authApi.me()
@@ -46,5 +51,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('refresh_token')
   }
 
-  return { token, user, isAuthenticated, login, register, fetchUser, logout }
+  return { token, user, isAuthenticated, login, register, loginWithTokens, fetchUser, logout }
 })

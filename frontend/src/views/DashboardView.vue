@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useThemeStore } from '../stores/theme'
 import { analyticsApi, type GroupBy, type IncomeBySourceEntry, type BalanceBreakdownItem } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
 import { storeToRefs } from 'pinia'
@@ -20,6 +21,8 @@ use([CanvasRenderer, LineChart, PieChart, GridComponent, TooltipComponent, Legen
 
 const refs = useReferencesStore()
 const { currencies } = storeToRefs(refs)
+const themeStore = useThemeStore()
+const isDark = computed(() => themeStore.mode === 'dark')
 
 const groupBy = ref<GroupBy>('month')
 const data = ref<SummaryEntry[]>([])
@@ -134,6 +137,7 @@ const lineOption = computed(() => {
     t.backgroundColor,
     selectedCurrencyCode.value,
     (idx) => { hoveredPeriod.value = idx !== null ? (chartEntries.value[idx]?.period ?? null) : null },
+    isDark.value,
   )
 })
 
