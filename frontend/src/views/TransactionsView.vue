@@ -201,10 +201,10 @@ function sourceName(id: number | null) {
       </tr>
     </template>
   </BaseDataTable>
+  </div>
 
   <div ref="sentinel" style="height: 1px;" />
   <p v-if="loading && items.length" class="text-muted" style="text-align: center; padding: 1rem;">Loading more...</p>
-  </div>
 
   <BaseModal :show="showModal" :title="`${editing ? 'Edit' : 'New'} Income`" @close="showModal = false" @submit="save">
     <div class="form-group">

@@ -180,7 +180,7 @@
 
 .main-content {
     /* top: 16px header offset + 60px header height + 24px gap */
-    padding: calc(16px + var(--header-height) + var(--gap-section)) 24px 32px;
+    padding: calc(16px + var(--header-height) + var(--gap-section)) 24px 16px;
     min-height: 100vh;
     max-width: 1400px;
     margin: 0 auto;

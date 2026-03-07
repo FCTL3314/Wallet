@@ -4,19 +4,19 @@ import { analyticsApi, type GroupBy, type IncomeBySourceEntry, type BalanceBreak
 import { useReferencesStore } from '../stores/references'
 import { storeToRefs } from 'pinia'
 import { fmtAmount, fmtPeriod } from '../utils/format'
-import { buildLineChartOptions, donutOptions, DONUT_COLORS } from '../utils/charts'
-import { Line, Doughnut } from 'vue-chartjs'
-import {
-  Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler,
-  ArcElement,
-} from 'chart.js'
+import { buildLineChartOption, buildDonutChartOption, DONUT_COLORS } from '../utils/charts'
+import VChart from 'vue-echarts'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { LineChart, PieChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import BaseCard from '../components/BaseCard.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseStatCard from '../components/BaseStatCard.vue'
 import PeriodFilterBar from '../components/PeriodFilterBar.vue'
 import type { Preset, SummaryEntry } from '../types/index'
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler, ArcElement)
+use([CanvasRenderer, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent])
 
 const refs = useReferencesStore()
 const { currencies } = storeToRefs(refs)
@@ -92,6 +92,17 @@ const chartEntries = computed(() => data.value.filter((e) => !e.is_bootstrap))
 const avgIncome = computed(() => lastEntry.value?.avg_income ?? 0)
 const avgProfit = computed(() => lastEntry.value?.avg_profit ?? 0)
 
+const activePeriods = computed(() => data.value.filter((e) => e.income > 0 && !e.is_bootstrap))
+const totalIncome = computed(() => activePeriods.value.reduce((s, e) => s + e.income, 0))
+const totalProfit = computed(() => activePeriods.value.reduce((s, e) => s + e.profit, 0))
+
+const avgIncomeHint = computed(() =>
+  `Average income per active period.\n\nTotal income: ${fmtAmount(totalIncome.value)}\nActive periods: ${activePeriods.value.length}\nResult: ${fmtAmount(totalIncome.value)} ÷ ${activePeriods.value.length} = ${fmtAmount(avgIncome.value)}\n\nPeriods with no income are excluded.`
+)
+const avgProfitHint = computed(() =>
+  `Average profit per active period.\n\nTotal profit: ${fmtAmount(totalProfit.value)}\nActive periods: ${activePeriods.value.length}\nResult: ${fmtAmount(totalProfit.value)} ÷ ${activePeriods.value.length} = ${fmtAmount(avgProfit.value)}\n\nProfit = Income − Expenses. Can be negative if spending exceeds income.`
+)
+
 const selectedCurrencyCode = computed(() => {
   if (selectedCurrencyId.value === null) return null
   return refs.currencyById(selectedCurrencyId.value)?.code ?? null
@@ -108,46 +119,49 @@ const TREND_OPTIONS: { key: TrendKey; label: string; borderColor: string; backgr
   { key: 'profit',  label: 'Profit',  borderColor: '#2272cc', backgroundColor: 'rgba(34,114,204,0.08)' },
 ]
 
-const chartData = computed(() => {
+const lineOption = computed(() => {
   const t = TREND_OPTIONS.find((o) => o.key === selectedTrend.value)!
   const dataMap: Record<TrendKey, (e: SummaryEntry) => number> = {
     income:  (e) => e.income,
     expense: (e) => e.derived_expense,
     profit:  (e) => e.profit,
   }
-  return {
-    labels: chartEntries.value.map((e) => fmtPeriod(e.period)),
-    datasets: [{
-      label: t.label,
-      data: chartEntries.value.map(dataMap[selectedTrend.value]),
-      borderColor: t.borderColor,
-      backgroundColor: t.backgroundColor,
-      fill: true,
-      tension: 0.3,
-    }],
-  }
+  return buildLineChartOption(
+    chartEntries.value.map((e) => fmtPeriod(e.period)),
+    chartEntries.value.map(dataMap[selectedTrend.value]),
+    t.label,
+    t.borderColor,
+    t.backgroundColor,
+    selectedCurrencyCode.value,
+    (idx) => { hoveredPeriod.value = idx !== null ? (chartEntries.value[idx]?.period ?? null) : null },
+  )
 })
 
-const chartOptions = computed(() =>
-  buildLineChartOptions(selectedCurrencyCode.value, (p) => { hoveredPeriod.value = p }, chartEntries.value)
-)
-
-const donutChartData = computed(() => {
+const donutTotals = computed(() => {
   const totals: Record<string, number> = {}
   for (const entry of sourceData.value) {
     for (const [source, amount] of Object.entries(entry.sources)) {
       totals[source] = (totals[source] ?? 0) + Number(amount)
     }
   }
-  const labels = Object.keys(totals)
-  return {
+  return totals
+})
+
+const donutStats = computed(() => {
+  const entries = Object.entries(donutTotals.value)
+    .map(([name, amount], i) => ({ name, amount, color: DONUT_COLORS[i] ?? '#ccc' }))
+    .sort((a, b) => b.amount - a.amount)
+  const total = entries.reduce((s, e) => s + e.amount, 0)
+  return { entries, total }
+})
+
+const donutOption = computed(() => {
+  const labels = Object.keys(donutTotals.value)
+  return buildDonutChartOption(
     labels,
-    datasets: [{
-      data: labels.map((l) => totals[l] ?? 0),
-      backgroundColor: DONUT_COLORS.slice(0, labels.length),
-      borderWidth: 0,
-    }],
-  }
+    labels.map((l) => donutTotals.value[l] ?? 0),
+    DONUT_COLORS.slice(0, labels.length),
+  )
 })
 
 
@@ -191,10 +205,18 @@ const donutChartData = computed(() => {
         </div>
       </div>
     </BaseStatCard>
-    <BaseStatCard label="Avg Income" variant="income">
+    <BaseStatCard
+      label="Avg Income"
+      variant="income"
+      :hint="avgIncomeHint"
+    >
       <div class="stat-value amount-positive">{{ fmtAmount(avgIncome) }}</div>
     </BaseStatCard>
-    <BaseStatCard label="Avg Profit" variant="profit">
+    <BaseStatCard
+      label="Avg Profit"
+      variant="profit"
+      :hint="avgProfitHint"
+    >
       <div class="stat-value" :class="avgProfit >= 0 ? 'amount-positive' : 'amount-negative'">
         {{ fmtAmount(avgProfit) }}
       </div>
@@ -213,12 +235,24 @@ const donutChartData = computed(() => {
         >{{ t.label }}</button>
       </div>
     </template>
-    <Line :data="chartData" :options="chartOptions" />
+    <v-chart :option="lineOption" :style="{ height: '280px' }" autoresize @globalout="hoveredPeriod = null" />
   </BaseCard>
 
-  <BaseCard v-if="donutChartData.labels.length" title="Income by Source">
-    <div class="donut-wrap">
-      <Doughnut :data="donutChartData" :options="donutOptions" />
+  <BaseCard v-if="Object.keys(donutTotals).length" title="Income by Source">
+    <div class="donut-layout">
+      <v-chart :option="donutOption" class="donut-chart" autoresize />
+      <div class="donut-stats">
+        <div v-for="item in donutStats.entries" :key="item.name" class="donut-stat-row">
+          <span class="donut-dot" :style="{ background: item.color }" />
+          <span class="donut-stat-name">{{ item.name }}</span>
+          <span class="donut-stat-pct">{{ donutStats.total > 0 ? Math.round(item.amount / donutStats.total * 100) : 0 }}%</span>
+          <span class="donut-stat-amount">{{ fmtAmount(item.amount) }}</span>
+        </div>
+        <div class="donut-stat-total">
+          <span>Total</span>
+          <span>{{ fmtAmount(donutStats.total) }}</span>
+        </div>
+      </div>
     </div>
   </BaseCard>
 
@@ -308,11 +342,6 @@ const donutChartData = computed(() => {
   color: #2272cc;
 }
 
-.donut-wrap {
-  max-width: 400px;
-  margin: 0 auto;
-}
-
 @media (max-width: 640px) {
   .trend-tabs {
     flex-wrap: wrap;
@@ -322,9 +351,6 @@ const donutChartData = computed(() => {
     flex-wrap: wrap;
   }
 
-  .donut-wrap {
-    max-width: 100%;
-  }
 }
 
 .breakdown-toggle {
@@ -381,5 +407,83 @@ const donutChartData = computed(() => {
   border: 1px solid rgba(255, 193, 7, 0.40);
   vertical-align: middle;
   cursor: default;
+}
+
+.donut-layout {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.donut-chart {
+  flex: 0 0 220px;
+  height: 220px;
+}
+
+.donut-stats {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.donut-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.85rem;
+}
+
+.donut-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.donut-stat-name {
+  flex: 1;
+  color: rgba(0, 0, 0, 0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.donut-stat-pct {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.4);
+  min-width: 2.8rem;
+  text-align: right;
+}
+
+.donut-stat-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.8);
+  min-width: 5rem;
+  text-align: right;
+}
+
+.donut-stat-total {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 0.5rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+@media (max-width: 640px) {
+  .donut-layout {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .donut-chart {
+    flex: none;
+    width: 100%;
+  }
 }
 </style>
