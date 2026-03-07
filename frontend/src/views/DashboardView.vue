@@ -321,15 +321,23 @@ const donutOption = computed(() => {
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--card-border);
   background: rgba(0, 0, 0, 0.05);
-  color: rgba(0, 0, 0, 0.55);
+  color: var(--text-secondary);
   transition: background 0.15s, color 0.15s;
+}
+
+[data-theme="dark"] .tab-pill {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .tab-pill:hover:not(:disabled) {
   background: rgba(0, 0, 0, 0.10);
-  color: rgba(0, 0, 0, 0.80);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .tab-pill:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.10);
 }
 
 .tab-pill:disabled {
@@ -337,9 +345,9 @@ const donutOption = computed(() => {
 }
 
 .tab-pill--active {
-  background: rgba(34, 114, 204, 0.10);
-  border-color: rgba(34, 114, 204, 0.40);
-  color: #2272cc;
+  background: rgba(var(--color-accent-rgb), 0.10);
+  border-color: rgba(var(--color-accent-rgb), 0.40);
+  color: var(--color-accent);
 }
 
 @media (max-width: 640px) {
@@ -357,7 +365,7 @@ const donutOption = computed(() => {
   margin-top: 0.5rem;
   background: none;
   border: none;
-  color: #2272cc;
+  color: var(--color-accent);
   font-size: 0.75rem;
   cursor: pointer;
   padding: 0;
@@ -375,7 +383,7 @@ const donutOption = computed(() => {
   display: flex;
   gap: 0.5rem;
   font-size: 0.75rem;
-  color: rgba(0, 0, 0, 0.55);
+  color: var(--text-secondary);
 }
 
 .breakdown-label {
@@ -383,11 +391,11 @@ const donutOption = computed(() => {
 }
 
 .breakdown-amount {
-  color: rgba(0, 0, 0, 0.80);
+  color: var(--text-primary);
 }
 
 .breakdown-date {
-  color: rgba(0, 0, 0, 0.40);
+  color: var(--text-label);
 }
 
 .row-highlighted {
@@ -407,6 +415,12 @@ const donutOption = computed(() => {
   border: 1px solid rgba(255, 193, 7, 0.40);
   vertical-align: middle;
   cursor: default;
+}
+
+[data-theme="dark"] .badge-initial {
+  background: rgba(255, 193, 7, 0.12);
+  color: var(--color-warning);
+  border-color: rgba(255, 193, 7, 0.30);
 }
 
 .donut-layout {
@@ -443,7 +457,7 @@ const donutOption = computed(() => {
 
 .donut-stat-name {
   flex: 1;
-  color: rgba(0, 0, 0, 0.75);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -451,7 +465,7 @@ const donutOption = computed(() => {
 
 .donut-stat-pct {
   font-size: 0.75rem;
-  color: rgba(0, 0, 0, 0.4);
+  color: var(--text-label);
   min-width: 2.8rem;
   text-align: right;
 }
@@ -459,7 +473,7 @@ const donutOption = computed(() => {
 .donut-stat-amount {
   font-variant-numeric: tabular-nums;
   font-weight: 500;
-  color: rgba(0, 0, 0, 0.8);
+  color: var(--text-primary);
   min-width: 5rem;
   text-align: right;
 }
@@ -469,10 +483,10 @@ const donutOption = computed(() => {
   justify-content: space-between;
   padding-top: 0.5rem;
   margin-top: 0.25rem;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-top: 1px solid var(--card-border);
   font-size: 0.85rem;
   font-weight: 600;
-  color: rgba(0, 0, 0, 0.65);
+  color: var(--text-secondary);
 }
 
 @media (max-width: 640px) {

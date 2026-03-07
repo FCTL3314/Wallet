@@ -101,15 +101,23 @@ function handleDateInput(field: 'dateFrom' | 'dateTo', value: string) {
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--card-border);
   background: rgba(0, 0, 0, 0.05);
-  color: rgba(0, 0, 0, 0.55);
+  color: var(--text-secondary);
   transition: background 0.15s, color 0.15s;
+}
+
+[data-theme="dark"] .tab-pill {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .tab-pill:hover:not(:disabled) {
   background: rgba(0, 0, 0, 0.10);
-  color: rgba(0, 0, 0, 0.80);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .tab-pill:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.10);
 }
 
 .tab-pill:disabled {
@@ -117,9 +125,9 @@ function handleDateInput(field: 'dateFrom' | 'dateTo', value: string) {
 }
 
 .tab-pill--active {
-  background: rgba(34, 114, 204, 0.10);
-  border-color: rgba(34, 114, 204, 0.40);
-  color: #2272cc;
+  background: rgba(var(--color-accent-rgb), 0.10);
+  border-color: rgba(var(--color-accent-rgb), 0.40);
+  color: var(--color-accent);
 }
 
 @media (max-width: 640px) {

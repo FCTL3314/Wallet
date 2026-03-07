@@ -40,8 +40,8 @@ import { PhChartBar, PhArrowsLeftRight, PhWallet, PhReceipt, PhGear } from '@pho
     left: 0;
     right: 0;
     height: 60px;
-    background: #ffffff;
-    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    background: var(--card-bg);
+    border-top: 1px solid var(--card-border);
     border-radius: 20px 20px 0 0;
     box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
     z-index: 100;
@@ -57,7 +57,7 @@ import { PhChartBar, PhArrowsLeftRight, PhWallet, PhReceipt, PhGear } from '@pho
   justify-content: center;
   gap: 3px;
   text-decoration: none;
-  color: rgba(0, 0, 0, 0.45);
+  color: var(--text-label);
   font-size: 0.625rem;
   font-weight: 500;
   font-family: var(--font-body);

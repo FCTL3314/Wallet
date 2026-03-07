@@ -18,6 +18,7 @@ export function buildLineChartOption(
         const idx = params[0]?.dataIndex ?? null
         onHover(idx)
         const p = params[0]
+        if (!p) return ''
         const val = Number(p.value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         return `<span style="font-size:11px;color:rgba(0,0,0,0.45)">${p.axisValue}</span><br/>${p.marker}${p.seriesName}: <b>${val}</b>`
       },

@@ -167,8 +167,8 @@ async function remove(id: number) {
   font-size: 0.7rem;
   padding: 1px 6px;
   border-radius: 9999px;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  color: rgba(0, 0, 0, 0.40);
+  border: 1px solid var(--card-border);
+  color: var(--text-label);
   margin-right: 4px;
   letter-spacing: 0.02em;
 }
@@ -176,7 +176,7 @@ async function remove(id: number) {
 .tag-remove {
   background: none;
   border: none;
-  color: rgba(0, 0, 0, 0.35);
+  color: var(--text-placeholder);
   cursor: pointer;
   font-size: 0.85rem;
   line-height: 1;
@@ -185,7 +185,7 @@ async function remove(id: number) {
 }
 
 .tag-remove:hover {
-  color: rgba(0, 0, 0, 0.70);
+  color: var(--text-secondary);
 }
 
 .tag-input-wrap {
@@ -194,10 +194,14 @@ async function remove(id: number) {
   align-items: center;
   gap: 4px;
   padding: 6px 8px;
-  border: 1px solid rgba(0, 0, 0, 0.10);
+  border: 1px solid var(--card-border);
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.03);
   min-height: 38px;
+}
+
+[data-theme="dark"] .tag-input-wrap {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .tag-text-input {

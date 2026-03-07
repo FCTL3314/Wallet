@@ -227,7 +227,7 @@ async function remove(id: number) {
           </tr>
           <tr v-if="!snapshotsForPeriod(row.period).length" class="detail-row">
             <td></td>
-            <td :colspan="1 + allCurrencies.length + allAccounts.length" class="detail-cell" style="font-style: italic; color: rgba(0,0,0,0.35);">
+            <td :colspan="1 + allCurrencies.length + allAccounts.length" class="detail-cell no-snapshots-msg">
               No individual snapshots in this period
             </td>
           </tr>
@@ -275,7 +275,7 @@ async function remove(id: number) {
   background: none;
   border: none;
   cursor: pointer;
-  color: rgba(0, 0, 0, 0.35);
+  color: var(--text-placeholder);
   font-size: 0.6rem;
   padding: 4px 6px;
   border-radius: 4px;
@@ -284,17 +284,21 @@ async function remove(id: number) {
 }
 
 .period-row:hover .expand-btn {
-  color: rgba(0, 0, 0, 0.65);
+  color: var(--text-secondary);
 }
 
 .expand-btn.expanded {
   transform: rotate(90deg);
-  color: #2272cc;
+  color: var(--color-accent);
 }
 
 .detail-row td {
   background: rgba(0, 0, 0, 0.03);
   border-top: none;
+}
+
+[data-theme="dark"] .detail-row td {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .detail-cell {
@@ -309,20 +313,25 @@ async function remove(id: number) {
 
 .detail-date {
   font-size: 0.8rem;
-  color: rgba(0, 0, 0, 0.45);
+  color: var(--text-label);
   min-width: 90px;
+}
+
+.no-snapshots-msg {
+  font-style: italic;
+  color: var(--text-placeholder);
 }
 
 .detail-account {
   font-size: 0.85rem;
-  color: rgba(0, 0, 0, 0.60);
+  color: var(--text-secondary);
   flex: 1;
 }
 
 .detail-amount {
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
-  color: rgba(0, 0, 0, 0.80);
+  color: var(--text-primary);
 }
 
 .detail-actions {
