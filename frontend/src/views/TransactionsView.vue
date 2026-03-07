@@ -179,7 +179,7 @@ function sourceName(id: number | null) {
         <th>Account</th>
         <th>Source</th>
         <th>Description</th>
-        <th></th>
+        <th style="text-align: right"></th>
       </tr>
     </template>
     <template #body>
@@ -195,7 +195,7 @@ function sourceName(id: number | null) {
         <td>{{ refs.storageAccountLabelById(tx.storage_account_id) }}</td>
         <td>{{ sourceName(tx.income_source_id) }}</td>
         <td>{{ tx.description || '' }}</td>
-        <td style="white-space: nowrap">
+        <td style="white-space: nowrap; text-align: right">
           <EditDeleteActions @edit="openEdit(tx)" @confirm="remove(tx.id)" />
         </td>
       </tr>

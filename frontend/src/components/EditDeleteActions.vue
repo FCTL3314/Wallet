@@ -18,7 +18,7 @@ const pending = ref(false)
 
 <style scoped>
 .edit-delete-actions {
-  display: flex;
+  display: inline-flex;
   gap: 6px;
   align-items: center;
 }

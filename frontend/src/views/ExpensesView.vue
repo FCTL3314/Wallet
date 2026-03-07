@@ -108,7 +108,7 @@ async function remove(id: number) {
         <th>Name</th>
         <th class="col-num">Budget / Month</th>
         <th>Tags</th>
-        <th></th>
+        <th style="text-align: right"></th>
       </tr>
     </template>
     <template #body>
@@ -124,7 +124,7 @@ async function remove(id: number) {
         <td>
           <span v-for="tag in item.tags" :key="tag" class="type-tag">{{ tag }}</span>
         </td>
-        <td style="white-space: nowrap">
+        <td style="white-space: nowrap; text-align: right">
           <EditDeleteActions @edit="openEdit(item)" @confirm="remove(item.id)" />
         </td>
       </tr>
