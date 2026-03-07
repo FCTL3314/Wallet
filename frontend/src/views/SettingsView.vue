@@ -79,8 +79,8 @@ const submitPassword = handlePasswordSubmit(async (values) => {
 </script>
 
 <template>
-  <div class="page-sections">
-  <BaseCard title="Appearance">
+  <div class="page-sections page-narrow">
+  <BaseCard title="Appearance" style="align-self: flex-start; min-width: 420px">
     <div class="appearance-section">
       <div class="appearance-row">
         <span class="appearance-label">Theme</span>
@@ -219,14 +219,14 @@ const submitPassword = handlePasswordSubmit(async (values) => {
 .appearance-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 24px;
 }
 
 .appearance-label {
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--text-secondary);
+  width: 100px;
   flex-shrink: 0;
 }
 

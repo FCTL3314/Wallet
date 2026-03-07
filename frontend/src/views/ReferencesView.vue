@@ -93,7 +93,7 @@ async function saveEditSource() {
 </script>
 
 <template>
-  <div class="page-sections">
+  <div class="page-sections page-narrow">
   <div class="settings-grid">
     <!-- Currencies -->
     <SettingsSection title="Currencies" :items="refs.currencies" @add="addCurrency">

@@ -193,6 +193,11 @@
     gap: var(--gap-section);
 }
 
+/* Constrain content-heavy pages that don't need full viewport width */
+.page-narrow {
+    max-width: 860px;
+}
+
 /* ── Dark theme overrides ─────────────────────────────── */
 
 [data-theme="dark"] .header-logout {
