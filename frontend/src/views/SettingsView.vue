@@ -4,6 +4,7 @@ import { useForm, useField } from 'vee-validate'
 import * as yup from 'yup'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '../stores/auth'
+import { useThemeStore, ACCENT_PRESETS, type AccentKey } from '../stores/theme'
 import { authApi } from '../api/auth'
 import { getErrorMessage } from '../api/errors'
 import BaseCard from '../components/BaseCard.vue'
@@ -12,6 +13,9 @@ import PasswordRequirements from '../components/PasswordRequirements.vue'
 
 const auth = useAuthStore()
 const { user } = storeToRefs(auth)
+
+const themeStore = useThemeStore()
+const { mode: themeMode, accent: themeAccent } = storeToRefs(themeStore)
 
 // ── Change Email ─────────────────────────────────────────────
 const emailSchema = yup.object({
@@ -76,6 +80,44 @@ const submitPassword = handlePasswordSubmit(async (values) => {
 
 <template>
   <div class="page-sections">
+  <BaseCard title="Appearance">
+    <div class="appearance-section">
+      <div class="appearance-row">
+        <span class="appearance-label">Theme</span>
+        <div class="theme-segmented">
+          <button
+            :class="['theme-btn', { 'theme-btn--active': themeMode === 'light' }]"
+            @click="themeStore.setMode('light')"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            Light
+          </button>
+          <button
+            :class="['theme-btn', { 'theme-btn--active': themeMode === 'dark' }]"
+            @click="themeStore.setMode('dark')"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            Dark
+          </button>
+        </div>
+      </div>
+      <div class="appearance-row">
+        <span class="appearance-label">Accent Color</span>
+        <div class="accent-swatches">
+          <button
+            v-for="(preset, key) in ACCENT_PRESETS"
+            :key="key"
+            class="accent-swatch"
+            :class="{ 'accent-swatch--active': themeAccent === key }"
+            :style="{ background: preset.main }"
+            :title="preset.label"
+            @click="themeStore.setAccent(key as AccentKey)"
+          />
+        </div>
+      </div>
+    </div>
+  </BaseCard>
+
   <div class="settings-grid">
     <BaseCard title="Change Email">
       <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 16px">
@@ -164,3 +206,106 @@ const submitPassword = handlePasswordSubmit(async (values) => {
   </div>
   </div>
 </template>
+
+<style scoped>
+/* ── Appearance section ─────────────────────────────────── */
+
+.appearance-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.appearance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.appearance-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+/* Theme segmented control */
+
+.theme-segmented {
+  display: flex;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 2px;
+}
+
+[data-theme="dark"] .theme-segmented {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.theme-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s var(--ease-smooth);
+}
+
+.theme-btn:hover {
+  color: var(--text-primary);
+}
+
+.theme-btn--active {
+  background: var(--card-bg);
+  color: var(--color-accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.10);
+}
+
+[data-theme="dark"] .theme-btn--active {
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.30);
+}
+
+/* Accent color swatches */
+
+.accent-swatches {
+  display: flex;
+  gap: 8px;
+}
+
+.accent-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.18s var(--ease-spring), box-shadow 0.18s;
+  outline: none;
+  padding: 0;
+}
+
+.accent-swatch:hover {
+  transform: scale(1.15);
+}
+
+.accent-swatch--active {
+  /* card-bg gap ring + subtle outer border */
+  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px rgba(0, 0, 0, 0.30);
+  transform: scale(1.12);
+}
+
+[data-theme="dark"] .accent-swatch--active {
+  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px rgba(255, 255, 255, 0.40);
+}
+</style>

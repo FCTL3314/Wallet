@@ -24,13 +24,14 @@
 }
 
 .toolbar select option {
-    background: #ffffff;
+    background: var(--card-bg);
+    color: var(--text-primary);
 }
 
 .toolbar select:focus,
 .toolbar input:focus {
-    border-color: rgba(34, 114, 204, 0.60);
-    box-shadow: 0 0 0 2px rgba(34, 114, 204, 0.15);
+    border-color: rgba(var(--color-accent-rgb), 0.60);
+    box-shadow: 0 0 0 2px rgba(var(--color-accent-rgb), 0.15);
 }
 
 /* ============================================================
@@ -45,8 +46,8 @@ table.data-table {
 /* Header */
 
 table.data-table thead tr {
-    background: rgba(34, 114, 204, 0.04);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(var(--color-accent-rgb), 0.04);
+    border-bottom: 1px solid var(--card-border);
 }
 
 table.data-table th {
@@ -72,7 +73,7 @@ table.data-table td {
     font-family: var(--font-body);
     font-size: 0.875rem;
     color: var(--text-primary);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    border-bottom: 1px solid var(--card-border);
 }
 
 table.data-table td:first-child { padding-left: 24px; }
@@ -83,7 +84,7 @@ table.data-table tbody tr:last-child td {
 }
 
 table.data-table tbody tr:hover td {
-    background: rgba(34, 114, 204, 0.03);
+    background: rgba(var(--color-accent-rgb), 0.03);
 }
 
 /* Numeric column utility */
@@ -120,7 +121,7 @@ tr.row-new {
 tr.skeleton-tr td {
     padding-top: 13px;
     padding-bottom: 13px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    border-bottom: 1px solid var(--card-border);
 }
 
 tr.skeleton-tr:last-child td {
@@ -139,6 +140,16 @@ tr.skeleton-tr:last-child td {
     );
     background-size: 200% 100%;
     animation: shimmer 1.4s ease infinite;
+}
+
+[data-theme="dark"] .skeleton-cell {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.05) 25%,
+        rgba(255, 255, 255, 0.09) 50%,
+        rgba(255, 255, 255, 0.05) 75%
+    );
+    background-size: 200% 100%;
 }
 
 @keyframes shimmer {
@@ -195,8 +206,21 @@ td.table-empty-cell {
     color: var(--text-primary);
 }
 
+[data-theme="dark"] .expand-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
 .expanded .expand-btn {
     color: var(--color-accent-light);
+}
+
+/* ── Dark theme overrides ─────────────────────────────── */
+
+[data-theme="dark"] .toolbar select,
+[data-theme="dark"] .toolbar input[type="date"],
+[data-theme="dark"] .toolbar input[type="number"] {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.10);
 }
 
 /* ============================================================

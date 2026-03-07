@@ -18,7 +18,7 @@
     background: var(--card-bg);
     backdrop-filter: var(--blur-modal);
     -webkit-backdrop-filter: var(--blur-modal);
-    border: 1px solid rgba(0, 0, 0, 0.10);
+    border: 1px solid var(--card-border);
     border-radius: var(--radius-modal);
     padding: 32px;
     width: 100%;
@@ -72,6 +72,10 @@
         background: rgba(0, 0, 0, 0.15);
         border-radius: 9999px;
         margin: 0 auto 20px;
+    }
+
+    [data-theme="dark"] .modal::before {
+        background: rgba(255, 255, 255, 0.15);
     }
 }
 

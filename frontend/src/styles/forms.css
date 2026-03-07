@@ -38,13 +38,13 @@
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
-    border-color: rgba(34, 114, 204, 0.60);
-    box-shadow: 0 0 0 3px rgba(34, 114, 204, 0.15);
-    background: rgba(34, 114, 204, 0.03);
+    border-color: rgba(var(--color-accent-rgb), 0.60);
+    box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb), 0.15);
+    background: rgba(var(--color-accent-rgb), 0.03);
 }
 
 .form-group select option {
-    background: #ffffff;
+    background: var(--card-bg);
     color: var(--text-primary);
 }
 
@@ -55,7 +55,7 @@
 }
 
 .field-error {
-    color: #e84565;
+    color: var(--color-expense);
     font-size: 0.75rem;
     margin-top: 0.25rem;
     margin-bottom: 0;
@@ -79,9 +79,9 @@
 }
 
 .form-input-sm:focus {
-    border-color: rgba(34, 114, 204, 0.60);
-    box-shadow: 0 0 0 2px rgba(34, 114, 204, 0.15);
-    background: rgba(34, 114, 204, 0.03);
+    border-color: rgba(var(--color-accent-rgb), 0.60);
+    box-shadow: 0 0 0 2px rgba(var(--color-accent-rgb), 0.15);
+    background: rgba(var(--color-accent-rgb), 0.03);
 }
 
 /* ============================================================
@@ -172,4 +172,14 @@
 .success-msg {
     color: var(--color-income);
     font-size: 0.8125rem;
+}
+
+/* ── Dark theme overrides ─────────────────────────────── */
+
+[data-theme="dark"] .form-group input,
+[data-theme="dark"] .form-group select,
+[data-theme="dark"] .form-group textarea,
+[data-theme="dark"] .form-input-sm {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.10);
 }

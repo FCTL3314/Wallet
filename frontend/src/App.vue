@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import Toast from 'primevue/toast'
 import { useAuthStore } from './stores/auth'
 import { useReferencesStore } from './stores/references'
+import { useThemeStore } from './stores/theme'
 import { PhChartBar, PhArrowsLeftRight, PhWallet, PhReceipt, PhBooks, PhGear, PhSignOut } from '@phosphor-icons/vue'
 import TheBottomNav from './components/TheBottomNav.vue'
 import TheAppFooter from './components/TheAppFooter.vue'
@@ -11,6 +12,9 @@ import TheAppFooter from './components/TheAppFooter.vue'
 const auth = useAuthStore()
 const refs = useReferencesStore()
 const router = useRouter()
+
+// Sync Pinia store with what the anti-FOUC script already applied
+useThemeStore().init()
 
 onMounted(async () => {
   if (auth.isAuthenticated) {
