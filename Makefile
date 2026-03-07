@@ -28,3 +28,6 @@ logs:
 
 db:
 	docker compose -f docker/dev/docker-compose.yml up db -d
+
+seed:
+	docker exec -it dev-backend-1 uv run python scripts/seed_dev.py
