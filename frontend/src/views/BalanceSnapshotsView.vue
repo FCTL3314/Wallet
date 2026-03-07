@@ -184,8 +184,8 @@ async function remove(id: number) {
       <tr>
         <th style="width: 36px;"></th>
         <th>Period</th>
-        <th v-for="cur in allCurrencies" :key="cur">{{ cur }} Total</th>
-        <th v-for="acc in allAccounts" :key="acc.name">{{ acc.name }}</th>
+        <th v-for="cur in allCurrencies" :key="cur" class="col-num">{{ cur }} Total</th>
+        <th v-for="acc in allAccounts" :key="acc.name" class="col-num">{{ acc.name }}</th>
       </tr>
     </template>
     <template #body>
@@ -199,11 +199,11 @@ async function remove(id: number) {
             <button class="expand-btn" :class="{ expanded: expandedPeriods.has(row.period) }">▶</button>
           </td>
           <td>{{ fmtPeriod(row.period) }}</td>
-          <td v-for="cur in allCurrencies" :key="cur">
+          <td v-for="cur in allCurrencies" :key="cur" class="col-num">
             <template v-if="row.totals[cur] != null">{{ refs.currencyByCode(cur)?.symbol ?? cur }}{{ fmtAmount(row.totals[cur]) }}</template>
             <template v-else>—</template>
           </td>
-          <td v-for="col in allAccounts" :key="col.name">{{ accountCell(row, col.name) }}</td>
+          <td v-for="col in allAccounts" :key="col.name" class="col-num">{{ accountCell(row, col.name) }}</td>
         </tr>
 
         <template v-if="expandedPeriods.has(row.period)">

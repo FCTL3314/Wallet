@@ -106,7 +106,7 @@ async function remove(id: number) {
     <template #head>
       <tr>
         <th>Name</th>
-        <th>Budget / Month</th>
+        <th class="col-num">Budget / Month</th>
         <th>Tags</th>
         <th></th>
       </tr>
@@ -120,7 +120,7 @@ async function remove(id: number) {
         :class="{ removing: item.id === removingId, 'row-new': item.id === newId }"
       >
         <td>{{ item.name }}</td>
-        <td>{{ fmtAmount(item.budgeted_amount) }}</td>
+        <td class="col-num">{{ fmtAmount(item.budgeted_amount) }}</td>
         <td>
           <span v-for="tag in item.tags" :key="tag" class="type-tag">{{ tag }}</span>
         </td>

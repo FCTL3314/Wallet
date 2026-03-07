@@ -34,7 +34,7 @@
 }
 
 /* ============================================================
-   DATA TABLE
+   DATA TABLE — CORE
    ============================================================ */
 
 table.data-table {
@@ -42,32 +42,57 @@ table.data-table {
     border-collapse: collapse;
 }
 
-table.data-table th,
-table.data-table td {
+/* Header */
+
+table.data-table thead tr {
+    background: rgba(34, 114, 204, 0.04);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+table.data-table th {
     padding: 11px 14px;
+    text-align: left;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.6875rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    white-space: nowrap;
+}
+
+table.data-table th:first-child { padding-left: 24px; }
+table.data-table th:last-child  { padding-right: 24px; }
+
+/* Body */
+
+table.data-table td {
+    padding: 12px 14px;
     text-align: left;
     font-family: var(--font-body);
     font-size: 0.875rem;
     color: var(--text-primary);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-table.data-table th {
-    font-weight: 600;
-    color: var(--text-secondary);
-    font-size: 0.6875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    background: rgba(0, 0, 0, 0.04);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+table.data-table td:first-child { padding-left: 24px; }
+table.data-table td:last-child  { padding-right: 24px; }
+
+table.data-table tbody tr:last-child td {
+    border-bottom: none;
 }
 
-table.data-table tbody tr:nth-child(even) {
-    background: rgba(0, 0, 0, 0.025);
+table.data-table tbody tr:hover td {
+    background: rgba(34, 114, 204, 0.03);
 }
 
-table.data-table tbody tr:hover {
-    background: rgba(0, 0, 0, 0.04);
-    transition: background 0.12s;
+/* Numeric column utility */
+
+table.data-table th.col-num,
+table.data-table td.col-num {
+    text-align: right;
+    font-family: var(--font-number);
+    font-variant-numeric: tabular-nums;
 }
 
 /* ============================================================
@@ -86,6 +111,69 @@ tr.removing {
 
 tr.row-new {
     animation: row-new 1.4s var(--ease-spring) both;
+}
+
+/* ============================================================
+   SKELETON LOADING ROWS
+   ============================================================ */
+
+tr.skeleton-tr td {
+    padding-top: 13px;
+    padding-bottom: 13px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+tr.skeleton-tr:last-child td {
+    border-bottom: none;
+}
+
+.skeleton-cell {
+    display: block;
+    height: 13px;
+    border-radius: 6px;
+    background: linear-gradient(
+        90deg,
+        rgba(0, 0, 0, 0.06) 25%,
+        rgba(0, 0, 0, 0.10) 50%,
+        rgba(0, 0, 0, 0.06) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease infinite;
+}
+
+@keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+
+td.table-empty-cell {
+    padding: 48px 24px !important;
+    text-align: center;
+    border-bottom: none !important;
+}
+
+.table-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-placeholder);
+}
+
+.table-empty-icon {
+    width: 36px;
+    height: 36px;
+    opacity: 0.45;
+}
+
+.table-empty-msg {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin: 0;
 }
 
 /* ============================================================
@@ -126,7 +214,10 @@ tr.row-new {
         font-size: 0.82rem;
     }
 
-    table.data-table th {
-        padding: 8px 10px;
-    }
+    table.data-table th { padding: 9px 10px; }
+    table.data-table td { padding: 10px 10px; }
+    table.data-table th:first-child,
+    table.data-table td:first-child { padding-left: 16px; }
+    table.data-table th:last-child,
+    table.data-table td:last-child  { padding-right: 16px; }
 }

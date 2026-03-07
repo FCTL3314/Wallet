@@ -15,6 +15,11 @@
     padding: 24px;
 }
 
+.card--flush {
+    padding: 0;
+    overflow: hidden;
+}
+
 .card-title {
     font-family: var(--font-heading);
     font-size: 1rem;

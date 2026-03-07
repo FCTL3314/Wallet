@@ -260,12 +260,12 @@ const donutOption = computed(() => {
     <template #head>
       <tr>
         <th>Period</th>
-        <th>Balance</th>
-        <th>Income</th>
-        <th>Profit</th>
-        <th>Expense</th>
-        <th>Avg Income</th>
-        <th>Avg Profit</th>
+        <th class="col-num">Balance</th>
+        <th class="col-num">Income</th>
+        <th class="col-num">Profit</th>
+        <th class="col-num">Expense</th>
+        <th class="col-num">Avg Income</th>
+        <th class="col-num">Avg Profit</th>
       </tr>
     </template>
     <template #body>
@@ -278,19 +278,19 @@ const donutOption = computed(() => {
             title="Starting balance snapshot — reflects initial capital entered by the user, not real earned income or profit."
           >Initial</span>
         </td>
-        <td>
+        <td class="col-num">
           <template v-if="Object.keys(row.balances).length">
             <span v-for="(val, cur) in row.balances" :key="cur">{{ cur }} {{ fmtAmount(val) }}</span>
           </template>
           <span v-else>—</span>
         </td>
-        <td class="amount-positive">{{ fmtAmount(row.income) }}</td>
-        <td :class="row.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(row.profit) }}</td>
-        <td :class="row.derived_expense > 0 ? 'amount-negative' : 'amount-positive'">
+        <td class="col-num amount-positive">{{ fmtAmount(row.income) }}</td>
+        <td class="col-num" :class="row.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(row.profit) }}</td>
+        <td class="col-num" :class="row.derived_expense > 0 ? 'amount-negative' : 'amount-positive'">
           {{ row.income === 0 && row.profit === 0 ? '—' : fmtAmount(row.derived_expense) }}
         </td>
-        <td>{{ fmtAmount(row.avg_income) }}</td>
-        <td>{{ fmtAmount(row.avg_profit) }}</td>
+        <td class="col-num">{{ fmtAmount(row.avg_income) }}</td>
+        <td class="col-num">{{ fmtAmount(row.avg_profit) }}</td>
       </tr>
     </template>
   </BaseDataTable>

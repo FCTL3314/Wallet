@@ -175,7 +175,7 @@ function sourceName(id: number | null) {
     <template #head>
       <tr>
         <th>Date</th>
-        <th>Amount</th>
+        <th class="col-num">Amount</th>
         <th>Account</th>
         <th>Source</th>
         <th>Description</th>
@@ -191,7 +191,7 @@ function sourceName(id: number | null) {
         :class="{ removing: tx.id === removingId, 'row-new': tx.id === newId }"
       >
         <td>{{ tx.date }}</td>
-        <td class="amount-positive">{{ fmtAmount(tx.amount) }}</td>
+        <td class="col-num amount-positive">{{ fmtAmount(tx.amount) }}</td>
         <td>{{ refs.storageAccountLabelById(tx.storage_account_id) }}</td>
         <td>{{ sourceName(tx.income_source_id) }}</td>
         <td>{{ tx.description || '' }}</td>
