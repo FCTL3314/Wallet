@@ -9,6 +9,8 @@ export interface TokenResponse {
 export interface UserResponse {
   id: number
   email: string
+  created_at: string
+  onboarding_completed: boolean
 }
 
 export const authApi = {
@@ -32,5 +34,8 @@ export const authApi = {
   },
   changePassword(current_password: string, new_password: string) {
     return api.patch<void>('/auth/me/password', { current_password, new_password })
+  },
+  completeOnboarding() {
+    return api.post<UserResponse>('/auth/me/complete-onboarding')
   },
 }

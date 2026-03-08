@@ -122,6 +122,17 @@ async def me(user: User = Depends(get_current_user)):
     return user
 
 
+@router.post("/me/complete-onboarding", response_model=UserResponse)
+async def complete_onboarding(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if user.onboarding_completed_at is None:
+        user.onboarding_completed_at = datetime.now(timezone.utc)
+        await db.flush()
+    return user
+
+
 @router.patch("/me/email", response_model=UserResponse)
 async def change_email(
     body: ChangeEmailRequest,

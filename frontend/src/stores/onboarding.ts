@@ -1,23 +1,31 @@
+import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { useAuthStore } from './auth'
+import { authApi } from '../api/auth'
 
 export const useOnboardingStore = defineStore('onboarding', () => {
-  const completed = ref(localStorage.getItem('onboarding-completed') === 'true')
+  const auth = useAuthStore()
   const active = ref(false)
+
+  const completed = computed(() => auth.user?.onboarding_completed ?? false)
 
   function start() {
     active.value = true
   }
 
-  function finish() {
-    completed.value = true
+  async function finish() {
     active.value = false
-    localStorage.setItem('onboarding-completed', 'true')
+    try {
+      const { data } = await authApi.completeOnboarding()
+      auth.user = data
+    } catch {
+      // best-effort: guide is hidden, backend state update is non-blocking
+    }
   }
 
   function reset() {
-    completed.value = false
-    localStorage.removeItem('onboarding-completed')
+    // Allows re-running the guide from Settings without uncompleting on backend
+    active.value = false
   }
 
   return { completed, active, start, finish, reset }
