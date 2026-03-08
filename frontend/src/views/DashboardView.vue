@@ -16,6 +16,7 @@ import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseStatCard from '../components/BaseStatCard.vue'
 import PeriodFilterBar from '../components/PeriodFilterBar.vue'
 import type { Preset, SummaryEntry } from '../types/index'
+import { PhWallet, PhTrendUp, PhChartLine, PhCaretUp, PhCaretDown } from '@phosphor-icons/vue'
 
 use([CanvasRenderer, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent])
 
@@ -98,6 +99,26 @@ const avgProfit = computed(() => lastEntry.value?.avg_profit ?? 0)
 const activePeriods = computed(() => data.value.filter((e) => e.income > 0 && !e.is_bootstrap))
 const totalIncome = computed(() => activePeriods.value.reduce((s, e) => s + e.income, 0))
 const totalProfit = computed(() => activePeriods.value.reduce((s, e) => s + e.profit, 0))
+
+const prevEntry = computed(() => {
+  const filtered = data.value.filter((e) => !e.is_bootstrap)
+  return filtered.length >= 2 ? filtered[filtered.length - 2] : null
+})
+
+const incomeGrowth = computed(() => {
+  if (!prevEntry.value || prevEntry.value.avg_income === 0) return null
+  const delta = avgIncome.value - prevEntry.value.avg_income
+  const pct = (delta / prevEntry.value.avg_income) * 100
+  return { delta, pct }
+})
+
+const profitGrowth = computed(() => {
+  if (!prevEntry.value) return null
+  const delta = avgProfit.value - prevEntry.value.avg_profit
+  if (prevEntry.value.avg_profit === 0) return { delta, pct: null }
+  const pct = (delta / Math.abs(prevEntry.value.avg_profit)) * 100
+  return { delta, pct }
+})
 
 const avgIncomeHint = computed(() =>
   `Average income per active period.\n\nTotal income: ${fmtAmount(totalIncome.value)}\nActive periods: ${activePeriods.value.length}\nResult: ${fmtAmount(totalIncome.value)} ÷ ${activePeriods.value.length} = ${fmtAmount(avgIncome.value)}\n\nPeriods with no income are excluded.`
@@ -193,9 +214,9 @@ const donutOption = computed(() => {
   </BaseCard>
 
   <div v-if="data.length" class="stats-grid">
-    <BaseStatCard label="Current Balance">
+    <BaseStatCard label="Current Balance" :icon="PhWallet">
       <div v-for="(val, cur) in displayedBalances" :key="cur" class="stat-value">
-        {{ cur }}: {{ fmtAmount(val) }}
+        <span class="stat-currency">{{ cur }}</span>{{ fmtAmount(val) }}
       </div>
       <div v-if="!Object.keys(displayedBalances).length" class="stat-value">—</div>
       <button class="breakdown-toggle" @click="showBreakdown = !showBreakdown">
@@ -213,16 +234,42 @@ const donutOption = computed(() => {
       label="Avg Income"
       variant="income"
       :hint="avgIncomeHint"
+      :icon="PhTrendUp"
     >
-      <div class="stat-value amount-positive">{{ fmtAmount(avgIncome) }}</div>
+      <div class="stat-value amount-positive">
+        <span class="stat-currency">{{ selectedCurrencyCode }}</span>{{ fmtAmount(avgIncome) }}
+      </div>
+      <div
+        v-if="incomeGrowth"
+        class="stat-trend"
+        :class="incomeGrowth.delta >= 0 ? 'trend--up' : 'trend--down'"
+      >
+        <PhCaretUp v-if="incomeGrowth.delta >= 0" :size="9" weight="fill" />
+        <PhCaretDown v-else :size="9" weight="fill" />
+        <span v-if="incomeGrowth.pct !== null">{{ Math.abs(incomeGrowth.pct).toFixed(1) }}%</span>
+        <span class="stat-trend-abs">{{ incomeGrowth.delta >= 0 ? '+' : '' }}{{ fmtAmount(incomeGrowth.delta) }}</span>
+        <span class="stat-trend-label">vs prev</span>
+      </div>
     </BaseStatCard>
     <BaseStatCard
       label="Avg Profit"
       variant="profit"
       :hint="avgProfitHint"
+      :icon="PhChartLine"
     >
       <div class="stat-value" :class="avgProfit >= 0 ? 'amount-positive' : 'amount-negative'">
-        {{ fmtAmount(avgProfit) }}
+        <span class="stat-currency">{{ selectedCurrencyCode }}</span>{{ fmtAmount(avgProfit) }}
+      </div>
+      <div
+        v-if="profitGrowth"
+        class="stat-trend"
+        :class="profitGrowth.delta >= 0 ? 'trend--up' : 'trend--down'"
+      >
+        <PhCaretUp v-if="profitGrowth.delta >= 0" :size="9" weight="fill" />
+        <PhCaretDown v-else :size="9" weight="fill" />
+        <span v-if="profitGrowth.pct !== null">{{ Math.abs(profitGrowth.pct).toFixed(1) }}%</span>
+        <span class="stat-trend-abs">{{ profitGrowth.delta >= 0 ? '+' : '' }}{{ fmtAmount(profitGrowth.delta) }}</span>
+        <span class="stat-trend-label">vs prev</span>
       </div>
     </BaseStatCard>
   </div>

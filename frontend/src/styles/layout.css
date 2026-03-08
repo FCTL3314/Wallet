@@ -4,6 +4,8 @@
 
 .app-layout {
     min-height: 100vh;
+    position: relative;
+    z-index: 1; /* sit above the body::before/after ambient orbs */
 }
 
 /* ============================================================

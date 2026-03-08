@@ -41,34 +41,6 @@
 .stat-card {
     border-radius: var(--radius-stat);
     padding: 22px;
-    position: relative;
-    overflow: hidden;
-}
-
-.stat-card::before {
-    content: '';
-    position: absolute;
-    top: -40px;
-    left: -40px;
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    filter: blur(40px);
-    opacity: 0.6;
-    pointer-events: none;
-}
-
-.stat-card--income::before {
-    background: var(--color-income);
-}
-
-.stat-card--expense::before {
-    background: var(--color-expense);
-}
-
-.stat-card--profit::before {
-    background: var(--color-accent);
-    opacity: 0.4;
 }
 
 .stat-label {
@@ -87,6 +59,76 @@
     font-weight: 700;
     color: var(--text-primary);
     line-height: 1.1;
+}
+
+.stat-currency {
+    font-size: 1rem;
+    font-weight: 500;
+    opacity: 0.55;
+    margin-right: 2px;
+    vertical-align: baseline;
+}
+
+.stat-label-icon {
+    opacity: 0.65;
+    flex-shrink: 0;
+}
+
+/* Trend delta badge */
+.stat-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-top: 6px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    width: fit-content;
+}
+
+.stat-trend.trend--up {
+    color: var(--color-income);
+    background: rgba(31, 160, 104, 0.10);
+    border: 1px solid rgba(31, 160, 104, 0.18);
+}
+
+.stat-trend.trend--down {
+    color: var(--color-expense);
+    background: rgba(232, 69, 101, 0.10);
+    border: 1px solid rgba(232, 69, 101, 0.18);
+}
+
+[data-theme="dark"] .stat-trend.trend--up {
+    background: rgba(37, 192, 126, 0.12);
+    border-color: rgba(37, 192, 126, 0.22);
+}
+
+[data-theme="dark"] .stat-trend.trend--down {
+    background: rgba(240, 86, 111, 0.12);
+    border-color: rgba(240, 86, 111, 0.22);
+}
+
+.stat-trend-abs {
+    font-weight: 400;
+    opacity: 0.80;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-trend-label {
+    color: var(--text-label);
+    font-weight: 400;
+    margin-left: 1px;
+}
+
+/* ============================================================
+   TAB PILLS — shared across views
+   ============================================================ */
+
+/* Active pill gets a subtle accent glow — echoes the background ambient orbs */
+.tab-pill--active {
+    box-shadow: 0 0 0 1px rgba(var(--color-accent-rgb), 0.35),
+                0 2px 12px rgba(var(--color-accent-rgb), 0.18);
 }
 
 /* ============================================================
