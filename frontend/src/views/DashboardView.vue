@@ -4,7 +4,7 @@ import { useThemeStore } from '../stores/theme'
 import { analyticsApi, type GroupBy, type IncomeBySourceEntry, type BalanceBreakdownItem } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
 import { storeToRefs } from 'pinia'
-import { fmtAmount, fmtPeriod } from '../utils/format'
+import { fmtAmount, fmtPeriod, localDateStr } from '../utils/format'
 import { buildLineChartOption, buildDonutChartOption, DONUT_COLORS } from '../utils/charts'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
@@ -45,7 +45,7 @@ const allRange = ref<{ from: string; to: string } | null>(null)
 
 const today = new Date()
 const dateFrom = ref(`${today.getFullYear()}-01-01`)
-const dateTo = ref(today.toISOString().slice(0, 10))
+const dateTo = ref(localDateStr(today))
 
 const breakdown = ref<BalanceBreakdownItem[]>([])
 const showBreakdown = ref(false)
@@ -100,30 +100,57 @@ const activePeriods = computed(() => data.value.filter((e) => e.income > 0 && !e
 const totalIncome = computed(() => activePeriods.value.reduce((s, e) => s + e.income, 0))
 const totalProfit = computed(() => activePeriods.value.reduce((s, e) => s + e.profit, 0))
 
-const nonBootstrapEntries = computed(() => data.value.filter((e) => !e.is_bootstrap))
-const lastNonBootstrap = computed(() => nonBootstrapEntries.value[nonBootstrapEntries.value.length - 1] ?? null)
-const prevEntry = computed(() => {
-  return nonBootstrapEntries.value.length >= 2 ? nonBootstrapEntries.value[nonBootstrapEntries.value.length - 2] : null
+const firstActivePeriod = computed(() => activePeriods.value[0] ?? null)
+const lastActivePeriod = computed(() => activePeriods.value[activePeriods.value.length - 1] ?? null)
+
+const incomeGrowthLong = computed(() => {
+  const first = firstActivePeriod.value
+  const last = lastActivePeriod.value
+  if (!first || !last || first.period === last.period) return null
+  const delta = last.income - first.income
+  return {
+    delta,
+    pct: first.income !== 0 ? (delta / first.income) * 100 : null,
+    firstPeriod: first.period,
+    lastPeriod: last.period,
+  }
 })
 
-const incomeGrowth = computed(() => {
-  if (!prevEntry.value || !lastNonBootstrap.value) return null
-  const cur = lastNonBootstrap.value.income
-  const prev = prevEntry.value.income
-  const delta = cur - prev
-  if (prev === 0) return delta !== 0 ? { delta, pct: null } : null
-  const pct = (delta / prev) * 100
-  return { delta, pct }
+const profitGrowthLong = computed(() => {
+  const first = firstActivePeriod.value
+  const last = lastActivePeriod.value
+  if (!first || !last || first.period === last.period) return null
+  const delta = last.profit - first.profit
+  return {
+    delta,
+    pct: first.profit !== 0 ? (delta / Math.abs(first.profit)) * 100 : null,
+    firstPeriod: first.period,
+    lastPeriod: last.period,
+  }
 })
 
-const profitGrowth = computed(() => {
-  if (!prevEntry.value || !lastNonBootstrap.value) return null
-  const cur = lastNonBootstrap.value.profit
-  const prev = prevEntry.value.profit
-  const delta = cur - prev
-  if (prev === 0) return { delta, pct: null }
-  const pct = (delta / Math.abs(prev)) * 100
-  return { delta, pct }
+interface RowDelta {
+  income: { delta: number; pct: number | null } | null
+  profit: { delta: number; pct: number | null } | null
+}
+
+const tableData = computed(() => {
+  const nonBoot = data.value.filter((e) => !e.is_bootstrap)
+  const indexMap = new Map(nonBoot.map((e, i) => [e.period, i]))
+  return data.value.map((entry) => {
+    const deltas: RowDelta = { income: null, profit: null }
+    if (!entry.is_bootstrap) {
+      const idx = indexMap.get(entry.period)
+      if (idx !== undefined && idx > 0) {
+        const prev = nonBoot[idx - 1]
+        const id = entry.income - prev.income
+        const pd = entry.profit - prev.profit
+        deltas.income = { delta: id, pct: prev.income !== 0 ? (id / prev.income) * 100 : null }
+        deltas.profit = { delta: pd, pct: prev.profit !== 0 ? (pd / Math.abs(prev.profit)) * 100 : null }
+      }
+    }
+    return { entry, ...deltas }
+  })
 })
 
 const avgIncomeHint = computed(() =>
@@ -246,15 +273,14 @@ const donutOption = computed(() => {
         <span class="stat-currency">{{ selectedCurrencyCode }}</span>{{ fmtAmount(avgIncome) }}
       </div>
       <div
-        v-if="incomeGrowth"
+        v-if="incomeGrowthLong"
         class="stat-trend"
-        :class="incomeGrowth.delta >= 0 ? 'trend--up' : 'trend--down'"
+        :class="incomeGrowthLong.delta >= 0 ? 'trend--up' : 'trend--down'"
       >
-        <PhCaretUp v-if="incomeGrowth.delta >= 0" :size="9" weight="fill" />
+        <PhCaretUp v-if="incomeGrowthLong.delta >= 0" :size="9" weight="fill" />
         <PhCaretDown v-else :size="9" weight="fill" />
-        <span v-if="incomeGrowth.pct !== null">{{ Math.abs(incomeGrowth.pct).toFixed(1) }}%</span>
-        <span class="stat-trend-abs">{{ incomeGrowth.delta >= 0 ? '+' : '' }}{{ fmtAmount(incomeGrowth.delta) }}</span>
-        <span class="stat-trend-label">vs prev</span>
+        <span v-if="incomeGrowthLong.pct !== null">{{ Math.abs(incomeGrowthLong.pct).toFixed(1) }}%</span>
+        <span class="stat-trend-label">{{ fmtPeriod(incomeGrowthLong.firstPeriod) }} → {{ fmtPeriod(incomeGrowthLong.lastPeriod) }}</span>
       </div>
     </BaseStatCard>
     <BaseStatCard
@@ -267,15 +293,14 @@ const donutOption = computed(() => {
         <span class="stat-currency">{{ selectedCurrencyCode }}</span>{{ fmtAmount(avgProfit) }}
       </div>
       <div
-        v-if="profitGrowth"
+        v-if="profitGrowthLong"
         class="stat-trend"
-        :class="profitGrowth.delta >= 0 ? 'trend--up' : 'trend--down'"
+        :class="profitGrowthLong.delta >= 0 ? 'trend--up' : 'trend--down'"
       >
-        <PhCaretUp v-if="profitGrowth.delta >= 0" :size="9" weight="fill" />
+        <PhCaretUp v-if="profitGrowthLong.delta >= 0" :size="9" weight="fill" />
         <PhCaretDown v-else :size="9" weight="fill" />
-        <span v-if="profitGrowth.pct !== null">{{ Math.abs(profitGrowth.pct).toFixed(1) }}%</span>
-        <span class="stat-trend-abs">{{ profitGrowth.delta >= 0 ? '+' : '' }}{{ fmtAmount(profitGrowth.delta) }}</span>
-        <span class="stat-trend-label">vs prev</span>
+        <span v-if="profitGrowthLong.pct !== null">{{ Math.abs(profitGrowthLong.pct).toFixed(1) }}%</span>
+        <span class="stat-trend-label">{{ fmtPeriod(profitGrowthLong.firstPeriod) }} → {{ fmtPeriod(profitGrowthLong.lastPeriod) }}</span>
       </div>
     </BaseStatCard>
   </div>
@@ -326,7 +351,7 @@ const donutOption = computed(() => {
       </tr>
     </template>
     <template #body>
-      <tr v-for="row in data" :key="row.period" :class="{ 'row-highlighted': row.period === hoveredPeriod }">
+      <tr v-for="{ entry: row, income: incD, profit: profD } in tableData" :key="row.period" :class="{ 'row-highlighted': row.period === hoveredPeriod }">
         <td>
           {{ fmtPeriod(row.period) }}
           <span
@@ -341,8 +366,24 @@ const donutOption = computed(() => {
           </template>
           <span v-else>—</span>
         </td>
-        <td class="col-num amount-positive">{{ fmtAmount(row.income) }}</td>
-        <td class="col-num" :class="row.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(row.profit) }}</td>
+        <td class="col-num">
+          <div class="amount-positive">{{ fmtAmount(row.income) }}</div>
+          <div v-if="incD" class="cell-delta" :class="incD.delta >= 0 ? 'trend--up' : 'trend--down'">
+            <PhCaretUp v-if="incD.delta >= 0" :size="7" weight="fill" />
+            <PhCaretDown v-else :size="7" weight="fill" />
+            <span v-if="incD.pct !== null">{{ Math.abs(incD.pct).toFixed(1) }}%</span>
+            <span v-else>{{ incD.delta >= 0 ? '+' : '' }}{{ fmtAmount(incD.delta) }}</span>
+          </div>
+        </td>
+        <td class="col-num">
+          <div :class="row.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(row.profit) }}</div>
+          <div v-if="profD" class="cell-delta" :class="profD.delta >= 0 ? 'trend--up' : 'trend--down'">
+            <PhCaretUp v-if="profD.delta >= 0" :size="7" weight="fill" />
+            <PhCaretDown v-else :size="7" weight="fill" />
+            <span v-if="profD.pct !== null">{{ Math.abs(profD.pct).toFixed(1) }}%</span>
+            <span v-else>{{ profD.delta >= 0 ? '+' : '' }}{{ fmtAmount(profD.delta) }}</span>
+          </div>
+        </td>
         <td class="col-num" :class="row.derived_expense > 0 ? 'amount-negative' : 'amount-positive'">
           {{ row.income === 0 && row.profit === 0 ? '—' : fmtAmount(row.derived_expense) }}
         </td>
@@ -457,6 +498,24 @@ const donutOption = computed(() => {
 
 .row-highlighted {
   background: rgba(14, 96, 192, 0.08);
+}
+
+.cell-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell-delta.trend--up {
+  color: var(--color-income);
+}
+
+.cell-delta.trend--down {
+  color: var(--color-expense);
 }
 
 .badge-initial {

@@ -3,7 +3,7 @@ import { ref, computed, useTemplateRef, onMounted, watch } from 'vue'
 import { balanceSnapshotsApi, type BalanceSnapshot, type BalanceSnapshotCreate } from '../api/balanceSnapshots'
 import { analyticsApi, type BalanceByStorageEntry, type BalanceByStorageAccount, type GroupBy } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
-import { fmtAmount, fmtPeriod } from '../utils/format'
+import { fmtAmount, fmtPeriod, localDateStr } from '../utils/format'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseCard from '../components/BaseCard.vue'
@@ -73,7 +73,7 @@ const editing = ref<BalanceSnapshot | null>(null)
 
 const today = new Date()
 const dateFrom = ref(`${today.getFullYear()}-01-01`)
-const dateTo = ref(today.toISOString().slice(0, 10))
+const dateTo = ref(localDateStr(today))
 const groupBy = ref<GroupBy>('month')
 const activePreset = ref('YTD')
 const allRange = ref<{ from: string; to: string } | null>(null)

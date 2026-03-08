@@ -109,12 +109,6 @@
     border-color: rgba(240, 86, 111, 0.22);
 }
 
-.stat-trend-abs {
-    font-weight: 400;
-    opacity: 0.80;
-    font-variant-numeric: tabular-nums;
-}
-
 .stat-trend-label {
     color: var(--text-label);
     font-weight: 400;

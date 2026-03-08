@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { GroupBy } from '../api/analytics'
+import { localDateStr } from '../utils/format'
 
 type Preset = 'All' | 'YTD' | '3M' | '6M' | '12M' | 'custom'
 
@@ -21,16 +22,17 @@ const emit = defineEmits<{
 
 function getPresetDates(preset: Preset): { from: string; to: string } | null {
   const today = new Date()
-  const todayStr = today.toISOString().slice(0, 10)
+  const todayStr = localDateStr(today)
   const yyyy = today.getFullYear()
   if (preset === 'All') return props.allRange ?? { from: '2000-01-01', to: todayStr }
   if (preset === 'YTD') return { from: `${yyyy}-01-01`, to: todayStr }
-  const d = new Date(today)
-  if (preset === '3M') d.setMonth(d.getMonth() - 3)
-  else if (preset === '6M') d.setMonth(d.getMonth() - 6)
-  else if (preset === '12M') d.setMonth(d.getMonth() - 12)
+  let months: number
+  if (preset === '3M') months = 3
+  else if (preset === '6M') months = 6
+  else if (preset === '12M') months = 12
   else return null
-  return { from: d.toISOString().slice(0, 10), to: todayStr }
+  const from = new Date(yyyy, today.getMonth() - (months - 1), 1)
+  return { from: localDateStr(from), to: todayStr }
 }
 
 function setPreset(preset: Preset) {
