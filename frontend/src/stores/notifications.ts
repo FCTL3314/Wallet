@@ -15,7 +15,7 @@ export interface AppNotification {
 export const useNotificationsStore = defineStore('notifications', () => {
   const items = ref<AppNotification[]>([])
 
-  function add(notification: Omit<AppNotification, 'id'> & { id?: string }): string {
+  function add(notification: Omit<AppNotification, 'id' | 'duration'> & { id?: string; duration?: number }): string {
     const notifId = notification.id ?? crypto.randomUUID()
     items.value.push({ duration: 6000, ...notification, id: notifId })
     return notifId
