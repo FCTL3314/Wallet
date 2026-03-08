@@ -194,7 +194,7 @@ const donutOption = computed(() => {
 
 <template>
   <div class="page-sections">
-  <BaseCard>
+  <BaseCard data-onboarding="dashboard-period-filter">
     <PeriodFilterBar
       v-model:dateFrom="dateFrom"
       v-model:dateTo="dateTo"

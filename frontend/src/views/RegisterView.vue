@@ -28,7 +28,7 @@ const { value: password, meta: passwordMeta } = useField<string>('password', und
 const { value: confirmPassword, meta: confirmPasswordMeta } = useField<string>('confirmPassword', undefined, { validateOnValueUpdate: true })
 
 const submit = handleSubmit((values) => {
-  submitAuthAction(() => auth.register(values.email, values.password))
+  submitAuthAction(() => auth.register(values.email, values.password), true)
 })
 
 function signInWithGitHub() {

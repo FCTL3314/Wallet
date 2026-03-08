@@ -5,14 +5,23 @@ import * as yup from 'yup'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore, ACCENT_PRESETS, type AccentKey } from '../stores/theme'
+import { useOnboardingStore } from '../stores/onboarding'
 import { authApi } from '../api/auth'
 import { getErrorMessage } from '../api/errors'
 import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import PasswordRequirements from '../components/PasswordRequirements.vue'
+import { PhBookOpen } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
 const { user } = storeToRefs(auth)
+
+const onboarding = useOnboardingStore()
+
+function replayGuide() {
+  onboarding.reset()
+  onboarding.start()
+}
 
 const themeStore = useThemeStore()
 const { mode: themeMode, accent: themeAccent } = storeToRefs(themeStore)
@@ -115,6 +124,15 @@ const submitPassword = handlePasswordSubmit(async (values) => {
           />
         </div>
       </div>
+    </div>
+  </BaseCard>
+
+  <BaseCard title="Onboarding Guide" style="align-self: flex-start; min-width: 420px">
+    <div class="guide-section">
+      <p class="guide-desc">Replay the interactive guide to learn about all app features.</p>
+      <BaseButton variant="secondary" @click="replayGuide">
+        <PhBookOpen :size="16" weight="duotone" /> Replay Guide
+      </BaseButton>
     </div>
   </BaseCard>
 
@@ -307,5 +325,21 @@ const submitPassword = handlePasswordSubmit(async (values) => {
 
 [data-theme="dark"] .accent-swatch--active {
   box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px rgba(255, 255, 255, 0.40);
+}
+
+/* ── Guide section ──────────────────────────────────────── */
+
+.guide-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.guide-desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
 }
 </style>

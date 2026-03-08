@@ -8,6 +8,7 @@ import { useThemeStore } from './stores/theme'
 import { PhChartBar, PhArrowsLeftRight, PhWallet, PhReceipt, PhBooks, PhGear, PhSignOut } from '@phosphor-icons/vue'
 import TheBottomNav from './components/TheBottomNav.vue'
 import TheAppFooter from './components/TheAppFooter.vue'
+import OnboardingGuide from './components/OnboardingGuide.vue'
 
 const auth = useAuthStore()
 const refs = useReferencesStore()
@@ -33,6 +34,7 @@ function logout() {
 
 <template>
   <Toast position="top-right" />
+  <OnboardingGuide />
 
   <div v-if="auth.isAuthenticated" class="app-layout">
     <header class="app-header">

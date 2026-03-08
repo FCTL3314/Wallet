@@ -101,7 +101,9 @@ async function remove(id: number) {
 
   <BaseDataTable title="Regular Expenses" :loading="loading" :empty="!template?.items.length" empty-message="No expense categories yet.">
     <template #actions>
-      <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Category</BaseButton>
+      <div data-onboarding="add-expense-btn" style="display: inline-flex">
+        <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Category</BaseButton>
+      </div>
     </template>
     <template #head>
       <tr>

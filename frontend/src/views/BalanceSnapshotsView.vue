@@ -175,7 +175,7 @@ async function remove(id: number) {
       v-model:activePreset="activePreset"
       :allRange="allRange"
     >
-      <div ref="addBtn"><BaseButton variant="primary" size="sm" @click="openCreate">+ Add Snapshot</BaseButton></div>
+      <div ref="addBtn" data-onboarding="add-snapshot-btn"><BaseButton variant="primary" size="sm" @click="openCreate">+ Add Snapshot</BaseButton></div>
     </PeriodFilterBar>
   </BaseCard>
 

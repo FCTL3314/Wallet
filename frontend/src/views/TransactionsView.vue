@@ -167,7 +167,7 @@ function sourceName(id: number | null) {
       :showGroupBy="false"
       :allRange="allRange"
     >
-      <div ref="addBtn"><BaseButton variant="primary" size="sm" @click="openCreate">+ Add Income</BaseButton></div>
+      <div ref="addBtn" data-onboarding="add-income-btn"><BaseButton variant="primary" size="sm" @click="openCreate">+ Add Income</BaseButton></div>
     </PeriodFilterBar>
   </BaseCard>
 

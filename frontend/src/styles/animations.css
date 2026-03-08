@@ -93,3 +93,21 @@
 .settings-item-enter-from    { opacity: 0; transform: translateY(-6px); }
 .settings-item-leave-to      { opacity: 0; transform: translateX(16px); }
 .settings-item-move          { transition: transform 0.28s var(--ease-smooth); }
+
+/* ============================================================
+   ONBOARDING SPOTLIGHT HIGHLIGHT
+   ============================================================ */
+
+@keyframes ob-pulse {
+  0%, 100% { outline-color: var(--color-accent); box-shadow: 0 0 0 4px rgba(var(--color-accent-rgb), 0.18); }
+  50%       { outline-color: transparent;         box-shadow: 0 0 0 4px transparent; }
+}
+
+.ob-highlighted {
+  position: relative;
+  z-index: 401 !important;
+  outline: 2px solid var(--color-accent);
+  outline-offset: 4px;
+  border-radius: 12px;
+  animation: ob-pulse 1.8s ease-in-out infinite;
+}

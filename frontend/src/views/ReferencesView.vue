@@ -96,7 +96,7 @@ async function saveEditSource() {
   <div class="page-sections page-narrow">
   <div class="settings-grid">
     <!-- Currencies -->
-    <SettingsSection title="Currencies" :items="refs.currencies" @add="addCurrency">
+    <SettingsSection data-onboarding="currencies-section" title="Currencies" :items="refs.currencies" @add="addCurrency">
       <template #add-form>
         <input v-model="newCurrency.code" placeholder="Code (USD)" class="form-input-sm" style="flex: 1" />
         <input v-model="newCurrency.symbol" placeholder="Symbol ($)" class="form-input-sm" style="flex: 1" />
@@ -120,7 +120,7 @@ async function saveEditSource() {
     </SettingsSection>
 
     <!-- Storage Locations -->
-    <SettingsSection title="Storage Locations" :items="refs.storageLocations" @add="addLocation">
+    <SettingsSection data-onboarding="storage-locations-section" title="Storage Locations" :items="refs.storageLocations" @add="addLocation">
       <template #add-form>
         <input v-model="newLocation" placeholder="Name" class="form-input-sm" style="flex: 1" />
       </template>
@@ -140,7 +140,7 @@ async function saveEditSource() {
     </SettingsSection>
 
     <!-- Storage Accounts -->
-    <SettingsSection title="Storage Accounts" :items="refs.storageAccounts" @add="addAccount">
+    <SettingsSection data-onboarding="storage-accounts-section" title="Storage Accounts" :items="refs.storageAccounts" @add="addAccount">
       <template #add-form>
         <select v-model.number="newAccount.storage_location_id" class="form-input-sm" style="flex: 1">
           <option :value="0" disabled>Location</option>
@@ -158,7 +158,7 @@ async function saveEditSource() {
     </SettingsSection>
 
     <!-- Income Sources -->
-    <SettingsSection title="Income Sources" :items="refs.incomeSources" @add="addSource">
+    <SettingsSection data-onboarding="income-sources-section" title="Income Sources" :items="refs.incomeSources" @add="addSource">
       <template #add-form>
         <input v-model="newSource" placeholder="Name" class="form-input-sm" style="flex: 1" />
       </template>
