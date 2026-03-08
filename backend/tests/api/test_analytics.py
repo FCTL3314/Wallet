@@ -49,9 +49,10 @@ async def test_summary_empty_period(auth_client, test_user, ref_data):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) == 3
-    assert all(float(row["income"]) == 0.0 for row in data)
-    assert all(float(row["profit"]) == 0.0 for row in data)
+    periods = data["periods"]
+    assert len(periods) == 3
+    assert all(float(row["income"]) == 0.0 for row in periods)
+    assert all(float(row["profit"]) == 0.0 for row in periods)
 
 
 async def test_summary_with_transactions(auth_client, test_user, ref_data, db_session):
@@ -109,15 +110,16 @@ async def test_summary_with_transactions(auth_client, test_user, ref_data, db_se
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) == 2
+    periods = data["periods"]
+    assert len(periods) == 2
 
-    jan = data[0]
+    jan = periods[0]
     assert float(jan["income"]) == 3000.0
     assert float(jan["profit"]) == 2500.0
     assert jan["is_bootstrap"] is True
     assert float(jan["derived_expense"]) == 0.0
 
-    feb = data[1]
+    feb = periods[1]
     assert float(feb["income"]) == 3200.0
     assert float(feb["profit"]) == 2600.0
     assert feb["is_bootstrap"] is False
@@ -155,8 +157,9 @@ async def test_summary_income_only_no_snapshots(
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) == 1
-    row = data[0]
+    periods = data["periods"]
+    assert len(periods) == 1
+    row = periods[0]
     assert float(row["income"]) == 4000.0
     assert float(row["profit"]) == 0.0
     assert row["is_bootstrap"] is False
@@ -187,9 +190,10 @@ async def test_summary_with_balance_snapshots(
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) == 1
-    assert "balances" in data[0]
-    assert float(data[0]["balances"]["USD"]) == 10000.0
+    periods = data["periods"]
+    assert len(periods) == 1
+    assert "balances" in periods[0]
+    assert float(periods[0]["balances"]["USD"]) == 10000.0
 
 
 async def test_income_by_source(auth_client, test_user, ref_data, db_session):

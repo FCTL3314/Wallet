@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useThemeStore } from '../stores/theme'
-import { analyticsApi, type GroupBy, type IncomeBySourceEntry, type BalanceBreakdownItem } from '../api/analytics'
+import { analyticsApi, type GroupBy, type IncomeBySourceEntry, type BalanceBreakdownItem, type SummaryResponse, type SummaryStats } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
 import { storeToRefs } from 'pinia'
 import { fmtAmount, fmtPeriod, localDateStr } from '../utils/format'
@@ -26,7 +26,8 @@ const themeStore = useThemeStore()
 const isDark = computed(() => themeStore.mode === 'dark')
 
 const groupBy = ref<GroupBy>('month')
-const data = ref<SummaryEntry[]>([])
+const periods = ref<SummaryEntry[]>([])
+const stats = ref<SummaryStats | null>(null)
 const sourceData = ref<IncomeBySourceEntry[]>([])
 const loading = ref(false)
 const selectedCurrencyId = ref<number | null>(null)
@@ -69,7 +70,8 @@ async function load() {
       analyticsApi.summary(params),
       analyticsApi.incomeBySource(params),
     ])
-    data.value = summaryRes.data
+    periods.value = summaryRes.data.periods
+    stats.value = summaryRes.data.stats
     sourceData.value = sourceRes.data
   } finally {
     loading.value = false
@@ -91,43 +93,29 @@ onMounted(() => {
 })
 watch([dateFrom, dateTo, groupBy, selectedCurrencyId], load)
 
-const lastEntry = computed(() => data.value[data.value.length - 1] ?? null)
-const chartEntries = computed(() => data.value.filter((e) => !e.is_bootstrap))
+const lastEntry = computed(() => periods.value[periods.value.length - 1] ?? null)
+const chartEntries = computed(() => periods.value.filter((e) => !e.is_bootstrap))
 const avgIncome = computed(() => lastEntry.value?.avg_income ?? 0)
 const avgProfit = computed(() => lastEntry.value?.avg_profit ?? 0)
 
-const activePeriods = computed(() => data.value.filter((e) => e.income > 0 && !e.is_bootstrap))
-const totalIncome = computed(() => activePeriods.value.reduce((s, e) => s + e.income, 0))
-const totalProfit = computed(() => activePeriods.value.reduce((s, e) => s + e.profit, 0))
-
-const firstActivePeriod = computed(() => activePeriods.value[0] ?? null)
-const lastActivePeriod = computed(() => activePeriods.value[activePeriods.value.length - 1] ?? null)
+const totalIncome = computed(() => stats.value?.total_income ?? 0)
+const totalProfit = computed(() => stats.value?.total_profit ?? 0)
+const activePeriodCount = computed(() => stats.value?.active_period_count ?? 0)
+const incomePeriodCount = computed(() => stats.value?.income_period_count ?? 0)
 
 const incomeGrowthLong = computed(() => {
-  const first = firstActivePeriod.value
-  const last = lastActivePeriod.value
-  if (!first || !last || first.period === last.period) return null
-  const delta = last.income - first.income
-  return {
-    delta,
-    pct: first.income !== 0 ? (delta / first.income) * 100 : null,
-    firstPeriod: first.period,
-    lastPeriod: last.period,
-  }
+  const g = stats.value?.income_growth
+  if (!g) return null
+  return { delta: g.delta, pct: g.pct, firstPeriod: g.from_period, lastPeriod: g.to_period }
 })
 
 const profitGrowthLong = computed(() => {
-  const first = firstActivePeriod.value
-  const last = lastActivePeriod.value
-  if (!first || !last || first.period === last.period) return null
-  const delta = last.profit - first.profit
-  return {
-    delta,
-    pct: first.profit !== 0 ? (delta / Math.abs(first.profit)) * 100 : null,
-    firstPeriod: first.period,
-    lastPeriod: last.period,
-  }
+  const g = stats.value?.profit_growth
+  if (!g) return null
+  return { delta: g.delta, pct: g.pct, firstPeriod: g.from_period, lastPeriod: g.to_period }
 })
+
+const balanceGrowth = computed(() => stats.value?.balance_growth ?? null)
 
 interface RowDelta {
   income: { delta: number; pct: number | null } | null
@@ -135,9 +123,9 @@ interface RowDelta {
 }
 
 const tableData = computed(() => {
-  const nonBoot = data.value.filter((e) => !e.is_bootstrap)
+  const nonBoot = periods.value.filter((e) => !e.is_bootstrap)
   const indexMap = new Map(nonBoot.map((e, i) => [e.period, i]))
-  return data.value.map((entry) => {
+  return periods.value.map((entry) => {
     const deltas: RowDelta = { income: null, profit: null }
     if (!entry.is_bootstrap) {
       const idx = indexMap.get(entry.period)
@@ -154,10 +142,10 @@ const tableData = computed(() => {
 })
 
 const avgIncomeHint = computed(() =>
-  `Average income per active period.\n\nTotal income: ${fmtAmount(totalIncome.value)}\nActive periods: ${activePeriods.value.length}\nResult: ${fmtAmount(totalIncome.value)} ÷ ${activePeriods.value.length} = ${fmtAmount(avgIncome.value)}\n\nPeriods with no income are excluded.`
+  `Average income per active period.\n\nTotal income: ${fmtAmount(totalIncome.value)}\nActive periods: ${incomePeriodCount.value}\nResult: ${fmtAmount(totalIncome.value)} ÷ ${incomePeriodCount.value} = ${fmtAmount(avgIncome.value)}\n\nPeriods with no income are excluded.`
 )
 const avgProfitHint = computed(() =>
-  `Average profit per active period.\n\nTotal profit: ${fmtAmount(totalProfit.value)}\nActive periods: ${activePeriods.value.length}\nResult: ${fmtAmount(totalProfit.value)} ÷ ${activePeriods.value.length} = ${fmtAmount(avgProfit.value)}\n\nProfit = Income − Expenses. Can be negative if spending exceeds income.`
+  `Average profit per active period.\n\nTotal profit: ${fmtAmount(totalProfit.value)}\nActive periods: ${activePeriodCount.value}\nResult: ${fmtAmount(totalProfit.value)} ÷ ${activePeriodCount.value} = ${fmtAmount(avgProfit.value)}\n\nProfit = Income − Expenses. Can be negative if spending exceeds income.`
 )
 
 const selectedCurrencyCode = computed(() => {
@@ -246,14 +234,31 @@ const donutOption = computed(() => {
     </div>
   </BaseCard>
 
-  <div v-if="data.length" class="stats-grid">
+  <div v-if="periods.length" class="stats-grid">
     <BaseStatCard label="Current Balance" :icon="PhWallet">
       <div v-for="(val, cur) in displayedBalances" :key="cur" class="stat-value">
         <span class="stat-currency">{{ cur }}</span>{{ fmtAmount(val) }}
       </div>
       <div v-if="!Object.keys(displayedBalances).length" class="stat-value">—</div>
+      <template v-if="balanceGrowth">
+        <div
+          v-for="(delta, cur) in balanceGrowth.delta"
+          :key="cur"
+          class="stat-trend"
+          :class="delta >= 0 ? 'trend--up' : 'trend--down'"
+        >
+          <PhCaretUp v-if="delta >= 0" :size="9" weight="fill" />
+          <PhCaretDown v-else :size="9" weight="fill" />
+          <span>{{ cur }} {{ delta >= 0 ? '+' : '' }}{{ fmtAmount(delta) }}</span>
+          <span v-if="balanceGrowth.pct[cur] !== null" class="stat-trend-label">
+            ({{ Math.abs(balanceGrowth.pct[cur]!).toFixed(1) }}%)
+          </span>
+        </div>
+      </template>
       <button class="breakdown-toggle" @click="showBreakdown = !showBreakdown">
-        {{ showBreakdown ? 'Hide breakdown' : 'Show breakdown' }}
+        <span class="breakdown-toggle-line" />
+        <span class="breakdown-toggle-label">Accounts</span>
+        <PhCaretDown :size="11" weight="bold" class="breakdown-toggle-caret" :class="{ 'breakdown-toggle-caret--open': showBreakdown }" />
       </button>
       <div v-if="showBreakdown && breakdown.length" class="breakdown-list">
         <div v-for="item in breakdown" :key="item.account_id" class="breakdown-row">
@@ -305,7 +310,7 @@ const donutOption = computed(() => {
     </BaseStatCard>
   </div>
 
-  <BaseCard v-if="data.length" title="Trends">
+  <BaseCard v-if="periods.length" title="Trends">
     <template #actions>
       <div class="trend-tabs">
         <button
@@ -338,7 +343,7 @@ const donutOption = computed(() => {
     </div>
   </BaseCard>
 
-  <BaseDataTable title="Summary Table" :loading="loading" :empty="!data.length" empty-message="No data for selected period.">
+  <BaseDataTable title="Summary Table" :loading="loading" :empty="!periods.length" empty-message="No data for selected period.">
     <template #head>
       <tr>
         <th>Period</th>
@@ -460,14 +465,44 @@ const donutOption = computed(() => {
 }
 
 .breakdown-toggle {
-  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  width: 100%;
   background: none;
   border: none;
-  color: var(--color-accent);
-  font-size: 0.75rem;
-  cursor: pointer;
   padding: 0;
-  text-decoration: underline;
+  cursor: pointer;
+  color: var(--text-placeholder);
+  transition: color 0.15s;
+}
+
+.breakdown-toggle:hover {
+  color: var(--text-secondary);
+}
+
+.breakdown-toggle-line {
+  flex: 1;
+  height: 1px;
+  background: var(--card-border);
+}
+
+.breakdown-toggle-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.breakdown-toggle-caret {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.breakdown-toggle-caret--open {
+  transform: rotate(180deg);
 }
 
 .breakdown-list {

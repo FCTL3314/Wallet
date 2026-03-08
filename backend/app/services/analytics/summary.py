@@ -12,6 +12,13 @@ from app.services.analytics.balance import _get_balance_at_date
 from app.services.analytics.income import _get_income_per_period
 
 
+def _pct(new: Decimal, old: Decimal) -> Decimal | None:
+    """Return percentage change from old to new, rounded to 2 dp, or None if old is zero."""
+    if old == 0:
+        return None
+    return ((new - old) / old * 100).quantize(Decimal("0.01"))
+
+
 async def get_summary(
     db: AsyncSession,
     user_id: int,
@@ -19,14 +26,16 @@ async def get_summary(
     date_to: date,
     group_by: GroupBy,
     currency_id: int | None = None,
-) -> list[dict]:
+) -> dict:
     """
     Excel-model summary: profit = balance_change, derived_expense = income - profit.
     Generates one row per calendar period in the requested range.
+
+    Returns ``{"periods": [...], "stats": {...}}``.
     """
     periods = _generate_periods(date_from, date_to, group_by)
     if not periods:
-        return []
+        return {"periods": [], "stats": None}
 
     income_map = await _get_income_per_period(
         db, user_id, date_from, date_to, group_by, currency_id
@@ -36,11 +45,21 @@ async def get_summary(
     prev_end = periods[0][0] - timedelta(days=1)
     prev_balances = await _get_balance_at_date(db, user_id, prev_end, currency_id)
 
+    # Save initial balances for balance_growth stat (before any period mutations)
+    initial_balances = dict(prev_balances)
+
     summary = []
     cumulative_income = Decimal("0")
     cumulative_profit = Decimal("0")
     income_count = 0
     profit_count = 0
+
+    # Data collected for growth stats
+    income_active_periods: list[dict] = []  # periods where income > 0 and not bootstrap
+    profit_active_periods: list[
+        dict
+    ] = []  # periods where (income > 0 or profit != 0) and not bootstrap
+    last_cur_balances: dict[str, Decimal] = {}
 
     for period_start, period_end in periods:
         period_key = period_start.isoformat()
@@ -68,9 +87,15 @@ async def get_summary(
             if income > 0:
                 cumulative_income += income
                 income_count += 1
+                income_active_periods.append(
+                    {"period": period_key, "income": income, "profit": profit}
+                )
             if income > 0 or profit != 0:
                 cumulative_profit += profit
                 profit_count += 1
+                profit_active_periods.append(
+                    {"period": period_key, "income": income, "profit": profit}
+                )
 
         avg_income = (
             (cumulative_income / income_count).quantize(Decimal("0.01"))
@@ -98,8 +123,60 @@ async def get_summary(
         )
 
         prev_balances = cur_balances
+        last_cur_balances = cur_balances
 
-    return summary
+    # --- Compute stats ---
+
+    # income_growth: first vs last income-active period
+    income_growth = None
+    if len(income_active_periods) >= 2:
+        first = income_active_periods[0]
+        last = income_active_periods[-1]
+        delta = last["income"] - first["income"]
+        income_growth = {
+            "delta": delta,
+            "pct": _pct(last["income"], first["income"]),
+            "from_period": first["period"],
+            "to_period": last["period"],
+        }
+
+    # profit_growth: first vs last profit-active period
+    profit_growth = None
+    if len(profit_active_periods) >= 2:
+        first = profit_active_periods[0]
+        last = profit_active_periods[-1]
+        delta = last["profit"] - first["profit"]
+        profit_growth = {
+            "delta": delta,
+            "pct": _pct(last["profit"], first["profit"]),
+            "from_period": first["period"],
+            "to_period": last["period"],
+        }
+
+    # balance_growth: initial_balances vs last period's cur_balances (per currency)
+    all_balance_currencies = set(last_cur_balances) | set(initial_balances)
+    balance_growth_delta: dict[str, Decimal] = {}
+    balance_growth_pct: dict[str, Decimal | None] = {}
+    for cur in all_balance_currencies:
+        cur_val = last_cur_balances.get(cur, Decimal("0"))
+        init_val = initial_balances.get(cur, Decimal("0"))
+        balance_growth_delta[cur] = cur_val - init_val
+        balance_growth_pct[cur] = _pct(cur_val, init_val)
+
+    stats = {
+        "income_growth": income_growth,
+        "profit_growth": profit_growth,
+        "balance_growth": {
+            "delta": balance_growth_delta,
+            "pct": balance_growth_pct,
+        },
+        "total_income": cumulative_income,
+        "total_profit": cumulative_profit,
+        "active_period_count": profit_count,
+        "income_period_count": income_count,
+    }
+
+    return {"periods": summary, "stats": stats}
 
 
 async def get_expense_vs_budget(

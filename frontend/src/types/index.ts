@@ -2,6 +2,10 @@
 export type {
   GroupBy,
   SummaryEntry,
+  SummaryResponse,
+  SummaryStats,
+  GrowthStat,
+  BalanceGrowth,
   BalanceByStorageEntry,
   ExpenseVsBudgetItem,
   ExpenseTemplateItem,

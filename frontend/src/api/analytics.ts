@@ -14,6 +14,33 @@ export interface SummaryEntry {
   is_bootstrap?: boolean
 }
 
+export interface GrowthStat {
+  delta: number
+  pct: number | null
+  from_period: string
+  to_period: string
+}
+
+export interface BalanceGrowth {
+  delta: Record<string, number>
+  pct: Record<string, number | null>
+}
+
+export interface SummaryStats {
+  income_growth: GrowthStat | null
+  profit_growth: GrowthStat | null
+  balance_growth: BalanceGrowth
+  total_income: number
+  total_profit: number
+  active_period_count: number
+  income_period_count: number
+}
+
+export interface SummaryResponse {
+  periods: SummaryEntry[]
+  stats: SummaryStats | null
+}
+
 export interface IncomeBySourceEntry {
   period: string
   total: number
@@ -73,7 +100,7 @@ export interface DateRange {
 }
 
 export const analyticsApi = {
-  summary: (params: AnalyticsParams) => api.get<SummaryEntry[]>('/analytics/summary', { params }),
+  summary: (params: AnalyticsParams) => api.get<SummaryResponse>('/analytics/summary', { params }),
   incomeBySource: (params: AnalyticsParams) =>
     api.get<IncomeBySourceEntry[]>('/analytics/income-by-source', { params }),
   balanceByStorage: (params: AnalyticsParams) =>
