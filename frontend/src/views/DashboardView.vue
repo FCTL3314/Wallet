@@ -100,23 +100,29 @@ const activePeriods = computed(() => data.value.filter((e) => e.income > 0 && !e
 const totalIncome = computed(() => activePeriods.value.reduce((s, e) => s + e.income, 0))
 const totalProfit = computed(() => activePeriods.value.reduce((s, e) => s + e.profit, 0))
 
+const nonBootstrapEntries = computed(() => data.value.filter((e) => !e.is_bootstrap))
+const lastNonBootstrap = computed(() => nonBootstrapEntries.value[nonBootstrapEntries.value.length - 1] ?? null)
 const prevEntry = computed(() => {
-  const filtered = data.value.filter((e) => !e.is_bootstrap)
-  return filtered.length >= 2 ? filtered[filtered.length - 2] : null
+  return nonBootstrapEntries.value.length >= 2 ? nonBootstrapEntries.value[nonBootstrapEntries.value.length - 2] : null
 })
 
 const incomeGrowth = computed(() => {
-  if (!prevEntry.value || prevEntry.value.avg_income === 0) return null
-  const delta = avgIncome.value - prevEntry.value.avg_income
-  const pct = (delta / prevEntry.value.avg_income) * 100
+  if (!prevEntry.value || !lastNonBootstrap.value) return null
+  const cur = lastNonBootstrap.value.income
+  const prev = prevEntry.value.income
+  const delta = cur - prev
+  if (prev === 0) return delta !== 0 ? { delta, pct: null } : null
+  const pct = (delta / prev) * 100
   return { delta, pct }
 })
 
 const profitGrowth = computed(() => {
-  if (!prevEntry.value) return null
-  const delta = avgProfit.value - prevEntry.value.avg_profit
-  if (prevEntry.value.avg_profit === 0) return { delta, pct: null }
-  const pct = (delta / Math.abs(prevEntry.value.avg_profit)) * 100
+  if (!prevEntry.value || !lastNonBootstrap.value) return null
+  const cur = lastNonBootstrap.value.profit
+  const prev = prevEntry.value.profit
+  const delta = cur - prev
+  if (prev === 0) return { delta, pct: null }
+  const pct = (delta / Math.abs(prev)) * 100
   return { delta, pct }
 })
 
