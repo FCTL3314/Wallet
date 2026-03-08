@@ -68,7 +68,7 @@ async def get_summary(
             if income > 0:
                 cumulative_income += income
                 income_count += 1
-            if profit > 0:
+            if income > 0 or profit != 0:
                 cumulative_profit += profit
                 profit_count += 1
 

@@ -341,7 +341,7 @@ const donutOption = computed(() => {
           {{ row.income === 0 && row.profit === 0 ? '—' : fmtAmount(row.derived_expense) }}
         </td>
         <td class="col-num">{{ fmtAmount(row.avg_income) }}</td>
-        <td class="col-num">{{ fmtAmount(row.avg_profit) }}</td>
+        <td class="col-num" :class="row.avg_profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(row.avg_profit) }}</td>
       </tr>
     </template>
   </BaseDataTable>
