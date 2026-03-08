@@ -74,7 +74,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: docker/prod/docker-compose.deploy.yml
+          source: docker/prod/docker-compose.yml
           target: /opt/wallet/
           strip_components: 2
 
@@ -95,7 +95,7 @@ jobs:
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
             cd /opt/wallet
             BACKEND_IMAGE=$BACKEND_IMAGE FRONTEND_IMAGE=$FRONTEND_IMAGE IMAGE_TAG=$IMAGE_TAG \
-              docker compose -f docker-compose.deploy.yml pull
+              docker compose -f docker-compose.yml pull
             BACKEND_IMAGE=$BACKEND_IMAGE FRONTEND_IMAGE=$FRONTEND_IMAGE IMAGE_TAG=$IMAGE_TAG \
-              docker compose -f docker-compose.deploy.yml up -d --remove-orphans
+              docker compose -f docker-compose.yml up -d --remove-orphans
             docker image prune -f
