@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useThemeStore } from '../stores/theme'
-import { analyticsApi, type GroupBy, type IncomeBySourceEntry, type BalanceBreakdownItem, type SummaryResponse, type SummaryStats } from '../api/analytics'
+import { analyticsApi, type GroupBy, type IncomeBySourceEntry, type BalanceBreakdownItem, type SummaryStats } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
 import { storeToRefs } from 'pinia'
 import { fmtAmount, fmtPeriod, localDateStr } from '../utils/format'
@@ -130,7 +130,7 @@ const tableData = computed(() => {
     if (!entry.is_bootstrap) {
       const idx = indexMap.get(entry.period)
       if (idx !== undefined && idx > 0) {
-        const prev = nonBoot[idx - 1]
+        const prev = nonBoot[idx - 1]!
         const id = entry.income - prev.income
         const pd = entry.profit - prev.profit
         deltas.income = { delta: id, pct: prev.income !== 0 ? (id / prev.income) * 100 : null }
