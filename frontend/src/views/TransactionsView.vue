@@ -39,6 +39,7 @@ const form = ref<TransactionCreate>({
 
 const removingId = ref<number | null>(null)
 const newId = ref<number | null>(null)
+let loadGen = 0
 
 const touchedFields = ref(new Set<string>())
 
@@ -55,9 +56,11 @@ async function loadPage(reset = false) {
     offset.value = 0
     items.value = []
     hasMore.value = true
+    loading.value = false
   }
   if (!hasMore.value || loading.value) return
   loading.value = true
+  const gen = ++loadGen
   const params: TransactionFilters = {
     type: 'income',
     limit: PAGE_SIZE,
@@ -66,6 +69,7 @@ async function loadPage(reset = false) {
     ...(dateTo.value && { date_to: dateTo.value }),
   }
   const { data } = await transactionsApi.list(params)
+  if (gen !== loadGen) return
   items.value = reset ? data : [...items.value, ...data]
   hasMore.value = data.length === PAGE_SIZE
   offset.value += data.length
