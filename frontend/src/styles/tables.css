@@ -214,6 +214,19 @@ td.table-empty-cell {
     color: var(--color-accent-light);
 }
 
+/* ============================================================
+   SORTABLE COLUMN HEADERS (TanStack Table managed mode)
+   ============================================================ */
+
+table.data-table th.th-sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+table.data-table th.th-sortable:hover {
+    background: rgba(var(--color-accent-rgb), 0.07);
+}
+
 /* ── Dark theme overrides ─────────────────────────────── */
 
 [data-theme="dark"] .toolbar select,

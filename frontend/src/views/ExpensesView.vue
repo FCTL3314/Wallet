@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { analyticsApi, type ExpenseTemplate, type ExpenseTemplateItem } from '../api/analytics'
 import { expenseCategoriesApi } from '../api/references'
 import { useReferencesStore } from '../stores/references'
 import { fmtAmount } from '../utils/format'
+import { useTable, createColumnHelper } from '../composables/useTable'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseStatCard from '../components/BaseStatCard.vue'
@@ -39,6 +40,63 @@ function onTagKeydown(e: KeyboardEvent) {
     addTag()
   }
 }
+
+// ── TanStack Table (client-side sort + global search) ────────────────────────
+
+const expColHelper = createColumnHelper<ExpenseTemplateItem>()
+
+const expenseItems = computed<ExpenseTemplateItem[]>(() => template.value?.items ?? [])
+
+/**
+ * Custom global filter function that searches across both name and tags array.
+ * TanStack's built-in global filter only handles string/number scalars.
+ */
+function expenseGlobalFilter(
+  row: { original: ExpenseTemplateItem },
+  _columnId: string,
+  filterValue: string,
+): boolean {
+  const query = String(filterValue).toLowerCase()
+  if (!query) return true
+  const item = row.original
+  if (item.name.toLowerCase().includes(query)) return true
+  return item.tags.some((t) => t.toLowerCase().includes(query))
+}
+expenseGlobalFilter.autoRemove = (val: unknown) => !val
+
+const expenseColumns = [
+  expColHelper.accessor('name', {
+    id: 'name',
+    header: 'Name',
+    enableSorting: true,
+    filterFn: expenseGlobalFilter as never,
+  }),
+  expColHelper.accessor('budgeted_amount', {
+    id: 'budgeted_amount',
+    header: 'Budget / Month',
+    enableSorting: true,
+    meta: { class: 'col-num' },
+  }),
+  expColHelper.accessor('tags', {
+    id: 'tags',
+    header: 'Tags',
+    enableSorting: false,
+  }),
+  expColHelper.display({
+    id: 'actions',
+    header: '',
+    enableSorting: false,
+    meta: { style: 'text-align: right' },
+  }),
+]
+
+const { table: expenseTable } = useTable(
+  expenseColumns as import('../composables/useTable').ColumnDef<ExpenseTemplateItem>[],
+  expenseItems,
+  { globalFilter: true },
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function load() {
   loading.value = true
@@ -99,35 +157,34 @@ async function remove(id: number) {
     </BaseStatCard>
   </div>
 
-  <BaseDataTable title="Regular Expenses" :loading="loading" :empty="!template?.items.length" empty-message="No expense categories yet.">
+  <BaseDataTable
+    title="Regular Expenses"
+    :table="expenseTable"
+    :loading="loading"
+    :empty="!template?.items.length"
+    empty-message="No expense categories yet."
+    searchable
+  >
     <template #actions>
       <div data-onboarding="add-expense-btn" style="display: inline-flex">
         <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Category</BaseButton>
       </div>
     </template>
-    <template #head>
-      <tr>
-        <th>Name</th>
-        <th class="col-num">Budget / Month</th>
-        <th>Tags</th>
-        <th style="text-align: right"></th>
-      </tr>
-    </template>
-    <template #body>
+    <template #body="{ rows }">
       <tr
-        v-for="(item, index) in template?.items"
-        :key="item.id"
+        v-for="(row, index) in rows"
+        :key="row.original.id"
         class="table-row"
         :style="{ '--i': String(Math.min(index, 15)) }"
-        :class="{ removing: item.id === removingId, 'row-new': item.id === newId }"
+        :class="{ removing: row.original.id === removingId, 'row-new': row.original.id === newId }"
       >
-        <td>{{ item.name }}</td>
-        <td class="col-num">{{ fmtAmount(item.budgeted_amount) }}</td>
+        <td>{{ row.original.name }}</td>
+        <td class="col-num">{{ fmtAmount(row.original.budgeted_amount) }}</td>
         <td>
-          <span v-for="tag in item.tags" :key="tag" class="type-tag">{{ tag }}</span>
+          <span v-for="tag in row.original.tags" :key="tag" class="type-tag">{{ tag }}</span>
         </td>
         <td style="white-space: nowrap; text-align: right">
-          <EditDeleteActions @edit="openEdit(item)" @confirm="remove(item.id)" />
+          <EditDeleteActions @edit="openEdit(row.original)" @confirm="remove(row.original.id)" />
         </td>
       </tr>
     </template>

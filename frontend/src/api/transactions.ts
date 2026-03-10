@@ -23,6 +23,9 @@ export interface TransactionCreate {
   expense_category_id?: number | null
 }
 
+export type TransactionSortField = 'date' | 'amount' | 'income_source' | 'storage_account'
+export type SortOrder = 'asc' | 'desc'
+
 export interface TransactionFilters {
   type?: 'income' | 'expense'
   date_from?: string
@@ -32,6 +35,8 @@ export interface TransactionFilters {
   storage_account_id?: number
   limit?: number
   offset?: number
+  sort_by?: TransactionSortField
+  sort_order?: SortOrder
 }
 
 export const transactionsApi = {

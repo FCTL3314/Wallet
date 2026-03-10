@@ -11,6 +11,7 @@
   "dependencies": {
     "@phosphor-icons/vue": "^2.2.1",
     "@primeuix/themes": "^2.0.3",
+    "@tanstack/vue-table": "^8.21.3",
     "axios": "^1.13.5",
     "echarts": "^5.6.0",
     "pinia": "^3.0.4",

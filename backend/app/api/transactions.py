@@ -1,7 +1,7 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy import select
+from sqlalchemy import asc, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -9,6 +9,7 @@ from app.core.db_helpers import get_or_404
 from app.core.dependencies import get_current_user
 from app.core.exceptions import AppException, ResourceNotFound
 from app.models import ExpenseCategory, IncomeSource, StorageAccount, Transaction, User
+from app.models.storage import StorageLocation
 from app.models.transaction import TransactionType
 from app.schemas.transaction import (
     TransactionCreate,
@@ -64,6 +65,10 @@ async def _validate_fk_ownership(
             raise ResourceNotFound("expense_category")
 
 
+_VALID_SORT_FIELDS = {"date", "amount", "income_source", "storage_account"}
+_VALID_SORT_ORDERS = {"asc", "desc"}
+
+
 @router.get("/", response_model=list[TransactionResponse])
 async def list_transactions(
     tx_type: TransactionType | None = Query(default=None, alias="type"),
@@ -72,16 +77,38 @@ async def list_transactions(
     income_source_id: int | None = None,
     expense_category_id: int | None = None,
     storage_account_id: int | None = None,
+    sort_by: str | None = Query(default=None),
+    sort_order: str | None = Query(default=None),
     limit: int = Query(default=100, le=1000),
     offset: int = 0,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    q = (
-        select(Transaction)
-        .where(Transaction.user_id == user.id)
-        .order_by(Transaction.date.desc())
-    )
+    # Normalize and validate sort params; fall back to defaults on invalid values.
+    effective_sort_by = sort_by if sort_by in _VALID_SORT_FIELDS else None
+    order_fn = asc if sort_order == "asc" else desc
+
+    q = select(Transaction).where(Transaction.user_id == user.id)
+
+    # Add joins required by the requested sort field.
+    if effective_sort_by == "income_source":
+        q = q.outerjoin(IncomeSource, Transaction.income_source_id == IncomeSource.id)
+        q = q.order_by(order_fn(IncomeSource.name))
+    elif effective_sort_by == "storage_account":
+        q = q.join(
+            StorageAccount, Transaction.storage_account_id == StorageAccount.id
+        ).join(
+            StorageLocation, StorageAccount.storage_location_id == StorageLocation.id
+        )
+        q = q.order_by(order_fn(StorageLocation.name))
+    elif effective_sort_by == "amount":
+        q = q.order_by(order_fn(Transaction.amount))
+    elif effective_sort_by == "date":
+        q = q.order_by(order_fn(Transaction.date))
+    else:
+        # Default ordering when no valid sort_by is provided.
+        q = q.order_by(Transaction.date.desc())
+
     if tx_type:
         q = q.where(Transaction.type == tx_type)
     if date_from:

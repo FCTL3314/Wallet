@@ -6,6 +6,7 @@ import { useReferencesStore } from '../stores/references'
 import { storeToRefs } from 'pinia'
 import { fmtAmount, fmtPeriod, localDateStr } from '../utils/format'
 import { buildLineChartOption, buildDonutChartOption, DONUT_COLORS } from '../utils/charts'
+import { useTable, createColumnHelper } from '../composables/useTable'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -122,7 +123,14 @@ interface RowDelta {
   profit: { delta: number; pct: number | null } | null
 }
 
-const tableData = computed(() => {
+// Shape of each row in the summary table (entry + delta annotations)
+interface SummaryTableRow {
+  entry: SummaryEntry
+  income: RowDelta['income']
+  profit: RowDelta['profit']
+}
+
+const tableData = computed<SummaryTableRow[]>(() => {
   const nonBoot = periods.value.filter((e) => !e.is_bootstrap)
   const indexMap = new Map(nonBoot.map((e, i) => [e.period, i]))
   return periods.value.map((entry) => {
@@ -140,6 +148,61 @@ const tableData = computed(() => {
     return { entry, ...deltas }
   })
 })
+
+// ── TanStack Table for Summary Table (client-side sort, no text filter) ───────
+
+const summaryColHelper = createColumnHelper<SummaryTableRow>()
+
+const summaryColumns = [
+  summaryColHelper.accessor((row) => row.entry.period, {
+    id: 'period',
+    header: 'Period',
+    enableSorting: false,
+  }),
+  summaryColHelper.accessor((row) => Object.values(row.entry.balances)[0] ?? 0, {
+    id: 'balance',
+    header: 'Balance',
+    enableSorting: true,
+    meta: { class: 'col-num' },
+  }),
+  summaryColHelper.accessor((row) => row.entry.income, {
+    id: 'income',
+    header: 'Income',
+    enableSorting: true,
+    meta: { class: 'col-num' },
+  }),
+  summaryColHelper.accessor((row) => row.entry.profit, {
+    id: 'profit',
+    header: 'Profit',
+    enableSorting: true,
+    meta: { class: 'col-num' },
+  }),
+  summaryColHelper.accessor((row) => row.entry.derived_expense, {
+    id: 'expense',
+    header: 'Expense',
+    enableSorting: true,
+    meta: { class: 'col-num' },
+  }),
+  summaryColHelper.accessor((row) => row.entry.avg_income, {
+    id: 'avg_income',
+    header: 'Avg Income',
+    enableSorting: true,
+    meta: { class: 'col-num' },
+  }),
+  summaryColHelper.accessor((row) => row.entry.avg_profit, {
+    id: 'avg_profit',
+    header: 'Avg Profit',
+    enableSorting: true,
+    meta: { class: 'col-num' },
+  }),
+]
+
+const { table: summaryTable } = useTable(
+  summaryColumns as import('../composables/useTable').ColumnDef<SummaryTableRow>[],
+  tableData,
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const avgIncomeHint = computed(() =>
   `Average income per active period.\n\nTotal income: ${fmtAmount(totalIncome.value)}\nActive periods: ${incomePeriodCount.value}\nResult: ${fmtAmount(totalIncome.value)} ÷ ${incomePeriodCount.value} = ${fmtAmount(avgIncome.value)}\n\nPeriods with no income are excluded.`
@@ -343,57 +406,56 @@ const donutOption = computed(() => {
     </div>
   </BaseCard>
 
-  <BaseDataTable title="Summary Table" :loading="loading" :empty="!periods.length" empty-message="No data for selected period.">
-    <template #head>
-      <tr>
-        <th>Period</th>
-        <th class="col-num">Balance</th>
-        <th class="col-num">Income</th>
-        <th class="col-num">Profit</th>
-        <th class="col-num">Expense</th>
-        <th class="col-num">Avg Income</th>
-        <th class="col-num">Avg Profit</th>
-      </tr>
-    </template>
-    <template #body>
-      <tr v-for="{ entry: row, income: incD, profit: profD } in tableData" :key="row.period" :class="{ 'row-highlighted': row.period === hoveredPeriod }">
+  <BaseDataTable
+    title="Summary Table"
+    :table="summaryTable"
+    :loading="loading"
+    :empty="!periods.length"
+    empty-message="No data for selected period."
+  >
+    <template #body="{ rows }">
+      <tr
+        v-for="tableRow in rows"
+        :key="tableRow.original.entry.period"
+        :class="{ 'row-highlighted': tableRow.original.entry.period === hoveredPeriod }"
+      >
         <td>
-          {{ fmtPeriod(row.period) }}
+          {{ fmtPeriod(tableRow.original.entry.period) }}
           <span
-            v-if="row.is_bootstrap"
+            v-if="tableRow.original.entry.is_bootstrap"
             class="badge-initial"
             title="Starting balance snapshot — reflects initial capital entered by the user, not real earned income or profit."
           >Initial</span>
         </td>
         <td class="col-num">
-          <template v-if="Object.keys(row.balances).length">
-            <span v-for="(val, cur) in row.balances" :key="cur">{{ cur }} {{ fmtAmount(val) }}</span>
+          <template v-if="Object.keys(tableRow.original.entry.balances).length">
+            <span v-for="(val, cur) in tableRow.original.entry.balances" :key="cur">{{ cur }} {{ fmtAmount(val) }}</span>
           </template>
           <span v-else>—</span>
         </td>
         <td class="col-num">
-          <div class="amount-positive">{{ fmtAmount(row.income) }}</div>
-          <div v-if="incD" class="cell-delta" :class="incD.delta >= 0 ? 'trend--up' : 'trend--down'">
-            <PhCaretUp v-if="incD.delta >= 0" :size="7" weight="fill" />
+          <div class="amount-positive">{{ fmtAmount(tableRow.original.entry.income) }}</div>
+          <div v-if="tableRow.original.income" class="cell-delta" :class="tableRow.original.income.delta >= 0 ? 'trend--up' : 'trend--down'">
+            <PhCaretUp v-if="tableRow.original.income.delta >= 0" :size="7" weight="fill" />
             <PhCaretDown v-else :size="7" weight="fill" />
-            <span v-if="incD.pct !== null">{{ Math.abs(incD.pct).toFixed(1) }}%</span>
-            <span v-else>{{ incD.delta >= 0 ? '+' : '' }}{{ fmtAmount(incD.delta) }}</span>
+            <span v-if="tableRow.original.income.pct !== null">{{ Math.abs(tableRow.original.income.pct).toFixed(1) }}%</span>
+            <span v-else>{{ tableRow.original.income.delta >= 0 ? '+' : '' }}{{ fmtAmount(tableRow.original.income.delta) }}</span>
           </div>
         </td>
         <td class="col-num">
-          <div :class="row.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(row.profit) }}</div>
-          <div v-if="profD" class="cell-delta" :class="profD.delta >= 0 ? 'trend--up' : 'trend--down'">
-            <PhCaretUp v-if="profD.delta >= 0" :size="7" weight="fill" />
+          <div :class="tableRow.original.entry.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(tableRow.original.entry.profit) }}</div>
+          <div v-if="tableRow.original.profit" class="cell-delta" :class="tableRow.original.profit.delta >= 0 ? 'trend--up' : 'trend--down'">
+            <PhCaretUp v-if="tableRow.original.profit.delta >= 0" :size="7" weight="fill" />
             <PhCaretDown v-else :size="7" weight="fill" />
-            <span v-if="profD.pct !== null">{{ Math.abs(profD.pct).toFixed(1) }}%</span>
-            <span v-else>{{ profD.delta >= 0 ? '+' : '' }}{{ fmtAmount(profD.delta) }}</span>
+            <span v-if="tableRow.original.profit.pct !== null">{{ Math.abs(tableRow.original.profit.pct).toFixed(1) }}%</span>
+            <span v-else>{{ tableRow.original.profit.delta >= 0 ? '+' : '' }}{{ fmtAmount(tableRow.original.profit.delta) }}</span>
           </div>
         </td>
-        <td class="col-num" :class="row.derived_expense > 0 ? 'amount-negative' : 'amount-positive'">
-          {{ row.income === 0 && row.profit === 0 ? '—' : fmtAmount(row.derived_expense) }}
+        <td class="col-num" :class="tableRow.original.entry.derived_expense > 0 ? 'amount-negative' : 'amount-positive'">
+          {{ tableRow.original.entry.income === 0 && tableRow.original.entry.profit === 0 ? '—' : fmtAmount(tableRow.original.entry.derived_expense) }}
         </td>
-        <td class="col-num">{{ fmtAmount(row.avg_income) }}</td>
-        <td class="col-num" :class="row.avg_profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(row.avg_profit) }}</td>
+        <td class="col-num">{{ fmtAmount(tableRow.original.entry.avg_income) }}</td>
+        <td class="col-num" :class="tableRow.original.entry.avg_profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(tableRow.original.entry.avg_profit) }}</td>
       </tr>
     </template>
   </BaseDataTable>

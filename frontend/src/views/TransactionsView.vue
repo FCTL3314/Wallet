@@ -1,10 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, useTemplateRef, onMounted, onUnmounted, watch } from 'vue'
-import { transactionsApi, type Transaction, type TransactionCreate, type TransactionFilters } from '../api/transactions'
+import {
+  transactionsApi,
+  type Transaction,
+  type TransactionCreate,
+  type TransactionFilters,
+  type TransactionSortField,
+  type SortOrder,
+} from '../api/transactions'
 import { analyticsApi } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
 import { fmtAmount } from '../utils/format'
 import { useSuccessAnimation } from '../composables/useSuccessAnimation'
+import { useTable, createColumnHelper } from '../composables/useTable'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseCard from '../components/BaseCard.vue'
@@ -29,6 +37,10 @@ const dateTo = ref(today)
 const activePreset = ref('All')
 const allRange = ref<{ from: string; to: string } | null>(null)
 
+// Server-side sorting state (derived from TanStack table sorting state)
+const sortField = ref<TransactionSortField | undefined>(undefined)
+const sortOrder = ref<SortOrder>('desc')
+
 const showModal = ref(false)
 const editing = ref<Transaction | null>(null)
 const form = ref<TransactionCreate>({
@@ -43,6 +55,15 @@ let loadGen = 0
 
 const touchedFields = ref(new Set<string>())
 
+const filteredAccounts = computed(() =>
+  refs.storageAccounts.filter(a => a.currency_id === form.value.currency_id)
+)
+
+watch(() => form.value.currency_id, (currencyId) => {
+  const first = refs.storageAccounts.find(a => a.currency_id === currencyId)
+  form.value.storage_account_id = first?.id || 0
+})
+
 const formErrors = computed(() => ({
   amount: (form.value.amount ?? 0) <= 0 ? 'Must be greater than 0' : null,
 }))
@@ -50,6 +71,78 @@ const formErrors = computed(() => ({
 watch(showModal, (val) => {
   if (!val) touchedFields.value = new Set()
 })
+
+// ── TanStack Table (manual/server-side sort) ──────────────────────────────────
+
+const colHelper = createColumnHelper<Transaction>()
+
+// Map column id → API sort field name
+const SORT_FIELD_MAP: Record<string, TransactionSortField> = {
+  date: 'date',
+  amount: 'amount',
+  storage_account: 'storage_account',
+  income_source: 'income_source',
+}
+
+const txColumns = [
+  colHelper.accessor('date', {
+    id: 'date',
+    header: 'Date',
+    enableSorting: true,
+  }),
+  colHelper.accessor('amount', {
+    id: 'amount',
+    header: 'Amount',
+    enableSorting: true,
+    meta: { class: 'col-num' },
+  }),
+  colHelper.accessor('storage_account_id', {
+    id: 'storage_account',
+    header: 'Account',
+    enableSorting: true,
+  }),
+  colHelper.accessor('income_source_id', {
+    id: 'income_source',
+    header: 'Source',
+    enableSorting: true,
+  }),
+  colHelper.accessor('description', {
+    id: 'description',
+    header: 'Description',
+    enableSorting: false,
+  }),
+  colHelper.display({
+    id: 'actions',
+    header: '',
+    enableSorting: false,
+    meta: { style: 'text-align: right' },
+  }),
+]
+
+const { table, sortingState } = useTable(
+  txColumns as import('../composables/useTable').ColumnDef<Transaction>[],
+  items,
+  { manualSorting: true },
+)
+
+// When TanStack sorting state changes, sync to API params and reload
+watch(
+  sortingState,
+  (state) => {
+    const first = state[0]
+    if (first && first.id in SORT_FIELD_MAP) {
+      sortField.value = SORT_FIELD_MAP[first.id]
+      sortOrder.value = first.desc ? 'desc' : 'asc'
+    } else {
+      sortField.value = undefined
+      sortOrder.value = 'desc'
+    }
+    loadPage(true)
+  },
+  { deep: true },
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function loadPage(reset = false) {
   if (reset) {
@@ -67,6 +160,8 @@ async function loadPage(reset = false) {
     offset: offset.value,
     ...(dateFrom.value && { date_from: dateFrom.value }),
     ...(dateTo.value && { date_to: dateTo.value }),
+    ...(sortField.value && { sort_by: sortField.value }),
+    ...(sortField.value && { sort_order: sortOrder.value }),
   }
   const { data } = await transactionsApi.list(params)
   if (gen !== loadGen) return
@@ -175,32 +270,27 @@ function sourceName(id: number | null) {
     </PeriodFilterBar>
   </BaseCard>
 
-  <BaseDataTable :loading="loading && !items.length" :empty="!loading && !items.length" empty-message="No income transactions yet.">
-    <template #head>
-      <tr>
-        <th>Date</th>
-        <th class="col-num">Amount</th>
-        <th>Account</th>
-        <th>Source</th>
-        <th>Description</th>
-        <th style="text-align: right"></th>
-      </tr>
-    </template>
-    <template #body>
+  <BaseDataTable
+    :table="table"
+    :loading="loading && !items.length"
+    :empty="!loading && !items.length"
+    empty-message="No income transactions yet."
+  >
+    <template #body="{ rows }">
       <tr
-        v-for="(tx, index) in items"
-        :key="tx.id"
+        v-for="(row, index) in rows"
+        :key="row.original.id"
         class="table-row"
         :style="{ '--i': String(Math.min(index, 15)) }"
-        :class="{ removing: tx.id === removingId, 'row-new': tx.id === newId }"
+        :class="{ removing: row.original.id === removingId, 'row-new': row.original.id === newId }"
       >
-        <td>{{ tx.date }}</td>
-        <td class="col-num amount-positive">{{ fmtAmount(tx.amount) }}</td>
-        <td>{{ refs.storageAccountLabelById(tx.storage_account_id) }}</td>
-        <td>{{ sourceName(tx.income_source_id) }}</td>
-        <td>{{ tx.description || '' }}</td>
+        <td>{{ row.original.date }}</td>
+        <td class="col-num amount-positive">{{ fmtAmount(row.original.amount) }}</td>
+        <td>{{ refs.storageAccountLabelById(row.original.storage_account_id) }}</td>
+        <td>{{ sourceName(row.original.income_source_id) }}</td>
+        <td>{{ row.original.description || '' }}</td>
         <td style="white-space: nowrap; text-align: right">
-          <EditDeleteActions @edit="openEdit(tx)" @confirm="remove(tx.id)" />
+          <EditDeleteActions @edit="openEdit(row.original)" @confirm="remove(row.original.id)" />
         </td>
       </tr>
     </template>
@@ -229,9 +319,17 @@ function sourceName(id: number | null) {
       <p v-if="formErrors.amount && touchedFields.has('amount')" class="field-error">{{ formErrors.amount }}</p>
     </div>
     <div class="form-group">
+      <label>Currency</label>
+      <select v-model.number="form.currency_id" required>
+        <option v-for="cur in refs.currencies" :key="cur.id" :value="cur.id">
+          {{ cur.code }} ({{ cur.symbol }})
+        </option>
+      </select>
+    </div>
+    <div class="form-group">
       <label>Account</label>
       <select v-model.number="form.storage_account_id" required>
-        <option v-for="acc in refs.storageAccounts" :key="acc.id" :value="acc.id">
+        <option v-for="acc in filteredAccounts" :key="acc.id" :value="acc.id">
           {{ refs.storageAccountLabel(acc) }}
         </option>
       </select>
