@@ -246,6 +246,21 @@ const lineOption = computed(() => {
   )
 })
 
+const balanceLineOption = computed(() => {
+  const code = selectedCurrencyCode.value
+  const values = chartEntries.value.map((e) => (code ? (e.balances[code] ?? 0) : Object.values(e.balances)[0] ?? 0))
+  return buildLineChartOption(
+    chartEntries.value.map((e) => fmtPeriod(e.period)),
+    values,
+    'Balance',
+    '#5585c5',
+    'rgba(85,133,197,0.09)',
+    code,
+    () => {},
+    isDark.value,
+  )
+})
+
 const donutTotals = computed(() => {
   const totals: Record<string, number> = {}
   for (const entry of sourceData.value) {
@@ -386,6 +401,10 @@ const donutOption = computed(() => {
       </div>
     </template>
     <v-chart :option="lineOption" :style="{ height: '280px' }" autoresize @globalout="hoveredPeriod = null" />
+  </BaseCard>
+
+  <BaseCard v-if="chartEntries.length" title="Balance Over Time">
+    <v-chart :option="balanceLineOption" :style="{ height: '280px' }" autoresize />
   </BaseCard>
 
   <BaseCard v-if="Object.keys(donutTotals).length" title="Income by Source">

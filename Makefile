@@ -10,6 +10,10 @@ dev-build:
 dev-down:
 	docker compose -f docker/dev/docker-compose.yml down
 
+dev-reset:
+	docker compose -f docker/dev/docker-compose.yml down -v
+	docker compose -f docker/dev/docker-compose.yml up -d --build
+
 # Setup
 setup:
 	pre-commit install
