@@ -1,4 +1,4 @@
-.PHONY: dev prod down dev-build prod-build logs lint lint-fix setup
+.PHONY: dev prod down dev-build prod-build logs lint lint-fix setup backup backup-logs
 
 # Development
 dev:
@@ -35,3 +35,10 @@ db:
 
 seed:
 	docker exec -it dev-backend-1 uv run python scripts/seed_dev.py
+
+# Production backup commands
+backup:
+	docker compose -f docker/prod/docker-compose.yml exec backup /backup.sh
+
+backup-logs:
+	docker compose -f docker/prod/docker-compose.yml logs -f backup
