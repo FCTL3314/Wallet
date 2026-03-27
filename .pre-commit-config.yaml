@@ -7,3 +7,12 @@ repos:
         files: ^backend/
       - id: ruff-format
         files: ^backend/
+
+  - repo: local
+    hooks:
+      - id: backend-tests
+        name: Backend tests
+        language: system
+        entry: docker exec dev-backend-1 uv run pytest . -x -q --tb=short
+        pass_filenames: false
+        files: ^backend/
