@@ -82,24 +82,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Ensure deploy directory exists
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: mkdir -p /opt/wallet
-
-      - name: Copy compose file to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: docker/prod/docker-compose.yml
-          target: /opt/wallet/
-          strip_components: 2
-          debug: true
+      - name: Encode compose file
+        id: compose
+        run: echo "content=$(base64 -w 0 docker/prod/docker-compose.yml)" >> $GITHUB_OUTPUT
 
       - name: Deploy
         uses: appleboy/ssh-action@v1.0.3
@@ -111,14 +96,16 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           GH_ACTOR: ${{ github.actor }}
           RCLONE_CONFIG_PATH: ${{ secrets.RCLONE_CONFIG_PATH }}
+          COMPOSE_B64: ${{ steps.compose.outputs.content }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: BACKEND_IMAGE,FRONTEND_IMAGE,BACKUP_IMAGE,IMAGE_TAG,GHCR_TOKEN,GH_ACTOR,RCLONE_CONFIG_PATH
+          envs: BACKEND_IMAGE,FRONTEND_IMAGE,BACKUP_IMAGE,IMAGE_TAG,GHCR_TOKEN,GH_ACTOR,RCLONE_CONFIG_PATH,COMPOSE_B64
           script: |
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
             mkdir -p /opt/wallet
+            echo "$COMPOSE_B64" | base64 -d > /opt/wallet/docker-compose.yml
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
             cd /opt/wallet
             BACKEND_IMAGE=$BACKEND_IMAGE FRONTEND_IMAGE=$FRONTEND_IMAGE BACKUP_IMAGE=$BACKUP_IMAGE \
               IMAGE_TAG=$IMAGE_TAG RCLONE_CONFIG_PATH=$RCLONE_CONFIG_PATH \
