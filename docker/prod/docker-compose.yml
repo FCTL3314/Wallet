@@ -41,9 +41,7 @@ services:
       - backend
 
   backup:
-    build:
-      context: ../..
-      dockerfile: docker/backup/Dockerfile
+    image: ${BACKUP_IMAGE}:${IMAGE_TAG:-latest}
     environment:
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
