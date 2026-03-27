@@ -34,6 +34,7 @@ log "Dump complete: ${BACKUP_FILE} ($(du -sh "${BACKUP_FILE}" | cut -f1))"
 log "Uploading to ${RCLONE_REMOTE}"
 rclone copy \
     --config /rclone/rclone.conf \
+    --no-update-config \
     "${BACKUP_FILE}" \
     "${RCLONE_REMOTE}"
 log "Upload complete"
@@ -46,6 +47,7 @@ log "Local temp file removed"
 log "Deleting remote files older than ${BACKUP_RETAIN_DAYS} days from ${RCLONE_REMOTE}"
 rclone delete \
     --config /rclone/rclone.conf \
+    --no-update-config \
     --min-age "${BACKUP_RETAIN_DAYS}d" \
     "${RCLONE_REMOTE}"
 log "Remote pruning complete"

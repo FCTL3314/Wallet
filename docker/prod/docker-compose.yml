@@ -51,7 +51,6 @@ services:
       RCLONE_REMOTE: ${RCLONE_REMOTE:-gdrive:wallet-backups}
       BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 2 * * *}
       BACKUP_RETAIN_DAYS: ${BACKUP_RETAIN_DAYS:-30}
-      BACKUP_ON_START: ${BACKUP_ON_START:-false}
     volumes:
       - ${RCLONE_CONFIG_PATH}:/rclone/rclone.conf:ro
     depends_on:
