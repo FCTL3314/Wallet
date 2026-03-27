@@ -94,12 +94,7 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     )
     token = result.scalar_one_or_none()
 
-    now = datetime.now(timezone.utc)
-    expires_at = token.expires_at if token else None
-    if expires_at is not None and expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-
-    if not token or token.revoked or expires_at < now:
+    if not token or token.revoked or token.expires_at < datetime.now(timezone.utc):
         raise AuthInvalidRefreshToken()
 
     token.revoked = True
@@ -145,6 +140,7 @@ async def change_email(
     if existing.scalar_one_or_none():
         raise AuthEmailTaken()
     user.email = body.new_email
+    await db.flush()
     return user
 
 

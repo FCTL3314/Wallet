@@ -1,7 +1,10 @@
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import (
     analytics,
@@ -15,6 +18,7 @@ from app.api import (
     transactions,
 )
 from app.core.config import settings
+from app.core.database import get_db
 from app.core.exceptions import AppException, ErrorResponse
 
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -37,6 +41,17 @@ async def app_exception_handler(_: Request, exc: AppException):
             code=exc.code,
             message=exc.message,
             detail=exc.detail,
+        ).model_dump(exclude_none=True),
+    )
+
+
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(_: Request, exc: IntegrityError):
+    return JSONResponse(
+        status_code=409,
+        content=ErrorResponse(
+            code="resource/conflict",
+            message="A resource with these details already exists",
         ).model_dump(exclude_none=True),
     )
 
@@ -73,5 +88,6 @@ for router in [
 
 
 @app.get("/api/health")
-async def health():
+async def health(db: AsyncSession = Depends(get_db)):
+    await db.execute(text("SELECT 1"))
     return {"status": "ok"}

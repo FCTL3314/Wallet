@@ -1,7 +1,7 @@
 import secrets
 
 import httpx
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Cookie, Depends
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -113,15 +113,28 @@ async def github_login():
         "&scope=user:email"
         f"&state={state}"
     )
-    return RedirectResponse(url=url, status_code=302)
+    response = RedirectResponse(url=url, status_code=302)
+    response.set_cookie(
+        key="oauth_state",
+        value=state,
+        httponly=True,
+        samesite="lax",
+        max_age=300,
+        path="/",
+    )
+    return response
 
 
 @router.get("/github/callback")
 async def github_callback(
     code: str,
     state: str = "",
+    state_cookie: str | None = Cookie(default=None, alias="oauth_state"),
     db: AsyncSession = Depends(get_db),
 ):
+    if not state_cookie or state != state_cookie:
+        raise AuthOAuthFailed("Invalid OAuth state parameter")
+
     profile = await exchange_github_code(code)
     if not profile:
         raise AuthOAuthFailed("GitHub did not return a valid profile")
@@ -148,7 +161,9 @@ async def github_callback(
         f"?access_token={tokens.access_token}"
         f"&refresh_token={tokens.refresh_token}"
     )
-    return RedirectResponse(url=redirect_url, status_code=302)
+    redirect = RedirectResponse(url=redirect_url, status_code=302)
+    redirect.delete_cookie("oauth_state", path="/")
+    return redirect
 
 
 @router.get("/google")
@@ -162,15 +177,28 @@ async def google_login():
         "&scope=openid email"
         f"&state={state}"
     )
-    return RedirectResponse(url=url, status_code=302)
+    response = RedirectResponse(url=url, status_code=302)
+    response.set_cookie(
+        key="oauth_state",
+        value=state,
+        httponly=True,
+        samesite="lax",
+        max_age=300,
+        path="/",
+    )
+    return response
 
 
 @router.get("/google/callback")
 async def google_callback(
     code: str,
     state: str = "",
+    state_cookie: str | None = Cookie(default=None, alias="oauth_state"),
     db: AsyncSession = Depends(get_db),
 ):
+    if not state_cookie or state != state_cookie:
+        raise AuthOAuthFailed("Invalid OAuth state parameter")
+
     profile = await exchange_google_code(code)
     if not profile:
         raise AuthOAuthFailed("Google did not return a valid profile")
@@ -197,4 +225,6 @@ async def google_callback(
         f"?access_token={tokens.access_token}"
         f"&refresh_token={tokens.refresh_token}"
     )
-    return RedirectResponse(url=redirect_url, status_code=302)
+    redirect = RedirectResponse(url=redirect_url, status_code=302)
+    redirect.delete_cookie("oauth_state", path="/")
+    return redirect

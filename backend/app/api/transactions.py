@@ -32,7 +32,9 @@ async def _validate_currency_matches_account(
         )
     )
     account = result.scalar_one_or_none()
-    if account and account.currency_id != currency_id:
+    if not account:
+        raise ResourceNotFound("storage_account")
+    if account.currency_id != currency_id:
         raise AppException(
             code="transaction/currency_mismatch",
             message="Transaction currency must match the storage account currency.",

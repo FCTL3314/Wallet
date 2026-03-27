@@ -108,6 +108,9 @@ async def create_account(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await get_or_404(
+        db, StorageLocation, body.storage_location_id, user.id, "storage_location"
+    )
     obj = StorageAccount(**body.model_dump(), user_id=user.id)
     db.add(obj)
     await db.flush()
@@ -133,7 +136,16 @@ async def update_account(
             selectinload(StorageAccount.currency),
         ],
     )
-    for k, v in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    if "storage_location_id" in data:
+        await get_or_404(
+            db,
+            StorageLocation,
+            data["storage_location_id"],
+            user.id,
+            "storage_location",
+        )
+    for k, v in data.items():
         setattr(obj, k, v)
     await db.flush()
     await db.refresh(obj, attribute_names=["storage_location", "currency"])

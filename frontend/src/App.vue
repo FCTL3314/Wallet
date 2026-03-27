@@ -27,6 +27,14 @@ onMounted(async () => {
     await auth.fetchUser()
     if (auth.isAuthenticated) {
       await refs.fetchAll()
+      if (refs.error) {
+        notifications.add({
+          type: 'error',
+          title: 'Failed to load data',
+          message: refs.error,
+          duration: 0,
+        })
+      }
       checkOnboardingNotification()
     }
   }

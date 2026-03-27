@@ -1,7 +1,8 @@
 import datetime
 from decimal import Decimal
+from typing import Self
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from app.models.transaction import TransactionType
 from app.schemas._validators import validate_amount_positive
@@ -22,6 +23,14 @@ class TransactionCreate(BaseModel):
     def amount_positive(cls, v: Decimal) -> Decimal:
         return validate_amount_positive(v)
 
+    @model_validator(mode="after")
+    def check_mutually_exclusive(self) -> Self:
+        if self.income_source_id is not None and self.expense_category_id is not None:
+            raise ValueError(
+                "income_source_id and expense_category_id are mutually exclusive"
+            )
+        return self
+
 
 class TransactionUpdate(BaseModel):
     type: TransactionType | None = None
@@ -37,6 +46,14 @@ class TransactionUpdate(BaseModel):
     @classmethod
     def amount_positive(cls, v: Decimal | None) -> Decimal | None:
         return validate_amount_positive(v) if v is not None else v
+
+    @model_validator(mode="after")
+    def check_mutually_exclusive(self) -> Self:
+        if self.income_source_id is not None and self.expense_category_id is not None:
+            raise ValueError(
+                "income_source_id and expense_category_id are mutually exclusive"
+            )
+        return self
 
 
 class TransactionResponse(BaseModel):

@@ -4,6 +4,7 @@ import {
   currenciesApi, storageLocationsApi, storageAccountsApi, incomeSourcesApi, expenseCategoriesApi,
   type Currency, type StorageLocation, type StorageAccount, type IncomeSource, type ExpenseCategory,
 } from '../api/references'
+import { getErrorMessage } from '../api/errors'
 
 export const useReferencesStore = defineStore('references', () => {
   const currencies = ref<Currency[]>([])
@@ -12,6 +13,7 @@ export const useReferencesStore = defineStore('references', () => {
   const incomeSources = ref<IncomeSource[]>([])
   const expenseCategories = ref<ExpenseCategory[]>([])
   const loaded = ref(false)
+  const error = ref<string | null>(null)
 
   // O(1) lookup maps — recomputed only when source arrays change
   const _currencyById = computed(() => new Map(currencies.value.map((c) => [c.id, c])))
@@ -22,19 +24,24 @@ export const useReferencesStore = defineStore('references', () => {
   const _expenseCategoryById = computed(() => new Map(expenseCategories.value.map((c) => [c.id, c])))
 
   async function fetchAll() {
-    const [c, sl, sa, is_, ec] = await Promise.all([
-      currenciesApi.list(),
-      storageLocationsApi.list(),
-      storageAccountsApi.list(),
-      incomeSourcesApi.list(),
-      expenseCategoriesApi.list(),
-    ])
-    currencies.value = c.data
-    storageLocations.value = sl.data
-    storageAccounts.value = sa.data
-    incomeSources.value = is_.data
-    expenseCategories.value = ec.data
-    loaded.value = true
+    error.value = null
+    try {
+      const [c, sl, sa, is_, ec] = await Promise.all([
+        currenciesApi.list(),
+        storageLocationsApi.list(),
+        storageAccountsApi.list(),
+        incomeSourcesApi.list(),
+        expenseCategoriesApi.list(),
+      ])
+      currencies.value = c.data
+      storageLocations.value = sl.data
+      storageAccounts.value = sa.data
+      incomeSources.value = is_.data
+      expenseCategories.value = ec.data
+      loaded.value = true
+    } catch (e) {
+      error.value = getErrorMessage(e)
+    }
   }
 
   function currencyById(id: number) {
@@ -66,7 +73,7 @@ export const useReferencesStore = defineStore('references', () => {
 
   return {
     currencies, storageLocations, storageAccounts, incomeSources, expenseCategories,
-    loaded, fetchAll, currencyById, currencyByCode, storageAccountLabel, storageAccountLabelById,
+    loaded, error, fetchAll, currencyById, currencyByCode, storageAccountLabel, storageAccountLabelById,
     incomeSourceById, expenseCategoryById,
   }
 })

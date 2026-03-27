@@ -101,3 +101,13 @@ class ResourceNotFound(AppException):
             status_code=404,
             detail=detail,
         )
+
+
+class ConflictError(AppException):
+    def __init__(self, detail: str | None = None):
+        super().__init__(
+            code="resource/conflict",
+            message="A resource with these details already exists",
+            status_code=409,
+            detail=detail,
+        )
