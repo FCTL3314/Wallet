@@ -5,11 +5,19 @@ from decimal import Decimal
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Transaction, BalanceSnapshot, ExpenseCategory
+from app.models import Currency, Transaction, BalanceSnapshot, ExpenseCategory
 from app.models.transaction import TransactionType
 from app.services.analytics.periods import GroupBy, _generate_periods
 from app.services.analytics.balance import _get_balance_at_date
-from app.services.analytics.income import _get_income_per_period
+from app.services.analytics.income import (
+    _get_income_per_period,
+    _get_income_per_period_by_currency,
+)
+from app.services.exchange_rates import (
+    RateResult,
+    get_rates_batch,
+    get_rates_for_periods,
+)
 
 
 def _pct(new: Decimal, old: Decimal) -> Decimal | None:
@@ -19,6 +27,74 @@ def _pct(new: Decimal, old: Decimal) -> Decimal | None:
     return ((new - old) / old * 100).quantize(Decimal("0.01"))
 
 
+async def _build_rate_coverage(
+    db: AsyncSession, user_id: int, base_currency: str = "USD"
+) -> dict:
+    """Build rate coverage info for all currencies owned by the user."""
+
+    result = await db.execute(select(Currency.code).where(Currency.user_id == user_id))
+    all_codes = list(result.scalars())
+
+    # Exclude base currency from coverage check
+    non_base_codes = [c for c in all_codes if c != base_currency]
+
+    if not non_base_codes:
+        return {
+            "base_currency": base_currency,
+            "currencies": {},
+            "conversion_available": True,
+        }
+
+    rate_map = await get_rates_batch(
+        db, non_base_codes, to_code=base_currency, user_id=user_id
+    )
+
+    currencies: dict[str, dict] = {}
+    all_ok = True
+    for code in non_base_codes:
+        rr = rate_map.get(code)
+        if rr is None:
+            currencies[code] = {
+                "status": "missing",
+                "valid_date": None,
+                "source": "none",
+                "rate": None,
+            }
+            all_ok = False
+        else:
+            currencies[code] = {
+                "status": rr.status,
+                "valid_date": rr.valid_date,
+                "source": rr.source,
+                "rate": str(rr.rate) if rr.rate is not None else None,
+            }
+            if rr.status != "ok":
+                all_ok = False
+
+    return {
+        "base_currency": base_currency,
+        "currencies": currencies,
+        "conversion_available": all_ok,
+    }
+
+
+def _convert_amount(
+    per_currency: dict[str, Decimal],
+    rate_map: dict[str, RateResult],
+    to_code: str,
+) -> Decimal:
+    """Convert per-currency amounts to a single target currency using rate_map."""
+    total = Decimal("0")
+    for code, amount in per_currency.items():
+        if code == to_code:
+            total += amount
+        else:
+            rr = rate_map.get(code)
+            if rr and rr.rate:
+                total += amount * rr.rate
+    return total
+
+
 async def get_summary(
     db: AsyncSession,
     user_id: int,
@@ -26,20 +102,43 @@ async def get_summary(
     date_to: date,
     group_by: GroupBy,
     currency_id: int | None = None,
+    convert_to: str | None = None,
 ) -> dict:
     """
     Excel-model summary: profit = balance_change, derived_expense = income - profit.
     Generates one row per calendar period in the requested range.
 
-    Returns ``{"periods": [...], "stats": {...}}``.
+    When ``convert_to`` is set (e.g. "USD"), all monetary values are converted
+    to that currency using exchange rates. Each period entry gets an extra
+    ``converted_balance`` field with the total converted balance.
+
+    Returns ``{"periods": [...], "stats": {...}, "rate_coverage": {...}}``.
     """
     periods = _generate_periods(date_from, date_to, group_by)
     if not periods:
-        return {"periods": [], "stats": None}
+        return {"periods": [], "stats": None, "rate_coverage": None}
 
-    income_map = await _get_income_per_period(
-        db, user_id, date_from, date_to, group_by, currency_id
-    )
+    converting = convert_to is not None and currency_id is None
+
+    # Pre-fetch currency codes for conversion mode
+    all_codes: list[str] = []
+    if converting:
+        all_codes_result = await db.execute(
+            select(Currency.code).where(Currency.user_id == user_id)
+        )
+        all_codes = list(all_codes_result.scalars())
+
+    # Get income data
+    if converting:
+        income_map_by_cur = await _get_income_per_period_by_currency(
+            db, user_id, date_from, date_to, group_by
+        )
+        income_map: dict[str, Decimal] = {}
+    else:
+        income_map_by_cur = None
+        income_map = await _get_income_per_period(
+            db, user_id, date_from, date_to, group_by, currency_id
+        )
 
     # Balance at the end of the period immediately before the first period
     prev_end = periods[0][0] - timedelta(days=1)
@@ -47,6 +146,14 @@ async def get_summary(
 
     # Save initial balances for balance_growth stat (before any period mutations)
     initial_balances = dict(prev_balances)
+
+    # Pre-fetch rates for all period-ends in 2 queries (avoid N+1)
+    rate_cache: dict[date, dict[str, RateResult]] = {}
+    if converting:
+        period_ends_list = [end for _, end in periods]
+        rate_cache = await get_rates_for_periods(
+            db, all_codes, period_ends_list, to_code=convert_to, user_id=user_id
+        )
 
     summary = []
     cumulative_income = Decimal("0")
@@ -63,7 +170,18 @@ async def get_summary(
 
     for period_start, period_end in periods:
         period_key = period_start.isoformat()
-        income = income_map.get(period_key, Decimal("0"))
+
+        # Fetch exchange rates at period_end for accurate historical conversion
+        rate_map: dict[str, RateResult] = (
+            rate_cache.get(period_end, {}) if converting else {}
+        )
+
+        # Compute income for this period
+        if converting:
+            income_by_cur = income_map_by_cur.get(period_key, {})
+            income = _convert_amount(income_by_cur, rate_map, convert_to)
+        else:
+            income = income_map.get(period_key, Decimal("0"))
 
         cur_balances = await _get_balance_at_date(db, user_id, period_end, currency_id)
 
@@ -74,7 +192,11 @@ async def get_summary(
             for cur in all_currencies
         }
 
-        profit = sum(balance_change.values(), Decimal("0"))
+        if converting:
+            profit = _convert_amount(balance_change, rate_map, convert_to)
+        else:
+            profit = sum(balance_change.values(), Decimal("0"))
+
         # Detect bootstrap period: no prior snapshots, so balance_change = initial capital entry.
         is_bootstrap = (
             not prev_balances and sum(cur_balances.values(), Decimal("0")) > 0
@@ -108,19 +230,24 @@ async def get_summary(
             else Decimal("0")
         )
 
-        summary.append(
-            {
-                "period": period_key,
-                "income": income,
-                "profit": profit,
-                "derived_expense": derived_expense,
-                "avg_income": avg_income,
-                "avg_profit": avg_profit,
-                "balances": cur_balances,
-                "balance_change": balance_change,
-                "is_bootstrap": is_bootstrap,
-            }
-        )
+        entry = {
+            "period": period_key,
+            "income": income,
+            "profit": profit,
+            "derived_expense": derived_expense,
+            "avg_income": avg_income,
+            "avg_profit": avg_profit,
+            "balances": cur_balances,
+            "balance_change": balance_change,
+            "is_bootstrap": is_bootstrap,
+        }
+
+        if converting:
+            entry["converted_balance"] = _convert_amount(
+                cur_balances, rate_map, convert_to
+            )
+
+        summary.append(entry)
 
         prev_balances = cur_balances
         last_cur_balances = cur_balances
@@ -176,7 +303,14 @@ async def get_summary(
         "income_period_count": income_count,
     }
 
-    return {"periods": summary, "stats": stats}
+    # --- Compute rate_coverage ---
+    rate_coverage = (
+        await _build_rate_coverage(db, user_id, base_currency=convert_to)
+        if converting
+        else None
+    )
+
+    return {"periods": summary, "stats": stats, "rate_coverage": rate_coverage}
 
 
 async def get_expense_vs_budget(

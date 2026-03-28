@@ -2,11 +2,13 @@ from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.models import User
+from app.core.exceptions import AppException
+from app.models import Currency, User
 from app.services.analytics import (
     GroupBy,
     get_summary,
@@ -35,10 +37,24 @@ async def summary(
     date_to: date = Query(...),
     group_by: GroupBy = Query(default=GroupBy.month),
     currency_id: int | None = Query(default=None),
+    convert_to: str | None = Query(default=None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await get_summary(db, user.id, date_from, date_to, group_by, currency_id)
+    if convert_to:
+        codes_result = await db.execute(
+            select(Currency.code).where(Currency.user_id == user.id)
+        )
+        valid_codes = set(codes_result.scalars())
+        if convert_to not in valid_codes:
+            raise AppException(
+                code="validation/invalid_input",
+                message=f"Currency '{convert_to}' is not in your currencies",
+                status_code=422,
+            )
+    return await get_summary(
+        db, user.id, date_from, date_to, group_by, currency_id, convert_to
+    )
 
 
 @router.get("/income-by-source")

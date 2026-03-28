@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { useThemeStore } from '../stores/theme'
-import { analyticsApi, type GroupBy, type IncomeBySourceEntry, type BalanceBreakdownItem, type SummaryStats } from '../api/analytics'
+import { analyticsApi, type GroupBy, type IncomeBySourceEntry, type BalanceBreakdownItem, type SummaryStats, type RateCoverage } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
 import { storeToRefs } from 'pinia'
-import { fmtAmount, fmtPeriod, localDateStr } from '../utils/format'
+import { fmtAmount, fmtPeriod } from '../utils/format'
 import { buildLineChartOption, buildDonutChartOption, DONUT_COLORS } from '../utils/charts'
 import { useTable, createColumnHelper } from '../composables/useTable'
+import { useDateRange } from '../composables/useDateRange'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -16,8 +18,8 @@ import BaseCard from '../components/BaseCard.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseStatCard from '../components/BaseStatCard.vue'
 import PeriodFilterBar from '../components/PeriodFilterBar.vue'
-import type { Preset, SummaryEntry } from '../types/index'
-import { PhWallet, PhTrendUp, PhChartLine, PhCaretUp, PhCaretDown } from '@phosphor-icons/vue'
+import type { SummaryEntry } from '../types/index'
+import { PhWallet, PhTrendUp, PhChartLine, PhCaretUp, PhCaretDown, PhWarning, PhArrowsClockwise, PhCurrencyCircleDollar } from '@phosphor-icons/vue'
 
 use([CanvasRenderer, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent])
 
@@ -29,25 +31,28 @@ const isDark = computed(() => themeStore.mode === 'dark')
 const groupBy = ref<GroupBy>('month')
 const periods = ref<SummaryEntry[]>([])
 const stats = ref<SummaryStats | null>(null)
+const rateCoverage = ref<RateCoverage | null>(null)
 const sourceData = ref<IncomeBySourceEntry[]>([])
 const loading = ref(false)
-const selectedCurrencyId = ref<number | null>(null)
+const selectedCurrencyId = ref<number | 'all'>('all')
+const convertToCurrency = ref<string>('USD')
+
+const isAllMode = computed(() => selectedCurrencyId.value === 'all')
 
 watch(
   currencies,
   () => {
-    if (selectedCurrencyId.value === null) {
-      selectedCurrencyId.value = refs.currencyByCode('USD')?.id ?? currencies.value[0]?.id ?? null
+    // Set default convert-to currency to USD if available, else first currency
+    const usd = refs.currencyByCode('USD')
+    if (usd) {
+      convertToCurrency.value = 'USD'
+    } else if (currencies.value.length) {
+      convertToCurrency.value = currencies.value[0].code
     }
   },
   { immediate: true },
 )
-const activePreset = ref<Preset>('YTD')
-const allRange = ref<{ from: string; to: string } | null>(null)
-
-const today = new Date()
-const dateFrom = ref(`${today.getFullYear()}-01-01`)
-const dateTo = ref(localDateStr(today))
+const { dateFrom, dateTo, activePreset, allRange, initRange } = useDateRange('YTD')
 
 const breakdown = ref<BalanceBreakdownItem[]>([])
 const showBreakdown = ref(false)
@@ -65,7 +70,8 @@ async function load() {
       date_from: dateFrom.value,
       date_to: dateTo.value,
       group_by: groupBy.value,
-      currency_id: selectedCurrencyId.value ?? undefined,
+      currency_id: isAllMode.value ? undefined : (selectedCurrencyId.value as number),
+      convert_to: isAllMode.value ? convertToCurrency.value : undefined,
     }
     const [summaryRes, sourceRes] = await Promise.all([
       analyticsApi.summary(params),
@@ -73,6 +79,7 @@ async function load() {
     ])
     periods.value = summaryRes.data.periods
     stats.value = summaryRes.data.stats
+    rateCoverage.value = summaryRes.data.rate_coverage ?? null
     sourceData.value = sourceRes.data
   } finally {
     loading.value = false
@@ -82,17 +89,9 @@ async function load() {
 onMounted(() => {
   load()
   loadBreakdown()
-  analyticsApi.dateRange().then(({ data: dr }) => {
-    if (dr.min_date && dr.max_date) {
-      allRange.value = { from: dr.min_date, to: dr.max_date }
-      if (activePreset.value === 'All') {
-        dateFrom.value = dr.min_date
-        dateTo.value = dr.max_date
-      }
-    }
-  })
+  initRange()
 })
-watch([dateFrom, dateTo, groupBy, selectedCurrencyId], load)
+watch([dateFrom, dateTo, groupBy, selectedCurrencyId, convertToCurrency], load)
 
 const lastEntry = computed(() => periods.value[periods.value.length - 1] ?? null)
 const chartEntries = computed(() => periods.value.filter((e) => !e.is_bootstrap))
@@ -117,6 +116,15 @@ const profitGrowthLong = computed(() => {
 })
 
 const balanceGrowth = computed(() => stats.value?.balance_growth ?? null)
+
+const missingCurrencies = computed<string[]>(() => {
+  const rc = rateCoverage.value
+  if (!rc || rc.conversion_available) return []
+  if (!isAllMode.value && currencies.value.length <= 1) return []
+  return Object.entries(rc.currencies)
+    .filter(([, entry]) => entry.status === 'missing' || entry.status === 'stale')
+    .map(([code]) => code)
+})
 
 interface RowDelta {
   income: { delta: number; pct: number | null } | null
@@ -159,7 +167,7 @@ const summaryColumns = [
     header: 'Period',
     enableSorting: false,
   }),
-  summaryColHelper.accessor((row) => Object.values(row.entry.balances)[0] ?? 0, {
+  summaryColHelper.accessor((row) => Object.values(row.entry.balances).reduce((s, v) => s + Number(v), 0), {
     id: 'balance',
     header: 'Balance',
     enableSorting: true,
@@ -211,12 +219,16 @@ const avgProfitHint = computed(() =>
   `Average profit per active period.\n\nTotal profit: ${fmtAmount(totalProfit.value)}\nActive periods: ${activePeriodCount.value}\nResult: ${fmtAmount(totalProfit.value)} ÷ ${activePeriodCount.value} = ${fmtAmount(avgProfit.value)}\n\nProfit = Income − Expenses. Can be negative if spending exceeds income.`
 )
 
-const selectedCurrencyCode = computed(() => {
-  if (selectedCurrencyId.value === null) return null
-  return refs.currencyById(selectedCurrencyId.value)?.code ?? null
+const displayCurrencyCode = computed(() => {
+  if (isAllMode.value) return convertToCurrency.value
+  return refs.currencyById(selectedCurrencyId.value as number)?.code ?? null
 })
 
 const displayedBalances = computed(() => lastEntry.value?.balances ?? {})
+
+const hasMultipleCurrencies = computed(() => Object.keys(displayedBalances.value).length > 1)
+
+const showRateDetails = ref(false)
 
 type TrendKey = 'income' | 'expense' | 'profit'
 const selectedTrend = ref<TrendKey>('income')
@@ -240,15 +252,18 @@ const lineOption = computed(() => {
     t.label,
     t.borderColor,
     t.backgroundColor,
-    selectedCurrencyCode.value,
+    displayCurrencyCode.value,
     (idx) => { hoveredPeriod.value = idx !== null ? (chartEntries.value[idx]?.period ?? null) : null },
     isDark.value,
   )
 })
 
 const balanceLineOption = computed(() => {
-  const code = selectedCurrencyCode.value
-  const values = chartEntries.value.map((e) => (code ? (e.balances[code] ?? 0) : Object.values(e.balances)[0] ?? 0))
+  const code = displayCurrencyCode.value
+  const values = chartEntries.value.map((e) => {
+    if (isAllMode.value && e.converted_balance != null) return e.converted_balance
+    return code ? (e.balances[code] ?? 0) : Object.values(e.balances)[0] ?? 0
+  })
   return buildLineChartOption(
     chartEntries.value.map((e) => fmtPeriod(e.period)),
     values,
@@ -301,22 +316,58 @@ const donutOption = computed(() => {
       v-model:activePreset="activePreset"
       :allRange="allRange"
     />
-    <div v-if="currencies.length" class="currency-tabs">
-      <button
-        v-for="cur in currencies"
-        :key="cur.id"
-        class="tab-pill"
-        :class="{ 'tab-pill--active': selectedCurrencyId === cur.id }"
-        @click="selectedCurrencyId = cur.id"
-      >{{ cur.code }}</button>
+    <div v-if="currencies.length" class="currency-bar">
+      <div class="currency-tabs">
+        <button
+          class="tab-pill tab-pill--all"
+          :class="{ 'tab-pill--active': selectedCurrencyId === 'all' }"
+          @click="selectedCurrencyId = 'all'"
+        ><PhCurrencyCircleDollar :size="14" weight="bold" /> All</button>
+        <button
+          v-for="cur in currencies"
+          :key="cur.id"
+          class="tab-pill"
+          :class="{ 'tab-pill--active': selectedCurrencyId === cur.id }"
+          @click="selectedCurrencyId = cur.id"
+        >{{ cur.code }}</button>
+      </div>
+      <div v-if="isAllMode && currencies.length > 1" class="convert-to-control">
+        <PhArrowsClockwise :size="13" weight="bold" class="convert-to-icon" />
+        <select v-model="convertToCurrency" class="convert-select">
+          <option v-for="cur in currencies" :key="cur.code" :value="cur.code">{{ cur.code }}</option>
+        </select>
+      </div>
+    </div>
+  </BaseCard>
+
+  <!-- Rate warning — inline, after controls, only when there's a problem -->
+  <BaseCard v-if="missingCurrencies.length" class="rate-coverage-warning">
+    <div class="warning-content">
+      <PhWarning :size="18" weight="fill" class="warning-icon" />
+      <span>Rates missing or stale for <strong>{{ missingCurrencies.join(', ') }}</strong> — converted totals may be inaccurate. Rates sync automatically; you can also set manual rates.</span>
+      <RouterLink to="/references" class="warning-link">Set manual rate</RouterLink>
     </div>
   </BaseCard>
 
   <div v-if="periods.length" class="stats-grid">
     <BaseStatCard label="Current Balance" :icon="PhWallet">
-      <div v-for="(val, cur) in displayedBalances" :key="cur" class="stat-value">
-        <span class="stat-currency">{{ cur }}</span>{{ fmtAmount(val) }}
-      </div>
+      <!-- All mode: converted total is the hero number -->
+      <template v-if="isAllMode && lastEntry?.converted_balance != null && hasMultipleCurrencies">
+        <div class="stat-value">
+          <span class="stat-currency">{{ convertToCurrency }}</span>{{ fmtAmount(lastEntry.converted_balance) }}
+        </div>
+        <div class="balance-breakdown-mini">
+          <span v-for="(val, cur) in displayedBalances" :key="cur" class="balance-part">
+            {{ cur }} {{ fmtAmount(val) }}
+          </span>
+        </div>
+      </template>
+      <!-- Single currency mode: show the one balance -->
+      <template v-else>
+        <div v-for="(val, cur) in displayedBalances" :key="cur" class="stat-value">
+          <span class="stat-currency">{{ cur }}</span>{{ fmtAmount(val) }}
+        </div>
+      </template>
       <div v-if="!Object.keys(displayedBalances).length" class="stat-value">—</div>
       <template v-if="balanceGrowth">
         <div
@@ -353,8 +404,9 @@ const donutOption = computed(() => {
       :icon="PhTrendUp"
     >
       <div class="stat-value amount-positive">
-        <span class="stat-currency">{{ selectedCurrencyCode }}</span>{{ fmtAmount(avgIncome) }}
+        <span class="stat-currency">{{ displayCurrencyCode }}</span>{{ fmtAmount(avgIncome) }}
       </div>
+      <span v-if="isAllMode && hasMultipleCurrencies" class="converted-hint">converted</span>
       <div
         v-if="incomeGrowthLong"
         class="stat-trend"
@@ -373,8 +425,9 @@ const donutOption = computed(() => {
       :icon="PhChartLine"
     >
       <div class="stat-value" :class="avgProfit >= 0 ? 'amount-positive' : 'amount-negative'">
-        <span class="stat-currency">{{ selectedCurrencyCode }}</span>{{ fmtAmount(avgProfit) }}
+        <span class="stat-currency">{{ displayCurrencyCode }}</span>{{ fmtAmount(avgProfit) }}
       </div>
+      <span v-if="isAllMode && hasMultipleCurrencies" class="converted-hint">converted</span>
       <div
         v-if="profitGrowthLong"
         class="stat-trend"
@@ -387,6 +440,36 @@ const donutOption = computed(() => {
       </div>
     </BaseStatCard>
   </div>
+
+  <!-- Rate details — collapsible, only in All mode with actual rate data -->
+  <button
+    v-if="isAllMode && rateCoverage && Object.keys(rateCoverage.currencies).length"
+    class="rate-details-toggle"
+    @click="showRateDetails = !showRateDetails"
+  >
+    <PhArrowsClockwise :size="13" weight="bold" />
+    <span>Exchange rates</span>
+    <span v-if="rateCoverage.conversion_available" class="rate-details-status rate-details-status--ok">up to date</span>
+    <span v-else class="rate-details-status rate-details-status--warn">issues</span>
+    <PhCaretDown :size="10" weight="bold" :class="{ 'caret--open': showRateDetails }" />
+  </button>
+  <BaseCard v-if="showRateDetails && rateCoverage" class="rate-info-card">
+    <div class="rate-info-grid">
+      <div v-for="(entry, code) in rateCoverage.currencies" :key="code" class="rate-info-row">
+        <span class="rate-info-pair">1 {{ code }}</span>
+        <span class="rate-info-eq">=</span>
+        <span class="rate-info-rate" :class="{ 'rate-info-rate--missing': !entry.rate }">
+          {{ entry.rate ? fmtAmount(Number(entry.rate)) : '?' }} {{ rateCoverage.base_currency }}
+        </span>
+        <span class="rate-status" :class="'rate-status--' + entry.status">{{ entry.status }}</span>
+        <RouterLink
+          v-if="refs.currencyByCode(String(code))"
+          :to="{ path: '/references', query: { openRates: refs.currencyByCode(String(code))!.id } }"
+          class="rate-set-btn"
+        >Set rate</RouterLink>
+      </div>
+    </div>
+  </BaseCard>
 
   <BaseCard v-if="periods.length" title="Trends">
     <template #actions>
@@ -403,7 +486,7 @@ const donutOption = computed(() => {
     <v-chart :option="lineOption" :style="{ height: '280px' }" autoresize @globalout="hoveredPeriod = null" />
   </BaseCard>
 
-  <BaseCard v-if="chartEntries.length" title="Balance Over Time">
+  <BaseCard v-if="chartEntries.length" :title="isAllMode && hasMultipleCurrencies ? `Balance Over Time (${convertToCurrency})` : 'Balance Over Time'">
     <v-chart :option="balanceLineOption" :style="{ height: '280px' }" autoresize />
   </BaseCard>
 
@@ -448,7 +531,15 @@ const donutOption = computed(() => {
         </td>
         <td class="col-num">
           <template v-if="Object.keys(tableRow.original.entry.balances).length">
-            <span v-for="(val, cur) in tableRow.original.entry.balances" :key="cur">{{ cur }} {{ fmtAmount(val) }}</span>
+            <!-- All mode: show converted total as primary, per-currency as secondary -->
+            <template v-if="isAllMode && tableRow.original.entry.converted_balance != null && Object.keys(tableRow.original.entry.balances).length > 1">
+              <span class="balance-line balance-line--primary">{{ convertToCurrency }} {{ fmtAmount(tableRow.original.entry.converted_balance) }}</span>
+              <span v-for="(val, cur) in tableRow.original.entry.balances" :key="cur" class="balance-line balance-line--secondary">{{ cur }} {{ fmtAmount(val) }}</span>
+            </template>
+            <!-- Single currency: just show the value -->
+            <template v-else>
+              <span v-for="(val, cur) in tableRow.original.entry.balances" :key="cur" class="balance-line">{{ cur }} {{ fmtAmount(val) }}</span>
+            </template>
           </template>
           <span v-else>—</span>
         </td>
@@ -482,21 +573,20 @@ const donutOption = computed(() => {
 </template>
 
 <style scoped>
-.trend-tabs {
-  display: flex;
-  gap: 0.3rem;
-}
+/* ── Currency bar: tabs + convert-to control ────────────────── */
 
-.trend-tabs .tab-pill {
-  padding: 0.15rem 0.5rem;
-  font-size: 0.72rem;
+.currency-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .currency-tabs {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  margin-top: 0.75rem;
 }
 
 .tab-pill {
@@ -511,22 +601,10 @@ const donutOption = computed(() => {
   transition: background 0.15s, color 0.15s;
 }
 
-[data-theme="dark"] .tab-pill {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.tab-pill:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.10);
-  color: var(--text-primary);
-}
-
-[data-theme="dark"] .tab-pill:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.10);
-}
-
-.tab-pill:disabled {
-  cursor: default;
-}
+[data-theme="dark"] .tab-pill { background: rgba(255, 255, 255, 0.05); }
+.tab-pill:hover:not(:disabled) { background: rgba(0, 0, 0, 0.10); color: var(--text-primary); }
+[data-theme="dark"] .tab-pill:hover:not(:disabled) { background: rgba(255, 255, 255, 0.10); }
+.tab-pill:disabled { cursor: default; }
 
 .tab-pill--active {
   background: rgba(var(--color-accent-rgb), 0.10);
@@ -534,16 +612,255 @@ const donutOption = computed(() => {
   color: var(--color-accent);
 }
 
-@media (max-width: 640px) {
-  .trend-tabs {
-    flex-wrap: wrap;
-  }
-
-  .currency-tabs {
-    flex-wrap: wrap;
-  }
-
+.tab-pill--all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
+
+.convert-to-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  color: var(--text-label);
+  font-size: 0.78rem;
+}
+
+.convert-to-icon {
+  opacity: 0.6;
+}
+
+.convert-select {
+  padding: 0.2rem 0.45rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+/* ── Trend tabs ─────────────────────────────────────────────── */
+
+.trend-tabs {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.trend-tabs .tab-pill {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.72rem;
+}
+
+/* ── Balance stat card — All mode breakdown ─────────────────── */
+
+.balance-breakdown-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.65rem;
+  margin-top: 0.35rem;
+}
+
+.balance-part {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-label);
+  font-variant-numeric: tabular-nums;
+}
+
+/* "converted" hint below stat values in All mode */
+.converted-hint {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-placeholder);
+  margin-top: 2px;
+}
+
+/* ── Summary table: balance lines ───────────────────────────── */
+
+.balance-line {
+  display: block;
+}
+
+.balance-line--primary {
+  display: block;
+  font-weight: 600;
+}
+
+.balance-line--secondary {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-label);
+  font-weight: 400;
+}
+
+/* ── Rate details toggle (between stat cards and charts) ────── */
+
+.rate-details-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.3rem 0.7rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-label);
+  transition: color 0.15s;
+}
+
+.rate-details-toggle:hover {
+  color: var(--text-secondary);
+}
+
+.rate-details-toggle .caret--open {
+  transform: rotate(180deg);
+}
+
+.rate-details-status {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.05rem 0.35rem;
+  border-radius: 9999px;
+}
+
+.rate-details-status--ok {
+  background: rgba(74, 170, 128, 0.12);
+  color: var(--color-income);
+}
+
+.rate-details-status--warn {
+  background: rgba(224, 184, 74, 0.15);
+  color: var(--color-warning);
+}
+
+/* ── Rate info card (expanded) ──────────────────────────────── */
+
+.rate-info-card {
+  font-size: 0.82rem;
+}
+
+.rate-info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rate-info-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.82rem;
+}
+
+.rate-info-pair {
+  font-weight: 600;
+  min-width: 4rem;
+  color: var(--text-primary);
+}
+
+.rate-info-eq {
+  color: var(--text-placeholder);
+  font-size: 0.75rem;
+}
+
+.rate-info-rate {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 6rem;
+}
+
+.rate-info-rate--missing {
+  color: var(--color-expense);
+}
+
+.rate-status {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 9999px;
+  min-width: 3rem;
+  text-align: center;
+}
+
+.rate-status--ok {
+  background: rgba(74, 170, 128, 0.12);
+  color: var(--color-income);
+}
+
+.rate-status--stale {
+  background: rgba(224, 184, 74, 0.12);
+  color: var(--color-warning);
+}
+
+.rate-status--missing {
+  background: rgba(212, 104, 120, 0.12);
+  color: var(--color-expense);
+}
+
+.rate-set-btn {
+  margin-left: auto;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: rgba(var(--color-accent-rgb), 0.08);
+  color: var(--color-accent);
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.rate-set-btn:hover {
+  background: rgba(var(--color-accent-rgb), 0.15);
+  border-color: rgba(var(--color-accent-rgb), 0.40);
+}
+
+/* ── Rate coverage warning ──────────────────────────────────── */
+
+.rate-coverage-warning {
+  border-left: 4px solid var(--color-warning);
+  background: rgba(224, 184, 74, 0.08);
+}
+
+.warning-content {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.82rem;
+  flex-wrap: wrap;
+}
+
+.warning-icon {
+  color: var(--color-warning);
+  flex-shrink: 0;
+}
+
+.warning-link {
+  margin-left: auto;
+  color: var(--color-accent);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.warning-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Breakdown toggle + list ────────────────────────────────── */
 
 .breakdown-toggle {
   display: flex;
@@ -559,9 +876,7 @@ const donutOption = computed(() => {
   transition: color 0.15s;
 }
 
-.breakdown-toggle:hover {
-  color: var(--text-secondary);
-}
+.breakdown-toggle:hover { color: var(--text-secondary); }
 
 .breakdown-toggle-line {
   flex: 1;
@@ -582,9 +897,7 @@ const donutOption = computed(() => {
   transition: transform 0.2s ease;
 }
 
-.breakdown-toggle-caret--open {
-  transform: rotate(180deg);
-}
+.breakdown-toggle-caret--open { transform: rotate(180deg); }
 
 .breakdown-list {
   margin-top: 0.5rem;
@@ -600,21 +913,13 @@ const donutOption = computed(() => {
   color: var(--text-secondary);
 }
 
-.breakdown-label {
-  flex: 1;
-}
+.breakdown-label { flex: 1; }
+.breakdown-amount { color: var(--text-primary); }
+.breakdown-date { color: var(--text-label); }
 
-.breakdown-amount {
-  color: var(--text-primary);
-}
+/* ── Table misc ─────────────────────────────────────────────── */
 
-.breakdown-date {
-  color: var(--text-label);
-}
-
-.row-highlighted {
-  background: rgba(14, 96, 192, 0.08);
-}
+.row-highlighted { background: rgba(14, 96, 192, 0.08); }
 
 .cell-delta {
   display: inline-flex;
@@ -626,13 +931,8 @@ const donutOption = computed(() => {
   font-variant-numeric: tabular-nums;
 }
 
-.cell-delta.trend--up {
-  color: var(--color-income);
-}
-
-.cell-delta.trend--down {
-  color: var(--color-expense);
-}
+.cell-delta.trend--up { color: var(--color-income); }
+.cell-delta.trend--down { color: var(--color-expense); }
 
 .badge-initial {
   display: inline-block;
@@ -654,6 +954,8 @@ const donutOption = computed(() => {
   color: var(--color-warning);
   border-color: rgba(255, 193, 7, 0.30);
 }
+
+/* ── Donut chart ────────────────────────────────────────────── */
 
 .donut-layout {
   display: flex;
@@ -721,15 +1023,14 @@ const donutOption = computed(() => {
   color: var(--text-secondary);
 }
 
-@media (max-width: 640px) {
-  .donut-layout {
-    flex-direction: column;
-    align-items: stretch;
-  }
+/* ── Responsive ─────────────────────────────────────────────── */
 
-  .donut-chart {
-    flex: none;
-    width: 100%;
-  }
+@media (max-width: 640px) {
+  .currency-bar { flex-direction: column; align-items: stretch; }
+  .convert-to-control { margin-left: 0; }
+  .trend-tabs { flex-wrap: wrap; }
+  .warning-link { margin-left: 0; }
+  .donut-layout { flex-direction: column; align-items: stretch; }
+  .donut-chart { flex: none; width: 100%; }
 }
 </style>

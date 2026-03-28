@@ -8,11 +8,12 @@ import {
   type TransactionSortField,
   type SortOrder,
 } from '../api/transactions'
-import { analyticsApi } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
 import { fmtAmount } from '../utils/format'
 import { useSuccessAnimation } from '../composables/useSuccessAnimation'
 import { useTable, createColumnHelper } from '../composables/useTable'
+import { useCrudModal } from '../composables/useCrudModal'
+import { useDateRange } from '../composables/useDateRange'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseCard from '../components/BaseCard.vue'
@@ -31,29 +32,60 @@ const PAGE_SIZE = 50
 const offset = ref(0)
 const hasMore = ref(true)
 
-const today = new Date().toISOString().slice(0, 10)
-const dateFrom = ref('2000-01-01')
-const dateTo = ref(today)
-const activePreset = ref('All')
-const allRange = ref<{ from: string; to: string } | null>(null)
+const { dateFrom, dateTo, activePreset, allRange, initRange } = useDateRange('All')
 
 // Server-side sorting state (derived from TanStack table sorting state)
 const sortField = ref<TransactionSortField | undefined>(undefined)
 const sortOrder = ref<SortOrder>('desc')
 
-const showModal = ref(false)
-const editing = ref<Transaction | null>(null)
-const form = ref<TransactionCreate>({
-  type: 'income', date: new Date().toISOString().slice(0, 10),
-  amount: 0, currency_id: 0, storage_account_id: 0,
-  income_source_id: null, expense_category_id: null, description: '',
+function defaultForm(): TransactionCreate {
+  const firstAccount = refs.storageAccounts[0]
+  return {
+    type: 'income',
+    date: new Date().toISOString().slice(0, 10),
+    amount: 0,
+    currency_id: firstAccount?.currency_id || refs.currencies[0]?.id || 0,
+    storage_account_id: firstAccount?.id || 0,
+    income_source_id: null,
+    expense_category_id: null,
+    description: '',
+  }
+}
+
+const {
+  showModal,
+  editing,
+  removingId,
+  newId,
+  touchedFields,
+  form,
+  openCreate,
+  openEdit,
+  save: crudSave,
+  remove: crudRemove,
+} = useCrudModal<Transaction, TransactionCreate>({
+  defaultForm,
+  toForm: (tx) => ({ ...tx }),
+  onCreate: async (data) => {
+    const { data: result } = await transactionsApi.create(data)
+    return result as Transaction
+  },
+  onUpdate: async (id, data) => {
+    const { data: result } = await transactionsApi.update(id, data)
+    return result as Transaction
+  },
+  onDelete: async (id) => {
+    await transactionsApi.delete(id)
+  },
+  afterSave: async (isCreate) => {
+    await loadPage(true)
+    if (isCreate && addBtnRef.value) {
+      const rect = addBtnRef.value.getBoundingClientRect()
+      spawn({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
+    }
+  },
+  afterDelete: () => loadPage(true),
 })
-
-const removingId = ref<number | null>(null)
-const newId = ref<number | null>(null)
-let loadGen = 0
-
-const touchedFields = ref(new Set<string>())
 
 const filteredAccounts = computed(() =>
   refs.storageAccounts.filter(a => a.currency_id === form.value.currency_id)
@@ -68,9 +100,15 @@ const formErrors = computed(() => ({
   amount: (form.value.amount ?? 0) <= 0 ? 'Must be greater than 0' : null,
 }))
 
-watch(showModal, (val) => {
-  if (!val) touchedFields.value = new Set()
-})
+async function save() {
+  if (formErrors.value.amount) {
+    touchedFields.value = new Set([...touchedFields.value, 'amount'])
+    return
+  }
+  await crudSave()
+}
+
+let loadGen = 0
 
 // ── TanStack Table (manual/server-side sort) ──────────────────────────────────
 
@@ -175,15 +213,7 @@ let observer: IntersectionObserver | null = null
 
 onMounted(() => {
   loadPage(true)
-  analyticsApi.dateRange().then(({ data }) => {
-    if (data.min_date && data.max_date) {
-      allRange.value = { from: data.min_date, to: data.max_date }
-      if (activePreset.value === 'All') {
-        dateFrom.value = data.min_date
-        dateTo.value = data.max_date
-      }
-    }
-  })
+  initRange()
   observer = new IntersectionObserver((entries) => {
     if (entries[0]?.isIntersecting) loadPage(false)
   }, { rootMargin: '200px' })
@@ -199,56 +229,6 @@ watch(sentinel, (el) => {
 })
 
 watch([dateFrom, dateTo], () => loadPage(true))
-
-function openCreate() {
-  editing.value = null
-  const firstAccount = refs.storageAccounts[0]
-  form.value = {
-    type: 'income', date: new Date().toISOString().slice(0, 10),
-    amount: 0,
-    currency_id: firstAccount?.currency_id || refs.currencies[0]?.id || 0,
-    storage_account_id: firstAccount?.id || 0,
-    income_source_id: null, expense_category_id: null, description: '',
-  }
-  showModal.value = true
-}
-
-function openEdit(tx: Transaction) {
-  editing.value = tx
-  form.value = { ...tx }
-  showModal.value = true
-}
-
-async function save() {
-  if (formErrors.value.amount) {
-    touchedFields.value = new Set([...touchedFields.value, 'amount'])
-    return
-  }
-  const isCreate = !editing.value
-  if (editing.value) {
-    await transactionsApi.update(editing.value.id, form.value)
-  } else {
-    const { data } = await transactionsApi.create(form.value)
-    newId.value = (data as { id: number }).id
-  }
-  showModal.value = false
-  await loadPage(true)
-  if (isCreate && addBtnRef.value) {
-    const rect = addBtnRef.value.getBoundingClientRect()
-    spawn({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
-  }
-  if (newId.value !== null) {
-    setTimeout(() => { newId.value = null }, 1500)
-  }
-}
-
-async function remove(id: number) {
-  removingId.value = id
-  await new Promise((resolve) => setTimeout(resolve, 280))
-  await transactionsApi.delete(id)
-  removingId.value = null
-  await loadPage(true)
-}
 
 function sourceName(id: number | null) {
   if (!id) return '—'
@@ -290,7 +270,7 @@ function sourceName(id: number | null) {
         <td>{{ sourceName(row.original.income_source_id) }}</td>
         <td>{{ row.original.description || '' }}</td>
         <td style="white-space: nowrap; text-align: right">
-          <EditDeleteActions @edit="openEdit(row.original)" @confirm="remove(row.original.id)" />
+          <EditDeleteActions @edit="openEdit(row.original)" @confirm="crudRemove(row.original.id)" />
         </td>
       </tr>
     </template>

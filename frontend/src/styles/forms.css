@@ -48,6 +48,11 @@
     color: var(--text-primary);
 }
 
+.form-group input.input-valid {
+    border-color: rgba(74, 170, 128, 0.70);
+    box-shadow: 0 0 0 3px rgba(74, 170, 128, 0.12);
+}
+
 .form-group input.input-invalid {
     border-color: rgba(232, 69, 101, 0.70);
     box-shadow: 0 0 0 3px rgba(232, 69, 101, 0.15);

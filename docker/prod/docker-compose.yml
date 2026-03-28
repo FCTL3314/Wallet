@@ -12,6 +12,16 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   backend:
     image: ${BACKEND_IMAGE}:${IMAGE_TAG:-latest}
@@ -29,9 +39,86 @@ services:
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
       FRONTEND_URL: ${FRONTEND_URL:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      REDIS_URL: redis://redis:6379/0
+      EXCHANGERATE_API_KEY: ${EXCHANGERATE_API_KEY:-}
+      COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  celery-worker:
+    image: ${BACKEND_IMAGE}:${IMAGE_TAG:-latest}
+    command: uv run celery -A app.celery_app:celery_app worker -Q catalog,rates -l info
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://wallet:wallet@db:5432/wallet}
+      PYTHONPATH: /app
+      SECRET_KEY: ${SECRET_KEY}
+      REDIS_URL: redis://redis:6379/0
+      EXCHANGERATE_API_KEY: ${EXCHANGERATE_API_KEY:-}
+      COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "uv", "run", "celery", "-A", "app.celery_app:celery_app", "inspect", "ping", "-d", "celery@$$HOSTNAME", "--timeout", "5"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  celery-beat:
+    image: ${BACKEND_IMAGE}:${IMAGE_TAG:-latest}
+    command: uv run celery -A app.celery_app:celery_app beat -l info
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://wallet:wallet@db:5432/wallet}
+      PYTHONPATH: /app
+      SECRET_KEY: ${SECRET_KEY}
+      REDIS_URL: redis://redis:6379/0
+      EXCHANGERATE_API_KEY: ${EXCHANGERATE_API_KEY:-}
+      COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'celery.*beat' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  flower:
+    image: ${BACKEND_IMAGE}:${IMAGE_TAG:-latest}
+    command: >-
+      uv run celery -A app.celery_app:celery_app flower --port=5555
+      --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:?FLOWER_PASSWORD is required}
+    ports:
+      - "127.0.0.1:5555:5555"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://wallet:wallet@db:5432/wallet}
+      PYTHONPATH: /app
+      SECRET_KEY: ${SECRET_KEY}
+      REDIS_URL: redis://redis:6379/0
+      FLOWER_USER: ${FLOWER_USER:-admin}
+      FLOWER_PASSWORD: ${FLOWER_PASSWORD:?FLOWER_PASSWORD is required}
+    depends_on:
+      - redis
+      - celery-worker
+    restart: unless-stopped
 
   frontend:
     image: ${FRONTEND_IMAGE}:${IMAGE_TAG:-latest}

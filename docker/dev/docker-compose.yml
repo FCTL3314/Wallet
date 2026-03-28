@@ -10,7 +10,17 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U wallet"]
+      test: [ "CMD-SHELL", "pg_isready -U wallet" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -23,13 +33,95 @@ services:
       - "8000:8000"
     volumes:
       - ../../backend:/app
+    env_file:
+      - path: ../../backend/.env
+        required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://wallet:wallet@db:5432/wallet
       PYTHONPATH: /app
       CORS_ORIGINS: '["http://localhost:5173"]'
+      REDIS_URL: redis://redis:6379/0
+      DEV_MODE: "true"
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  celery-worker:
+    build:
+      context: ../..
+      dockerfile: docker/dev/backend.Dockerfile
+    command: uv run celery -A app.celery_app:celery_app worker -Q catalog,rates -l info
+    volumes:
+      - ../../backend:/app
+    env_file:
+      - ../../backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://wallet:wallet@db:5432/wallet
+      PYTHONPATH: /app
+      REDIS_URL: redis://redis:6379/0
+      DEV_MODE: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python3", "-c", "import os,sys;procs=[open(f'/proc/{p}/cmdline','r',errors='ignore').read() for p in os.listdir('/proc') if p.isdigit() and os.path.exists(f'/proc/{p}/cmdline')];sys.exit(0 if any('celery' in c and 'worker' in c for c in procs) else 1)" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  celery-beat:
+    build:
+      context: ../..
+      dockerfile: docker/dev/backend.Dockerfile
+    command: uv run celery -A app.celery_app:celery_app beat -l info
+    volumes:
+      - ../../backend:/app
+    env_file:
+      - ../../backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://wallet:wallet@db:5432/wallet
+      PYTHONPATH: /app
+      REDIS_URL: redis://redis:6379/0
+      DEV_MODE: "true"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python3", "-c", "import os,sys;procs=[open(f'/proc/{p}/cmdline','r',errors='ignore').read() for p in os.listdir('/proc') if p.isdigit() and os.path.exists(f'/proc/{p}/cmdline')];sys.exit(0 if any('celery' in c and 'beat' in c for c in procs) else 1)" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  flower:
+    build:
+      context: ../..
+      dockerfile: docker/dev/backend.Dockerfile
+    command: uv run celery -A app.celery_app:celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    volumes:
+      - ../../backend:/app
+    environment:
+      DATABASE_URL: postgresql+asyncpg://wallet:wallet@db:5432/wallet
+      PYTHONPATH: /app
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+      - celery-worker
 
   frontend:
     build:

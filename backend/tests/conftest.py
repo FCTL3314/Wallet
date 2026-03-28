@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -18,6 +19,8 @@ from app.models import (
     StorageLocation,
     User,
 )
+from app.models.currency_catalog import CurrencyCatalog
+from app.models.exchange_rate import ExchangeRate
 
 TEST_DB_NAME = "wallet_test"
 _base_url = settings.DATABASE_URL.rsplit("/", 1)[0]
@@ -129,6 +132,46 @@ async def other_auth_client(
         headers={"Authorization": f"Bearer {token}"},
     ) as ac:
         yield ac
+
+
+@pytest.fixture()
+async def catalog_usd(db_session: AsyncSession) -> CurrencyCatalog:
+    entry = CurrencyCatalog(
+        code="USD",
+        symbol="$",
+        name="US Dollar",
+        currency_type="fiat",
+        is_active=True,
+    )
+    db_session.add(entry)
+    await db_session.flush()
+    return entry
+
+
+# Seed exchange rates with today's date so they are never stale in tests.
+# EUR/USD covers the most common multi-currency test scenarios.
+_SEED_RATES = [
+    ("EUR", "USD", Decimal("1.085000000000")),
+    ("GBP", "USD", Decimal("1.270000000000")),
+]
+
+
+@pytest.fixture()
+async def exchange_rates(db_session: AsyncSession) -> list[ExchangeRate]:
+    today = date.today()
+    rates = []
+    for from_code, to_code, rate in _SEED_RATES:
+        obj = ExchangeRate(
+            from_code=from_code,
+            to_code=to_code,
+            rate=rate,
+            valid_date=today,
+            source="test",
+        )
+        db_session.add(obj)
+        rates.append(obj)
+    await db_session.flush()
+    return rates
 
 
 @pytest.fixture()

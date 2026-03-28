@@ -2,13 +2,13 @@ import datetime
 from decimal import Decimal
 from typing import Self
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, model_validator
 
 from app.models.transaction import TransactionType
-from app.schemas._validators import validate_amount_positive
+from app.schemas._validators import AmountPositiveMixin
 
 
-class TransactionCreate(BaseModel):
+class TransactionCreate(AmountPositiveMixin, BaseModel):
     type: TransactionType
     date: datetime.date
     amount: Decimal
@@ -17,11 +17,6 @@ class TransactionCreate(BaseModel):
     storage_account_id: int
     income_source_id: int | None = None
     expense_category_id: int | None = None
-
-    @field_validator("amount")
-    @classmethod
-    def amount_positive(cls, v: Decimal) -> Decimal:
-        return validate_amount_positive(v)
 
     @model_validator(mode="after")
     def check_mutually_exclusive(self) -> Self:
@@ -32,7 +27,7 @@ class TransactionCreate(BaseModel):
         return self
 
 
-class TransactionUpdate(BaseModel):
+class TransactionUpdate(AmountPositiveMixin, BaseModel):
     type: TransactionType | None = None
     date: datetime.date | None = None
     amount: Decimal | None = None
@@ -41,11 +36,6 @@ class TransactionUpdate(BaseModel):
     storage_account_id: int | None = None
     income_source_id: int | None = None
     expense_category_id: int | None = None
-
-    @field_validator("amount")
-    @classmethod
-    def amount_positive(cls, v: Decimal | None) -> Decimal | None:
-        return validate_amount_positive(v) if v is not None else v
 
     @model_validator(mode="after")
     def check_mutually_exclusive(self) -> Self:

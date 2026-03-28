@@ -21,6 +21,8 @@ from app.core.database import async_session
 from app.core.security import hash_password
 from app.models.balance_snapshot import BalanceSnapshot
 from app.models.currency import Currency
+from app.models.currency_catalog import CurrencyCatalog
+from app.models.exchange_rate import ExchangeRate
 from app.models.expense_category import ExpenseCategory
 from app.models.income_source import IncomeSource
 from app.models.storage import StorageAccount, StorageLocation
@@ -31,6 +33,21 @@ from app.models.user import User
 # ---------------------------------------------------------------------------
 # Reference data
 # ---------------------------------------------------------------------------
+
+CATALOG_CURRENCIES = [
+    {"code": "USD", "symbol": "$", "name": "US Dollar", "currency_type": "fiat"},
+    {"code": "EUR", "symbol": "€", "name": "Euro", "currency_type": "fiat"},
+]
+
+# (from_code, to_code, rate, source)  — valid_date set to date.today() at runtime
+EXCHANGE_RATES = [
+    ("EUR", "USD", Decimal("1.085000000000"), "seed"),
+    ("GBP", "USD", Decimal("1.270000000000"), "seed"),
+    ("CHF", "USD", Decimal("1.130000000000"), "seed"),
+    ("JPY", "USD", Decimal("0.006700000000"), "seed"),
+    ("BTC", "USD", Decimal("85000.000000000000"), "seed"),
+    ("ETH", "USD", Decimal("2000.000000000000"), "seed"),
+]
 
 CURRENCIES = [
     {"code": "USD", "symbol": "$"},
@@ -265,7 +282,49 @@ async def get_or_create_user(db: AsyncSession) -> User:
     return user
 
 
-async def seed_currencies(db: AsyncSession, user: User) -> dict[str, Currency]:
+async def seed_currency_catalog(db: AsyncSession) -> dict[str, CurrencyCatalog]:
+    catalog: dict[str, CurrencyCatalog] = {}
+    for data in CATALOG_CURRENCIES:
+        result = await db.execute(
+            select(CurrencyCatalog).where(CurrencyCatalog.code == data["code"])
+        )
+        obj = result.scalar_one_or_none()
+        if not obj:
+            obj = CurrencyCatalog(**data)
+            db.add(obj)
+            await db.flush()
+        catalog[obj.code] = obj
+    print(f"  Currency catalog: {list(catalog)}")
+    return catalog
+
+
+async def seed_exchange_rates(db: AsyncSession) -> None:
+    today = date.today()
+    for from_code, to_code, rate, source in EXCHANGE_RATES:
+        result = await db.execute(
+            select(ExchangeRate).where(
+                ExchangeRate.from_code == from_code,
+                ExchangeRate.to_code == to_code,
+                ExchangeRate.valid_date == today,
+            )
+        )
+        if result.scalar_one_or_none() is None:
+            db.add(
+                ExchangeRate(
+                    from_code=from_code,
+                    to_code=to_code,
+                    rate=rate,
+                    valid_date=today,
+                    source=source,
+                )
+            )
+            await db.flush()
+    print(f"  Exchange rates: {len(EXCHANGE_RATES)}")
+
+
+async def seed_currencies(
+    db: AsyncSession, user: User, catalog: dict[str, CurrencyCatalog]
+) -> dict[str, Currency]:
     currencies: dict[str, Currency] = {}
     for data in CURRENCIES:
         result = await db.execute(
@@ -275,7 +334,13 @@ async def seed_currencies(db: AsyncSession, user: User) -> dict[str, Currency]:
         )
         obj = result.scalar_one_or_none()
         if not obj:
-            obj = Currency(user_id=user.id, **data)
+            catalog_entry = catalog.get(data["code"])
+            obj = Currency(
+                user_id=user.id,
+                catalog_id=catalog_entry.id if catalog_entry else None,
+                name=catalog_entry.name if catalog_entry else None,
+                **data,
+            )
             db.add(obj)
             await db.flush()
         currencies[obj.code] = obj
@@ -439,7 +504,9 @@ async def main() -> None:
     async with async_session() as db:
         try:
             user = await get_or_create_user(db)
-            currencies = await seed_currencies(db, user)
+            catalog = await seed_currency_catalog(db)
+            await seed_exchange_rates(db)
+            currencies = await seed_currencies(db, user, catalog)
             locations = await seed_storage_locations(db, user)
             accounts = await seed_storage_accounts(db, user, locations, currencies)
             sources = await seed_income_sources(db, user)

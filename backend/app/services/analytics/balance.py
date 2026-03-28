@@ -8,19 +8,31 @@ from app.models import BalanceSnapshot, Currency, StorageAccount, StorageLocatio
 from app.services.analytics.periods import GroupBy
 
 
-async def _get_balance_at_date(
-    db: AsyncSession, user_id: int, at_date: date, currency_id: int | None = None
-) -> dict:
-    """Get the latest balance snapshot per currency up to at_date."""
-    subq = (
+def _latest_snapshot_subquery(user_id: int, before_date: date | None = None):
+    """Return a subquery that yields the latest snapshot date per storage account.
+
+    Selects max(BalanceSnapshot.date) grouped by storage_account_id for the
+    given user, optionally capped at before_date (inclusive).
+    """
+    conditions = [BalanceSnapshot.user_id == user_id]
+    if before_date is not None:
+        conditions.append(BalanceSnapshot.date <= before_date)
+    return (
         select(
             BalanceSnapshot.storage_account_id,
             func.max(BalanceSnapshot.date).label("max_date"),
         )
-        .where(BalanceSnapshot.user_id == user_id, BalanceSnapshot.date <= at_date)
+        .where(*conditions)
         .group_by(BalanceSnapshot.storage_account_id)
         .subquery()
     )
+
+
+async def _get_balance_at_date(
+    db: AsyncSession, user_id: int, at_date: date, currency_id: int | None = None
+) -> dict:
+    """Get the latest balance snapshot per currency up to at_date."""
+    subq = _latest_snapshot_subquery(user_id, before_date=at_date)
 
     q = (
         select(Currency.code, func.sum(BalanceSnapshot.amount).label("total"))
@@ -108,16 +120,7 @@ async def get_balance_breakdown(db: AsyncSession, user_id: int) -> list[dict]:
     Return the latest balance snapshot per StorageAccount for the given user up to today.
     """
     today = date.today()
-
-    subq = (
-        select(
-            BalanceSnapshot.storage_account_id,
-            func.max(BalanceSnapshot.date).label("max_date"),
-        )
-        .where(BalanceSnapshot.user_id == user_id, BalanceSnapshot.date <= today)
-        .group_by(BalanceSnapshot.storage_account_id)
-        .subquery()
-    )
+    subq = _latest_snapshot_subquery(user_id, before_date=today)
 
     q = (
         select(

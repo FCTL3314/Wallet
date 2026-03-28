@@ -3,7 +3,9 @@ import { ref, computed, useTemplateRef, onMounted, watch } from 'vue'
 import { balanceSnapshotsApi, type BalanceSnapshot, type BalanceSnapshotCreate } from '../api/balanceSnapshots'
 import { analyticsApi, type BalanceByStorageEntry, type BalanceByStorageAccount, type GroupBy } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
-import { fmtAmount, fmtPeriod, localDateStr } from '../utils/format'
+import { fmtAmount, fmtPeriod } from '../utils/format'
+import { useCrudModal } from '../composables/useCrudModal'
+import { useDateRange } from '../composables/useDateRange'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseCard from '../components/BaseCard.vue'
@@ -68,31 +70,67 @@ function snapshotsForPeriod(period: string): BalanceSnapshot[] {
   return snapshots.value.filter(s => s.date.startsWith(prefix))
 }
 
-const showModal = ref(false)
-const editing = ref<BalanceSnapshot | null>(null)
-
-const today = new Date()
-const dateFrom = ref(`${today.getFullYear()}-01-01`)
-const dateTo = ref(localDateStr(today))
 const groupBy = ref<GroupBy>('month')
-const activePreset = ref('YTD')
-const allRange = ref<{ from: string; to: string } | null>(null)
-
-const removingId = ref<number | null>(null)
-
-const touchedFields = ref(new Set<string>())
-
-const form = ref<BalanceSnapshotCreate>({
-  storage_account_id: 0, date: new Date().toISOString().slice(0, 10), amount: 0,
-})
+const { dateFrom, dateTo, activePreset, allRange, initRange } = useDateRange('YTD')
 
 const formErrors = computed(() => ({
   amount: (form.value.amount ?? -1) < 0 ? 'Must be 0 or greater' : null,
 }))
 
-watch(showModal, (val) => {
-  if (!val) touchedFields.value = new Set()
+const {
+  showModal,
+  editing,
+  removingId,
+  touchedFields,
+  form,
+  openCreate: crudOpenCreate,
+  openEdit,
+  save: crudSave,
+  remove: crudRemove,
+} = useCrudModal<BalanceSnapshot, BalanceSnapshotCreate>({
+  defaultForm: () => ({
+    storage_account_id: refs.storageAccounts[0]?.id || 0,
+    date: new Date().toISOString().slice(0, 10),
+    amount: 0,
+  }),
+  toForm: (snap) => ({
+    storage_account_id: snap.storage_account_id,
+    date: snap.date,
+    amount: snap.amount,
+  }),
+  onCreate: async (data) => {
+    const { data: result } = await balanceSnapshotsApi.create(data)
+    return result as BalanceSnapshot
+  },
+  onUpdate: async (id, data) => {
+    const { data: result } = await balanceSnapshotsApi.update(id, data)
+    return result as BalanceSnapshot
+  },
+  onDelete: async (id) => {
+    await balanceSnapshotsApi.delete(id)
+  },
+  afterSave: async (isCreate) => {
+    await load()
+    if (isCreate && addBtnRef.value) {
+      const rect = addBtnRef.value.getBoundingClientRect()
+      spawn({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
+    }
+  },
+  afterDelete: () => load(),
 })
+
+// Wrap openCreate to reset tagInput etc. if needed (none here — just delegate)
+function openCreate() {
+  crudOpenCreate()
+}
+
+async function save() {
+  if (formErrors.value.amount) {
+    touchedFields.value = new Set([...touchedFields.value, 'amount'])
+    return
+  }
+  await crudSave()
+}
 
 async function load() {
   loading.value = true
@@ -109,60 +147,9 @@ async function load() {
 
 onMounted(() => {
   load()
-  analyticsApi.dateRange().then(({ data: dr }) => {
-    if (dr.min_date && dr.max_date) {
-      allRange.value = { from: dr.min_date, to: dr.max_date }
-      if (activePreset.value === 'All') {
-        dateFrom.value = dr.min_date
-        dateTo.value = dr.max_date
-      }
-    }
-  })
+  initRange()
 })
 watch([dateFrom, dateTo, groupBy], load)
-
-function openCreate() {
-  editing.value = null
-  form.value = {
-    storage_account_id: refs.storageAccounts[0]?.id || 0,
-    date: new Date().toISOString().slice(0, 10),
-    amount: 0,
-  }
-  showModal.value = true
-}
-
-function openEdit(snap: BalanceSnapshot) {
-  editing.value = snap
-  form.value = { storage_account_id: snap.storage_account_id, date: snap.date, amount: snap.amount }
-  showModal.value = true
-}
-
-async function save() {
-  if (formErrors.value.amount) {
-    touchedFields.value = new Set([...touchedFields.value, 'amount'])
-    return
-  }
-  const isCreate = !editing.value
-  if (editing.value) {
-    await balanceSnapshotsApi.update(editing.value.id, form.value)
-  } else {
-    await balanceSnapshotsApi.create(form.value)
-  }
-  showModal.value = false
-  await load()
-  if (isCreate && addBtnRef.value) {
-    const rect = addBtnRef.value.getBoundingClientRect()
-    spawn({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
-  }
-}
-
-async function remove(id: number) {
-  removingId.value = id
-  await new Promise((resolve) => setTimeout(resolve, 280))
-  await balanceSnapshotsApi.delete(id)
-  removingId.value = null
-  await load()
-}
 </script>
 
 <template>
@@ -220,7 +207,7 @@ async function remove(id: number) {
                 <span class="detail-account">{{ refs.storageAccountLabelById(snap.storage_account_id) }}</span>
                 <span class="detail-amount">{{ fmtAmount(snap.amount) }}</span>
                 <div class="detail-actions">
-                  <EditDeleteActions @edit="openEdit(snap)" @confirm="remove(snap.id)" />
+                  <EditDeleteActions @edit="openEdit(snap)" @confirm="crudRemove(snap.id)" />
                 </div>
               </div>
             </td>

@@ -21,6 +21,7 @@ async def test_github_callback_creates_new_user_and_returns_tokens(
 ):
     github_profile = {"id": 12345, "email": "gh@example.com", "login": "ghuser"}
 
+    client.cookies.set("oauth_state", "xyz")
     with patch(
         "app.api.oauth.exchange_github_code",
         new=AsyncMock(return_value=github_profile),
@@ -28,7 +29,6 @@ async def test_github_callback_creates_new_user_and_returns_tokens(
         resp = await client.get(
             "/api/auth/github/callback",
             params={"code": "valid-code", "state": "xyz"},
-            cookies={"oauth_state": "xyz"},
             follow_redirects=False,
         )
 
@@ -64,6 +64,7 @@ async def test_github_callback_returns_tokens_for_existing_github_user(
         "login": "ghuser",
     }
 
+    client.cookies.set("oauth_state", "xyz")
     with patch(
         "app.api.oauth.exchange_github_code",
         new=AsyncMock(return_value=github_profile),
@@ -71,7 +72,6 @@ async def test_github_callback_returns_tokens_for_existing_github_user(
         resp = await client.get(
             "/api/auth/github/callback",
             params={"code": "valid-code", "state": "xyz"},
-            cookies={"oauth_state": "xyz"},
             follow_redirects=False,
         )
 
@@ -91,6 +91,7 @@ async def test_github_callback_returns_tokens_for_existing_github_user(
 async def test_github_callback_returns_error_when_code_exchange_fails(
     client: AsyncClient,
 ):
+    client.cookies.set("oauth_state", "xyz")
     with patch(
         "app.api.oauth.exchange_github_code",
         new=AsyncMock(return_value=None),
@@ -98,7 +99,6 @@ async def test_github_callback_returns_error_when_code_exchange_fails(
         resp = await client.get(
             "/api/auth/github/callback",
             params={"code": "bad-code", "state": "xyz"},
-            cookies={"oauth_state": "xyz"},
         )
 
     assert resp.status_code in (400, 401)
@@ -118,6 +118,7 @@ async def test_google_callback_creates_new_user_and_returns_tokens(
 ):
     google_profile = {"sub": "g-sub-123", "email": "goo@example.com"}
 
+    client.cookies.set("oauth_state", "xyz")
     with patch(
         "app.api.oauth.exchange_google_code",
         new=AsyncMock(return_value=google_profile),
@@ -125,7 +126,6 @@ async def test_google_callback_creates_new_user_and_returns_tokens(
         resp = await client.get(
             "/api/auth/google/callback",
             params={"code": "valid-code", "state": "xyz"},
-            cookies={"oauth_state": "xyz"},
             follow_redirects=False,
         )
 
@@ -157,6 +157,7 @@ async def test_google_callback_returns_tokens_for_existing_google_user(
 
     google_profile = {"sub": "g-sub-123", "email": "goo-existing@example.com"}
 
+    client.cookies.set("oauth_state", "xyz")
     with patch(
         "app.api.oauth.exchange_google_code",
         new=AsyncMock(return_value=google_profile),
@@ -164,7 +165,6 @@ async def test_google_callback_returns_tokens_for_existing_google_user(
         resp = await client.get(
             "/api/auth/google/callback",
             params={"code": "valid-code", "state": "xyz"},
-            cookies={"oauth_state": "xyz"},
             follow_redirects=False,
         )
 
@@ -186,6 +186,7 @@ async def test_google_callback_returns_tokens_for_existing_google_user(
 async def test_google_callback_returns_error_when_code_exchange_fails(
     client: AsyncClient,
 ):
+    client.cookies.set("oauth_state", "xyz")
     with patch(
         "app.api.oauth.exchange_google_code",
         new=AsyncMock(return_value=None),
@@ -193,7 +194,6 @@ async def test_google_callback_returns_error_when_code_exchange_fails(
         resp = await client.get(
             "/api/auth/google/callback",
             params={"code": "bad-code", "state": "xyz"},
-            cookies={"oauth_state": "xyz"},
         )
 
     assert resp.status_code in (400, 401)

@@ -12,6 +12,7 @@ export interface SummaryEntry {
   balances: Record<string, number>
   balance_change: Record<string, number>
   is_bootstrap?: boolean
+  converted_balance?: number
 }
 
 export interface GrowthStat {
@@ -36,9 +37,23 @@ export interface SummaryStats {
   income_period_count: number
 }
 
+export interface RateCoverageEntry {
+  status: 'ok' | 'stale' | 'missing'
+  valid_date: string | null
+  source: string
+  rate: string | null
+}
+
+export interface RateCoverage {
+  base_currency: string
+  currencies: Record<string, RateCoverageEntry>
+  conversion_available: boolean
+}
+
 export interface SummaryResponse {
   periods: SummaryEntry[]
   stats: SummaryStats | null
+  rate_coverage: RateCoverage | null
 }
 
 export interface IncomeBySourceEntry {
@@ -76,6 +91,7 @@ export interface AnalyticsParams {
   date_to: string
   group_by?: GroupBy
   currency_id?: number
+  convert_to?: string
 }
 
 export interface ExpenseVsBudgetItem {

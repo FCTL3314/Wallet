@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/auth/google/callback"
 
+    REDIS_URL: str = "redis://localhost:6379/0"
+    EXCHANGERATE_API_KEY: str = ""
+    COINGECKO_API_KEY: str | None = None
+    CRYPTO_CATALOG_SIZE: int = 500
+    EXCHANGE_RATE_STALENESS_DAYS: int = 3
+
+    DEV_MODE: bool = False
+
     FRONTEND_URL: str = "http://localhost:5173"
 
     @field_validator("FRONTEND_URL", mode="before")

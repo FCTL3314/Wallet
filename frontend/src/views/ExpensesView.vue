@@ -5,21 +5,22 @@ import { expenseCategoriesApi } from '../api/references'
 import { useReferencesStore } from '../stores/references'
 import { fmtAmount } from '../utils/format'
 import { useTable, createColumnHelper } from '../composables/useTable'
+import { useCrudModal } from '../composables/useCrudModal'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseStatCard from '../components/BaseStatCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import EditDeleteActions from '../components/EditDeleteActions.vue'
 
+interface ExpenseCategoryForm {
+  name: string
+  budgeted_amount: number
+  tags: string[]
+}
+
 const refs = useReferencesStore()
 const template = ref<ExpenseTemplate | null>(null)
 const loading = ref(false)
-const showModal = ref(false)
-const editing = ref<ExpenseTemplateItem | null>(null)
-const removingId = ref<number | null>(null)
-const newId = ref<number | null>(null)
-
-const form = ref({ name: '', budgeted_amount: 0, tags: [] as string[] })
 const tagInput = ref('')
 
 function addTag() {
@@ -105,45 +106,50 @@ async function load() {
   loading.value = false
 }
 
-onMounted(load)
+async function afterMutate() {
+  await refs.fetchAll()
+  await load()
+}
+
+const {
+  showModal,
+  editing,
+  removingId,
+  newId,
+  form,
+  openCreate: crudOpenCreate,
+  openEdit: crudOpenEdit,
+  save,
+  remove,
+} = useCrudModal<ExpenseTemplateItem, ExpenseCategoryForm>({
+  defaultForm: () => ({ name: '', budgeted_amount: 0, tags: [] }),
+  toForm: (cat) => ({ name: cat.name, budgeted_amount: cat.budgeted_amount, tags: [...cat.tags] }),
+  onCreate: async (data) => {
+    const { data: result } = await expenseCategoriesApi.create(data)
+    return result as ExpenseTemplateItem
+  },
+  onUpdate: async (id, data) => {
+    const { data: result } = await expenseCategoriesApi.update(id, data)
+    return result as ExpenseTemplateItem
+  },
+  onDelete: async (id) => {
+    await expenseCategoriesApi.delete(id)
+  },
+  afterSave: () => afterMutate(),
+  afterDelete: () => afterMutate(),
+})
 
 function openCreate() {
-  editing.value = null
-  form.value = { name: '', budgeted_amount: 0, tags: [] }
   tagInput.value = ''
-  showModal.value = true
+  crudOpenCreate()
 }
 
 function openEdit(cat: ExpenseTemplateItem) {
-  editing.value = cat
-  form.value = { name: cat.name, budgeted_amount: cat.budgeted_amount, tags: [...cat.tags] }
   tagInput.value = ''
-  showModal.value = true
+  crudOpenEdit(cat)
 }
 
-async function save() {
-  if (editing.value) {
-    await expenseCategoriesApi.update(editing.value.id, form.value)
-  } else {
-    const { data } = await expenseCategoriesApi.create(form.value)
-    newId.value = (data as { id: number }).id
-  }
-  showModal.value = false
-  await refs.fetchAll()
-  await load()
-  if (newId.value !== null) {
-    setTimeout(() => { newId.value = null }, 1500)
-  }
-}
-
-async function remove(id: number) {
-  removingId.value = id
-  await new Promise((resolve) => setTimeout(resolve, 280))
-  await expenseCategoriesApi.delete(id)
-  removingId.value = null
-  await refs.fetchAll()
-  await load()
-}
+onMounted(load)
 </script>
 
 <template>

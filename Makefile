@@ -1,18 +1,21 @@
 .PHONY: dev prod down dev-build prod-build logs lint lint-fix setup backup backup-logs
 
+DEV := docker compose -f docker/dev/docker-compose.yml
+PROD := docker compose -f docker/prod/docker-compose.yml
+
 # Development
 dev:
-	docker compose -f docker/dev/docker-compose.yml up -d
+	$(DEV) up -d
 
 dev-build:
-	docker compose -f docker/dev/docker-compose.yml up -d --build
+	$(DEV) up -d --build
 
 dev-down:
-	docker compose -f docker/dev/docker-compose.yml down
+	$(DEV) down
 
 dev-reset:
-	docker compose -f docker/dev/docker-compose.yml down -v
-	docker compose -f docker/dev/docker-compose.yml up -d --build
+	$(DEV) down -v
+	$(DEV) up -d --build
 
 # Setup
 setup:
@@ -21,24 +24,27 @@ setup:
 
 # Linting
 lint:
-	cd backend && uv run ruff check .
+	cd backend && VIRTUAL_ENV= uv run ruff check .
 
 lint-fix:
-	cd backend && uv run ruff check --fix . && uv run ruff format .
+	cd backend && VIRTUAL_ENV= uv run ruff check --fix . && VIRTUAL_ENV= uv run ruff format .
 
 # Utilities
 logs:
-	docker compose -f docker/dev/docker-compose.yml logs -f
+	$(DEV) logs -f
 
 db:
-	docker compose -f docker/dev/docker-compose.yml up db -d
+	$(DEV) up db -d
 
 seed:
 	docker exec -it dev-backend-1 uv run python scripts/seed_dev.py
 
+dev-test:
+	docker exec -it dev-backend-1 uv run pytest .
+
 # Production backup commands
 backup:
-	docker compose -f docker/prod/docker-compose.yml exec backup /backup.sh
+	$(PROD) exec backup /backup.sh
 
 backup-logs:
-	docker compose -f docker/prod/docker-compose.yml logs -f backup
+	$(PROD) logs -f backup
