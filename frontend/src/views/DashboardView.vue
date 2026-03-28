@@ -47,7 +47,8 @@ watch(
     if (usd) {
       convertToCurrency.value = 'USD'
     } else if (currencies.value.length) {
-      convertToCurrency.value = currencies.value[0].code
+      const first = currencies.value[0]
+      if (first) convertToCurrency.value = first.code
     }
   },
   { immediate: true },
