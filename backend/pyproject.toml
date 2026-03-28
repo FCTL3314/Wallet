@@ -14,7 +14,6 @@ dependencies = [
     "bcrypt",
     "python-multipart",
     "celery[redis]>=5.3",
-    "flower>=2.0",
     "httpx>=0.27",
     "babel>=2.14",
     "redis>=5.0",
