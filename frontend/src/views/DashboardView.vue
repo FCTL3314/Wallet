@@ -117,6 +117,7 @@ const profitGrowthLong = computed(() => {
 })
 
 const balanceGrowth = computed(() => stats.value?.balance_growth ?? null)
+const balanceGrowthConverted = computed(() => stats.value?.balance_growth_converted ?? null)
 
 const missingCurrencies = computed<string[]>(() => {
   const rc = rateCoverage.value
@@ -370,7 +371,22 @@ const donutOption = computed(() => {
         </div>
       </template>
       <div v-if="!Object.keys(displayedBalances).length" class="stat-value">—</div>
-      <template v-if="balanceGrowth">
+      <!-- All mode with multiple currencies: show single converted growth -->
+      <template v-if="isAllMode && hasMultipleCurrencies && balanceGrowthConverted">
+        <div
+          class="stat-trend"
+          :class="balanceGrowthConverted.delta >= 0 ? 'trend--up' : 'trend--down'"
+        >
+          <PhCaretUp v-if="balanceGrowthConverted.delta >= 0" :size="9" weight="fill" />
+          <PhCaretDown v-else :size="9" weight="fill" />
+          <span>{{ balanceGrowthConverted.currency }} {{ balanceGrowthConverted.delta >= 0 ? '+' : '' }}{{ fmtAmount(balanceGrowthConverted.delta) }}</span>
+          <span v-if="balanceGrowthConverted.pct !== null" class="stat-trend-label">
+            ({{ Math.abs(balanceGrowthConverted.pct).toFixed(1) }}%)
+          </span>
+        </div>
+      </template>
+      <!-- Single currency or no conversion: show per-currency growth -->
+      <template v-else-if="balanceGrowth">
         <div
           v-for="(delta, cur) in balanceGrowth.delta"
           :key="cur"

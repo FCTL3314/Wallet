@@ -6,6 +6,7 @@ export type {
   SummaryStats,
   GrowthStat,
   BalanceGrowth,
+  BalanceGrowthConverted,
   BalanceByStorageEntry,
   ExpenseVsBudgetItem,
   ExpenseTemplateItem,

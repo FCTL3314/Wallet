@@ -27,10 +27,17 @@ export interface BalanceGrowth {
   pct: Record<string, number | null>
 }
 
+export interface BalanceGrowthConverted {
+  delta: number
+  pct: number | null
+  currency: string
+}
+
 export interface SummaryStats {
   income_growth: GrowthStat | null
   profit_growth: GrowthStat | null
   balance_growth: BalanceGrowth
+  balance_growth_converted: BalanceGrowthConverted | null
   total_income: number
   total_profit: number
   active_period_count: number

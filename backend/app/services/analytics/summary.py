@@ -274,6 +274,17 @@ async def get_summary(
         balance_growth_delta[cur] = cur_val - init_val
         balance_growth_pct[cur] = _pct(cur_val, init_val)
 
+    balance_growth_converted = None
+    if converting:
+        last_rate_map = rate_cache.get(periods[-1][1], {})
+        init_converted = _convert_amount(initial_balances, last_rate_map, convert_to)
+        final_converted = _convert_amount(last_cur_balances, last_rate_map, convert_to)
+        balance_growth_converted = {
+            "delta": final_converted - init_converted,
+            "pct": _pct(final_converted, init_converted),
+            "currency": convert_to,
+        }
+
     stats = {
         "income_growth": income_growth,
         "profit_growth": profit_growth,
@@ -281,6 +292,7 @@ async def get_summary(
             "delta": balance_growth_delta,
             "pct": balance_growth_pct,
         },
+        "balance_growth_converted": balance_growth_converted,
         "total_income": cumulative_income,
         "total_profit": cumulative_profit,
         "active_period_count": profit_count,
