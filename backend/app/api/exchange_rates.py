@@ -22,6 +22,7 @@ router = APIRouter(tags=["exchange-rates"])
 
 @router.get("/currencies/rates/all", response_model=dict[int, RateInfoResponse])
 async def get_all_currency_rates(
+    to_code: str = Query(default="USD"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -32,7 +33,7 @@ async def get_all_currency_rates(
         return {}
 
     codes = [c.code for c in currencies]
-    rate_map = await get_rates_batch(db, codes, to_code="USD", user_id=user.id)
+    rate_map = await get_rates_batch(db, codes, to_code=to_code, user_id=user.id)
 
     return {
         c.id: RateInfoResponse(
@@ -53,6 +54,7 @@ async def get_all_currency_rates(
 async def get_currency_rate(
     currency_id: int,
     at_date: date | None = Query(default=None),
+    to_code: str = Query(default="USD"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -61,7 +63,7 @@ async def get_currency_rate(
     result = await get_rate(
         db,
         from_code=currency.code,
-        to_code="USD",
+        to_code=to_code,
         at_date=at_date,
         user_id=user.id,
     )

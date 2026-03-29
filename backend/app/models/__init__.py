@@ -1,4 +1,3 @@
-from app.models.app_state import AppState
 from app.models.user import User
 from app.models.currency import Currency
 from app.models.currency_catalog import CatalogSyncHistory, CurrencyCatalog
@@ -11,7 +10,6 @@ from app.models.balance_snapshot import BalanceSnapshot
 from app.models.refresh_token import RefreshToken
 
 __all__ = [
-    "AppState",
     "User",
     "Currency",
     "CurrencyCatalog",

@@ -11,6 +11,7 @@ export interface UserResponse {
   email: string
   created_at: string
   onboarding_completed: boolean
+  base_currency_code: string | null
 }
 
 export const authApi = {
@@ -37,5 +38,8 @@ export const authApi = {
   },
   completeOnboarding() {
     return api.post<UserResponse>('/auth/me/complete-onboarding')
+  },
+  updatePreferences(base_currency_code: string | null) {
+    return api.patch<UserResponse>('/auth/me/preferences', { base_currency_code })
   },
 }

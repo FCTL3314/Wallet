@@ -28,6 +28,7 @@ class UserResponse(BaseModel):
     email: str
     created_at: datetime
     onboarding_completed_at: datetime | None = Field(None, exclude=True)
+    base_currency_code: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -35,6 +36,10 @@ class UserResponse(BaseModel):
     @property
     def onboarding_completed(self) -> bool:
         return self.onboarding_completed_at is not None
+
+
+class UpdatePreferencesRequest(BaseModel):
+    base_currency_code: str | None = None
 
 
 class ChangeEmailRequest(BaseModel):

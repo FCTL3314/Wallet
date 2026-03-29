@@ -24,6 +24,7 @@ class User(Base):
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    base_currency_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
     currencies = relationship(
         "Currency", back_populates="user", cascade="all, delete-orphan"

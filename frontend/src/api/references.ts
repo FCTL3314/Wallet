@@ -88,7 +88,8 @@ export const currenciesApi = {
     api.delete(`/currencies/${currencyId}/manual-rates/${rateId}`),
   rateHistory: (currencyId: number, days?: number) =>
     api.get<RateInfo[]>(`/currencies/${currencyId}/rates/history`, { params: { days } }),
-  ratesAll: () => api.get<Record<number, RateInfo>>('/currencies/rates/all'),
+  ratesAll: (toCode?: string) =>
+    api.get<Record<number, RateInfo>>('/currencies/rates/all', toCode ? { params: { to_code: toCode } } : undefined),
 }
 
 export const storageLocationsApi = createCrudApi<StorageLocation, { name: string }>('storage-locations')

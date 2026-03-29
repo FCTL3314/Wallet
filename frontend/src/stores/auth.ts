@@ -40,6 +40,11 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function updateBaseCurrency(code: string | null) {
+    const { data } = await authApi.updatePreferences(code)
+    user.value = data
+  }
+
   async function logout() {
     const refreshToken = localStorage.getItem('refresh_token')
     if (refreshToken) {
@@ -51,5 +56,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('refresh_token')
   }
 
-  return { token, user, isAuthenticated, login, register, loginWithTokens, fetchUser, logout }
+  return { token, user, isAuthenticated, login, register, loginWithTokens, fetchUser, logout, updateBaseCurrency }
 })

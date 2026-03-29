@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models import BalanceSnapshot, Transaction
-from app.models.app_state import AppState
 from app.models.exchange_rate import ExchangeRate
 from app.tasks._engine import get_engine
 from app.tasks._http import NonRetryableHTTPError, RateLimitError, check_response
@@ -272,11 +271,6 @@ async def _async_backfill_fiat_rates() -> None:
 
     engine = get_engine()
     async with AsyncSession(engine) as db:
-        state = await AppState.load(db)
-        if state.rates_backfill_done:
-            logger.info("Fiat rate backfill already done, skipping")
-            return
-
         min_tx = select(func.min(Transaction.date).label("min_date"))
         min_snap = select(func.min(BalanceSnapshot.date).label("min_date"))
         min_date_result = await db.execute(
@@ -288,10 +282,6 @@ async def _async_backfill_fiat_rates() -> None:
 
     if min_date is None:
         logger.info("No transactions or snapshots found, skipping rate backfill")
-        async with AsyncSession(engine) as db:
-            state = await AppState.load(db)
-            state.rates_backfill_done = True
-            await db.commit()
         return
 
     today = datetime.now(timezone.utc).date()
@@ -391,11 +381,6 @@ async def _async_backfill_fiat_rates() -> None:
                     logger.info("Backfilled %d rates for %s", len(rows), target_date)
 
             await asyncio.sleep(1.5)  # rate limit: ~40 req/min on free tier
-
-    async with AsyncSession(engine) as db:
-        state = await AppState.load(db)
-        state.rates_backfill_done = True
-        await db.commit()
 
     logger.info(
         "Fiat rate backfill complete: %d total rates upserted across %d months",

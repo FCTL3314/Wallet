@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { useReferencesStore } from '../stores/references'
+import { useAuthStore } from '../stores/auth'
 import {
   currenciesApi, storageLocationsApi, storageAccountsApi, incomeSourcesApi,
   type Currency, type StorageLocation, type IncomeSource, type CatalogCurrency,
@@ -18,7 +20,16 @@ import SettingsSection from '../components/SettingsSection.vue'
 
 const route = useRoute()
 const refs = useReferencesStore()
+const authStore = useAuthStore()
+const { user } = storeToRefs(authStore)
 const fetchAll = () => refs.fetchAll()
+
+const baseCurrencyCode = computed(() => user.value?.base_currency_code ?? 'USD')
+
+async function updateBaseCurrency(code: string) {
+  await authStore.updateBaseCurrency(code)
+  await loadAllRates()
+}
 
 const locationCrud = useCrudSection(storageLocationsApi, fetchAll)
 const accountCrud = useCrudSection(storageAccountsApi, fetchAll)
@@ -146,7 +157,7 @@ async function saveEditCurrency() {
 const rateInfoMap = ref<Map<number, RateInfo>>(new Map())
 
 async function loadAllRates() {
-  const { data } = await currenciesApi.ratesAll()
+  const { data } = await currenciesApi.ratesAll(baseCurrencyCode.value)
   rateInfoMap.value = new Map(
     Object.entries(data).map(([id, info]) => [Number(id), info])
   )
@@ -195,9 +206,9 @@ const manualRateForm = ref({
 async function openManualRatesModal(c: Currency) {
   manualRateModalCurrency.value = c
   manualRateForm.value = {
-    to_code: 'USD',
+    to_code: baseCurrencyCode.value,
     rate: '',
-    valid_from: '',
+    valid_from: new Date().toISOString().slice(0, 10),
     valid_to: '',
   }
   showRateHistory.value = false
@@ -331,6 +342,20 @@ async function saveEditSource() {
 
     <!-- Currencies -->
     <BaseCard data-onboarding="currencies-section" title="Currencies">
+      <!-- Base currency picker -->
+      <div class="base-currency-row">
+        <span class="base-currency-label">Base currency</span>
+        <select
+          class="form-input-sm base-currency-select"
+          :value="baseCurrencyCode"
+          @change="updateBaseCurrency(($event.target as HTMLSelectElement).value)"
+        >
+          <option v-for="c in refs.currencies" :key="c.code" :value="c.code">
+            {{ c.code }}<template v-if="c.name"> — {{ c.name }}</template>
+          </option>
+        </select>
+      </div>
+
       <!-- Add form -->
       <div class="settings-item-row">
         <template v-if="addMode === 'catalog'">
@@ -402,20 +427,24 @@ async function saveEditSource() {
               <span class="currency-type-badge" :class="c.is_custom ? 'currency-type-badge--custom' : 'currency-type-badge--catalog'">
                 {{ c.is_custom ? 'Custom' : (c.catalog_id ? 'Catalog' : 'Catalog') }}
               </span>
-              <!-- Rate status indicator -->
-              <template v-if="rateInfoMap.has(c.id)">
-                <span
-                  v-if="rateInfoMap.get(c.id)!.status === 'stale'"
-                  class="rate-status-icon rate-status-icon--stale"
-                  title="Exchange rate data is stale"
-                >&#9888;</span>
-                <span
-                  v-else-if="rateInfoMap.get(c.id)!.status === 'missing'"
-                  class="rate-status-icon rate-status-icon--missing"
-                  title="No exchange rate data available"
-                >&#9888;</span>
-              </template>
             </div>
+            <!-- Inline rate display -->
+            <span
+              v-if="rateInfoMap.has(c.id) && rateInfoMap.get(c.id)!.rate && c.code !== baseCurrencyCode"
+              class="currency-rate-inline"
+              :class="{
+                'currency-rate-inline--stale': rateInfoMap.get(c.id)!.status === 'stale',
+                'currency-rate-inline--missing': rateInfoMap.get(c.id)!.status === 'missing',
+              }"
+            >
+              1 {{ c.code }} = {{ Number(rateInfoMap.get(c.id)!.rate).toFixed(4) }} {{ baseCurrencyCode }}
+            </span>
+            <span
+              v-else-if="rateInfoMap.has(c.id) && rateInfoMap.get(c.id)!.status === 'missing' && c.code !== baseCurrencyCode"
+              class="currency-rate-inline currency-rate-inline--missing"
+            >
+              no rate
+            </span>
             <div class="currency-item-actions">
               <button
                 type="button"
@@ -510,11 +539,11 @@ async function saveEditSource() {
         </div>
         <div class="form-field">
           <label class="form-label">To</label>
-          <input
-            v-model="manualRateForm.to_code"
-            class="form-input-sm"
-            placeholder="USD"
-          />
+          <select v-model="manualRateForm.to_code" class="form-input-sm">
+            <option v-for="c in refs.currencies.filter(c => c.id !== manualRateModalCurrency?.id)" :key="c.code" :value="c.code">
+              {{ c.code }}<template v-if="c.name"> — {{ c.name }}</template>
+            </option>
+          </select>
         </div>
         <div class="form-field">
           <label class="form-label">Rate</label>
@@ -694,6 +723,45 @@ async function saveEditSource() {
 }
 
 .rate-status-icon--missing {
+  color: var(--color-expense);
+}
+
+/* ── Base currency picker ── */
+
+.base-currency-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.base-currency-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.base-currency-select {
+  min-width: 120px;
+}
+
+/* ── Inline rate display ── */
+
+.currency-rate-inline {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-label);
+  white-space: nowrap;
+}
+
+.currency-rate-inline--stale {
+  color: var(--color-warning);
+}
+
+.currency-rate-inline--missing {
   color: var(--color-expense);
 }
 

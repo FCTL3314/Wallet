@@ -31,6 +31,7 @@ from app.schemas.auth import (
     UserResponse,
     ChangeEmailRequest,
     ChangePasswordRequest,
+    UpdatePreferencesRequest,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -140,6 +141,17 @@ async def change_email(
     if existing.scalar_one_or_none():
         raise AuthEmailTaken()
     user.email = body.new_email
+    await db.flush()
+    return user
+
+
+@router.patch("/me/preferences", response_model=UserResponse)
+async def update_preferences(
+    body: UpdatePreferencesRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user.base_currency_code = body.base_currency_code
     await db.flush()
     return user
 

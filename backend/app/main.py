@@ -1,11 +1,10 @@
 import logging
-from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import func, select, text
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,46 +20,14 @@ from app.api import (
     storage,
     transactions,
 )
-from app.celery_app import celery_app
 from app.core.config import settings
-from app.core.database import async_session, get_db
+from app.core.database import get_db
 from app.core.exceptions import AppException, ErrorResponse
-from app.models.app_state import AppState
-from app.models.currency_catalog import CurrencyCatalog
 
 logger = logging.getLogger(__name__)
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    """On first startup after migration, queue catalog and rate sync tasks.
-    Self-healing: if catalog is empty (tasks failed previously), re-queues on restart.
-    """
-    async with async_session() as db:
-        state = await AppState.load(db)
-        catalog_count = await db.scalar(select(func.count(CurrencyCatalog.id))) or 0
-        if not state.catalog_initial_sync_done or catalog_count == 0:
-            celery_app.send_task("app.tasks.catalog_sync.sync_fiat_catalog")
-            celery_app.send_task(
-                "app.tasks.catalog_sync.sync_crypto_catalog", countdown=10
-            )
-            celery_app.send_task("app.tasks.rate_sync.refresh_fiat_rates", countdown=90)
-            celery_app.send_task(
-                "app.tasks.rate_sync.refresh_crypto_rates", countdown=120
-            )
-            celery_app.send_task(
-                "app.tasks.rate_sync.backfill_fiat_rates", countdown=150
-            )
-            state.catalog_initial_sync_done = True
-            await db.commit()
-            logger.info(
-                "Initial catalog and rate sync tasks queued (catalog_count=%d)",
-                catalog_count,
-            )
-    yield
-
-
-app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
+app = FastAPI(title=settings.PROJECT_NAME)
 
 if settings.CORS_ORIGINS:
     app.add_middleware(
