@@ -13,6 +13,6 @@ repos:
       - id: backend-tests
         name: Backend tests
         language: system
-        entry: docker exec dev-backend-1 uv run pytest . -x -q --tb=short
+        entry: bash docker/test/run-tests.sh
         pass_filenames: false
         files: ^backend/

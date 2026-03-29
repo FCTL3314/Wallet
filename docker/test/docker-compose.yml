@@ -1,0 +1,26 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: wallet
+      POSTGRES_PASSWORD: wallet
+      POSTGRES_DB: wallet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wallet"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: docker/dev/backend.Dockerfile
+    volumes:
+      - ../../backend:/app
+    environment:
+      DATABASE_URL: postgresql+asyncpg://wallet:wallet@db:5432/wallet
+      PYTHONPATH: /app
+    command: ["uv", "run", "pytest", ".", "-x", "-q", "--tb=short"]
+    depends_on:
+      db:
+        condition: service_healthy
