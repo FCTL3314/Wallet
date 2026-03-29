@@ -43,7 +43,7 @@ make prod-down    # Stop production
 
 ### Tests
 ```bash
-docker exec -it dev-backend-1 uv run pytest .
+make test
 ```
 
 ### Local Development (without Docker)

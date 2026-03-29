@@ -19,9 +19,8 @@ jobs:
         working-directory: backend
         run: uv sync --frozen
 
-      - name: Ruff check
-        working-directory: backend
-        run: uv run ruff check .
+      - name: Lint
+        run: make lint
 
   frontend-build:
     name: Frontend Build & Type Check
@@ -35,13 +34,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install deps
-        working-directory: frontend
-        run: npm ci
-
       - name: Build (includes vue-tsc)
-        working-directory: frontend
-        run: npm run build
+        run: make frontend-build
 
   test:
     name: Tests (pytest)

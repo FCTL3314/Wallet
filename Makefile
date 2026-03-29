@@ -1,4 +1,4 @@
-.PHONY: dev prod down dev-build prod-build logs lint lint-fix setup test backup backup-logs
+.PHONY: dev prod down dev-build prod-build logs lint lint-fix setup test frontend-build backup backup-logs
 
 DEV := docker compose -f docker/dev/docker-compose.yml
 PROD := docker compose -f docker/prod/docker-compose.yml
@@ -41,6 +41,9 @@ seed:
 
 test:
 	bash docker/test/run-tests.sh
+
+frontend-build:
+	cd frontend && npm ci && npm run build
 
 # Production backup commands
 backup:
