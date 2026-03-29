@@ -63,11 +63,12 @@ async def income_by_source(
     date_to: date = Query(...),
     group_by: GroupBy = Query(default=GroupBy.month),
     currency_id: int | None = Query(default=None),
+    convert_to: str | None = Query(default=None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     return await get_income_by_source(
-        db, user.id, date_from, date_to, group_by, currency_id
+        db, user.id, date_from, date_to, group_by, currency_id, convert_to
     )
 
 

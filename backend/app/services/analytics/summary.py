@@ -15,6 +15,7 @@ from app.services.analytics.income import (
 )
 from app.services.exchange_rates import (
     RateResult,
+    convert_amount as _convert_amount,
     get_rates_batch,
     get_rates_for_periods,
 )
@@ -76,23 +77,6 @@ async def _build_rate_coverage(
         "currencies": currencies,
         "conversion_available": all_ok,
     }
-
-
-def _convert_amount(
-    per_currency: dict[str, Decimal],
-    rate_map: dict[str, RateResult],
-    to_code: str,
-) -> Decimal:
-    """Convert per-currency amounts to a single target currency using rate_map."""
-    total = Decimal("0")
-    for code, amount in per_currency.items():
-        if code == to_code:
-            total += amount
-        else:
-            rr = rate_map.get(code)
-            if rr and rr.rate:
-                total += amount * rr.rate
-    return total
 
 
 async def get_summary(

@@ -290,3 +290,20 @@ async def get_rates_for_periods(
                 )
         output[period_end] = period_result
     return output
+
+
+def convert_amount(
+    per_currency: dict[str, Decimal],
+    rate_map: dict[str, RateResult],
+    to_code: str,
+) -> Decimal:
+    """Convert per-currency amounts to a single target currency using rate_map."""
+    total = Decimal("0")
+    for code, amount in per_currency.items():
+        if code == to_code:
+            total += amount
+        else:
+            rr = rate_map.get(code)
+            if rr and rr.rate:
+                total += amount * rr.rate
+    return total
