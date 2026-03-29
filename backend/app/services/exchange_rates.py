@@ -375,6 +375,7 @@ async def get_rates_for_periods(
                 )
         for code in non_base:
             # User manual rates take priority
+            user_found = False
             if code in user_rate_map:
                 for ur in user_rate_map[code]:
                     if ur.valid_from <= period_end and (
@@ -386,12 +387,12 @@ async def get_rates_for_periods(
                             valid_date=ur.valid_from,
                             status="ok",
                         )
+                        user_found = True
                         break
-                else:
-                    period_result[code] = RateResult(
-                        rate=None, source="none", valid_date=None, status="missing"
-                    )
-                continue
+                if user_found:
+                    continue
+                # User rate doesn't cover this period — fall through to system rates
+
             # Fall back to system rates (already sorted newest first)
             resolved = False
             if code in sys_rate_map:
@@ -436,6 +437,20 @@ async def get_rates_for_periods(
                         source=from_usd_row["source"],
                         valid_date=cross_valid_date,
                         status=cross_status,
+                    )
+                    resolved = True
+
+            # Final fallback: no period-specific rate found — use most recent available
+            # rate regardless of date, marked stale. Better than silently dropping the
+            # currency from conversion (which produces misleading totals).
+            if not resolved:
+                best_sr = next(iter(sys_rate_map.get(code, [])), None)
+                if best_sr is not None:
+                    period_result[code] = RateResult(
+                        rate=best_sr["rate"],
+                        source=best_sr["source"],
+                        valid_date=best_sr["valid_date"],
+                        status="stale",
                     )
                 else:
                     period_result[code] = RateResult(
