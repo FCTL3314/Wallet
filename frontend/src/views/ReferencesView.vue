@@ -421,30 +421,28 @@ async function saveEditSource() {
           </template>
           <template v-else>
             <div class="currency-item-info">
-              <span class="currency-item-code">{{ c.code }}</span>
-              <span class="currency-item-symbol">({{ c.symbol }})</span>
-              <span v-if="c.name" class="currency-item-name">{{ c.name }}</span>
-              <span class="currency-type-badge" :class="c.is_custom ? 'currency-type-badge--custom' : 'currency-type-badge--catalog'">
-                {{ c.is_custom ? 'Custom' : (c.catalog_id ? 'Catalog' : 'Catalog') }}
+              <div class="currency-item-main">
+                <span class="currency-item-code">{{ c.code }}</span>
+                <span class="currency-item-symbol">({{ c.symbol }})</span>
+                <span v-if="c.name" class="currency-item-name">{{ c.name }}</span>
+                <span class="currency-type-badge" :class="c.is_custom ? 'currency-type-badge--custom' : 'currency-type-badge--catalog'">
+                  {{ c.is_custom ? 'Custom' : (c.catalog_id ? 'Catalog' : 'Catalog') }}
+                </span>
+              </div>
+              <span
+                v-if="rateInfoMap.has(c.id) && rateInfoMap.get(c.id)!.rate && c.code !== baseCurrencyCode"
+                class="currency-rate-inline"
+                :class="{ 'currency-rate-inline--stale': rateInfoMap.get(c.id)!.status === 'stale' }"
+              >
+                1 {{ c.code }} = {{ Number(rateInfoMap.get(c.id)!.rate).toFixed(4) }} {{ baseCurrencyCode }}
+              </span>
+              <span
+                v-else-if="rateInfoMap.has(c.id) && rateInfoMap.get(c.id)!.status === 'missing' && c.code !== baseCurrencyCode"
+                class="currency-rate-inline currency-rate-inline--missing"
+              >
+                no rate
               </span>
             </div>
-            <!-- Inline rate display -->
-            <span
-              v-if="rateInfoMap.has(c.id) && rateInfoMap.get(c.id)!.rate && c.code !== baseCurrencyCode"
-              class="currency-rate-inline"
-              :class="{
-                'currency-rate-inline--stale': rateInfoMap.get(c.id)!.status === 'stale',
-                'currency-rate-inline--missing': rateInfoMap.get(c.id)!.status === 'missing',
-              }"
-            >
-              1 {{ c.code }} = {{ Number(rateInfoMap.get(c.id)!.rate).toFixed(4) }} {{ baseCurrencyCode }}
-            </span>
-            <span
-              v-else-if="rateInfoMap.has(c.id) && rateInfoMap.get(c.id)!.status === 'missing' && c.code !== baseCurrencyCode"
-              class="currency-rate-inline currency-rate-inline--missing"
-            >
-              no rate
-            </span>
             <div class="currency-item-actions">
               <button
                 type="button"
@@ -751,10 +749,11 @@ async function saveEditSource() {
 /* ── Inline rate display ── */
 
 .currency-rate-inline {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
-  color: var(--text-label);
+  color: var(--text-placeholder);
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 
 .currency-rate-inline--stale {
@@ -769,10 +768,17 @@ async function saveEditSource() {
 
 .currency-item-info {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
   flex: 1;
   min-width: 0;
+}
+
+.currency-item-main {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   flex-wrap: wrap;
 }
 
