@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     CRYPTO_CATALOG_SIZE: int = 500
     EXCHANGE_RATE_STALENESS_DAYS: int = 3
 
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "change-me-admin-password"
+    ADMIN_SECRET_KEY: str = "change-me-admin-secret"
+
     DEV_MODE: bool = False
 
     FRONTEND_URL: str = "http://localhost:5173"

@@ -16,3 +16,6 @@ class IncomeSource(Base):
 
     user = relationship("User", back_populates="income_sources")
     transactions = relationship("Transaction", back_populates="income_source")
+
+    def __str__(self) -> str:
+        return self.name

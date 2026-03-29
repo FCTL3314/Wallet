@@ -17,6 +17,7 @@ dependencies = [
     "httpx>=0.27",
     "babel>=2.14",
     "redis>=5.0",
+    "sqladmin[full]>=0.19",
 ]
 
 [dependency-groups]

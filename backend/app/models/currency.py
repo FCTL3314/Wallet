@@ -27,3 +27,6 @@ class Currency(Base):
     @property
     def is_custom(self) -> bool:
         return self.catalog_id is None
+
+    def __str__(self) -> str:
+        return f"{self.code} ({self.symbol})"

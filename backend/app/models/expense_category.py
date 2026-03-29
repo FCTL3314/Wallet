@@ -22,3 +22,6 @@ class ExpenseCategory(Base):
 
     user = relationship("User", back_populates="expense_categories")
     transactions = relationship("Transaction", back_populates="expense_category")
+
+    def __str__(self) -> str:
+        return self.name

@@ -43,3 +43,6 @@ class Transaction(Base):
     storage_account = relationship("StorageAccount", back_populates="transactions")
     income_source = relationship("IncomeSource", back_populates="transactions")
     expense_category = relationship("ExpenseCategory", back_populates="transactions")
+
+    def __str__(self) -> str:
+        return f"#{self.id} {self.type} {self.amount} ({self.date})"

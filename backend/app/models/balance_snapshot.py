@@ -22,3 +22,6 @@ class BalanceSnapshot(Base):
 
     user = relationship("User", back_populates="balance_snapshots")
     storage_account = relationship("StorageAccount", back_populates="balance_snapshots")
+
+    def __str__(self) -> str:
+        return f"#{self.id} {self.amount} ({self.date})"

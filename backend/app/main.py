@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.admin import setup_admin
 from app.api import (
     analytics,
     auth,
@@ -98,3 +99,6 @@ for router in [
 async def health(db: AsyncSession = Depends(get_db)):
     await db.execute(text("SELECT 1"))
     return {"status": "ok"}
+
+
+setup_admin(app)

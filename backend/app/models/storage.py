@@ -21,6 +21,9 @@ class StorageLocation(Base):
         cascade="all, delete-orphan",
     )
 
+    def __str__(self) -> str:
+        return self.name
+
 
 class StorageAccount(Base):
     __tablename__ = "storage_accounts"
@@ -48,3 +51,6 @@ class StorageAccount(Base):
     balance_snapshots = relationship(
         "BalanceSnapshot", back_populates="storage_account"
     )
+
+    def __str__(self) -> str:
+        return f"Account #{self.id} (loc={self.storage_location_id}, cur={self.currency_id})"
