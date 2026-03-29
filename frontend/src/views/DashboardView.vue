@@ -118,6 +118,7 @@ const profitGrowthLong = computed(() => {
 
 const balanceGrowth = computed(() => stats.value?.balance_growth ?? null)
 const balanceGrowthConverted = computed(() => stats.value?.balance_growth_converted ?? null)
+const isConverted = computed(() => isAllMode.value && hasMultipleCurrencies.value)
 
 const missingCurrencies = computed<string[]>(() => {
   const rc = rateCoverage.value
@@ -356,7 +357,7 @@ const donutOption = computed(() => {
       <!-- All mode: converted total is the hero number -->
       <template v-if="isAllMode && lastEntry?.converted_balance != null && hasMultipleCurrencies">
         <div class="stat-value">
-          <span class="stat-currency">{{ convertToCurrency }}</span>{{ fmtAmount(lastEntry.converted_balance) }}
+          <span class="stat-currency">≈{{ convertToCurrency }}</span>{{ fmtAmount(lastEntry.converted_balance) }}
         </div>
         <div class="balance-breakdown-mini">
           <span v-for="(val, cur) in displayedBalances" :key="cur" class="balance-part">
@@ -379,7 +380,7 @@ const donutOption = computed(() => {
         >
           <PhCaretUp v-if="balanceGrowthConverted.delta >= 0" :size="9" weight="fill" />
           <PhCaretDown v-else :size="9" weight="fill" />
-          <span>{{ balanceGrowthConverted.currency }} {{ balanceGrowthConverted.delta >= 0 ? '+' : '' }}{{ fmtAmount(balanceGrowthConverted.delta) }}</span>
+          <span>≈{{ balanceGrowthConverted.currency }} {{ balanceGrowthConverted.delta >= 0 ? '+' : '' }}{{ fmtAmount(balanceGrowthConverted.delta) }}</span>
           <span v-if="balanceGrowthConverted.pct !== null" class="stat-trend-label">
             ({{ Math.abs(balanceGrowthConverted.pct).toFixed(1) }}%)
           </span>
@@ -423,7 +424,7 @@ const donutOption = computed(() => {
       <div class="stat-value amount-positive">
         <span class="stat-currency">{{ displayCurrencyCode }}</span>{{ fmtAmount(avgIncome) }}
       </div>
-      <span v-if="isAllMode && hasMultipleCurrencies" class="converted-hint">converted</span>
+      <span v-if="isAllMode && hasMultipleCurrencies" class="converted-hint">≈ converted</span>
       <div
         v-if="incomeGrowthLong"
         class="stat-trend"
@@ -444,7 +445,7 @@ const donutOption = computed(() => {
       <div class="stat-value" :class="avgProfit >= 0 ? 'amount-positive' : 'amount-negative'">
         <span class="stat-currency">{{ displayCurrencyCode }}</span>{{ fmtAmount(avgProfit) }}
       </div>
-      <span v-if="isAllMode && hasMultipleCurrencies" class="converted-hint">converted</span>
+      <span v-if="isAllMode && hasMultipleCurrencies" class="converted-hint">≈ converted</span>
       <div
         v-if="profitGrowthLong"
         class="stat-trend"
@@ -503,7 +504,7 @@ const donutOption = computed(() => {
     <v-chart :option="lineOption" :style="{ height: '280px' }" autoresize @globalout="hoveredPeriod = null" />
   </BaseCard>
 
-  <BaseCard v-if="chartEntries.length" :title="isAllMode && hasMultipleCurrencies ? `Balance Over Time (${convertToCurrency})` : 'Balance Over Time'">
+  <BaseCard v-if="chartEntries.length" :title="isAllMode && hasMultipleCurrencies ? `Balance Over Time (≈${convertToCurrency})` : 'Balance Over Time'">
     <v-chart :option="balanceLineOption" :style="{ height: '280px' }" autoresize />
   </BaseCard>
 
@@ -526,7 +527,7 @@ const donutOption = computed(() => {
   </BaseCard>
 
   <BaseDataTable
-    title="Summary Table"
+    :title="isConverted ? `Summary Table (≈${convertToCurrency})` : 'Summary Table'"
     :table="summaryTable"
     :loading="loading"
     :empty="!periods.length"
@@ -550,7 +551,7 @@ const donutOption = computed(() => {
           <template v-if="Object.keys(tableRow.original.entry.balances).length">
             <!-- All mode: show converted total as primary, per-currency as secondary -->
             <template v-if="isAllMode && tableRow.original.entry.converted_balance != null && Object.keys(tableRow.original.entry.balances).length > 1">
-              <span class="balance-line balance-line--primary">{{ convertToCurrency }} {{ fmtAmount(tableRow.original.entry.converted_balance) }}</span>
+              <span class="balance-line balance-line--primary">≈{{ convertToCurrency }} {{ fmtAmount(tableRow.original.entry.converted_balance) }}</span>
               <span v-for="(val, cur) in tableRow.original.entry.balances" :key="cur" class="balance-line balance-line--secondary">{{ cur }} {{ fmtAmount(val) }}</span>
             </template>
             <!-- Single currency: just show the value -->
