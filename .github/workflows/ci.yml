@@ -78,20 +78,10 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build backend image
-        uses: docker/build-push-action@v6
+      - name: Build all images (no push)
+        uses: docker/bake-action@v6
         with:
-          context: .
-          file: docker/prod/backend.Dockerfile
           push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build frontend image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/prod/frontend.Dockerfile
-          push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        env:
+          OWNER: local
+          TAG: ci

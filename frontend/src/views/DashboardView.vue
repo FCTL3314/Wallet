@@ -489,7 +489,7 @@ const donutOption = computed(() => {
     </div>
   </BaseCard>
 
-  <BaseCard v-if="periods.length" title="Trends">
+  <BaseCard v-if="periods.length" :title="isConverted ? `Trends (≈${convertToCurrency})` : 'Trends'">
     <template #actions>
       <div class="trend-tabs">
         <button
@@ -508,7 +508,7 @@ const donutOption = computed(() => {
     <v-chart :option="balanceLineOption" :style="{ height: '280px' }" autoresize />
   </BaseCard>
 
-  <BaseCard v-if="Object.keys(donutTotals).length" title="Income by Source">
+  <BaseCard v-if="Object.keys(donutTotals).length" :title="isConverted ? `Income by Source (≈${convertToCurrency})` : 'Income by Source'">
     <div class="donut-layout">
       <v-chart :option="donutOption" class="donut-chart" autoresize />
       <div class="donut-stats">
@@ -516,11 +516,11 @@ const donutOption = computed(() => {
           <span class="donut-dot" :style="{ background: item.color }" />
           <span class="donut-stat-name">{{ item.name }}</span>
           <span class="donut-stat-pct">{{ donutStats.total > 0 ? Math.round(item.amount / donutStats.total * 100) : 0 }}%</span>
-          <span class="donut-stat-amount">{{ fmtAmount(item.amount) }}</span>
+          <span class="donut-stat-amount">{{ isConverted ? '≈' : '' }}{{ fmtAmount(item.amount) }}</span>
         </div>
         <div class="donut-stat-total">
           <span>Total</span>
-          <span>{{ fmtAmount(donutStats.total) }}</span>
+          <span>{{ isConverted ? '≈' : '' }}{{ fmtAmount(donutStats.total) }}</span>
         </div>
       </div>
     </div>
@@ -562,28 +562,28 @@ const donutOption = computed(() => {
           <span v-else>—</span>
         </td>
         <td class="col-num">
-          <div class="amount-positive">{{ fmtAmount(tableRow.original.entry.income) }}</div>
+          <div class="amount-positive">{{ isConverted ? '≈' : '' }}{{ fmtAmount(tableRow.original.entry.income) }}</div>
           <div v-if="tableRow.original.income" class="cell-delta" :class="tableRow.original.income.delta >= 0 ? 'trend--up' : 'trend--down'">
             <PhCaretUp v-if="tableRow.original.income.delta >= 0" :size="7" weight="fill" />
             <PhCaretDown v-else :size="7" weight="fill" />
             <span v-if="tableRow.original.income.pct !== null">{{ Math.abs(tableRow.original.income.pct).toFixed(1) }}%</span>
-            <span v-else>{{ tableRow.original.income.delta >= 0 ? '+' : '' }}{{ fmtAmount(tableRow.original.income.delta) }}</span>
+            <span v-else>{{ tableRow.original.income.delta >= 0 ? '+' : '' }}{{ isConverted ? '≈' : '' }}{{ fmtAmount(tableRow.original.income.delta) }}</span>
           </div>
         </td>
         <td class="col-num">
-          <div :class="tableRow.original.entry.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(tableRow.original.entry.profit) }}</div>
+          <div :class="tableRow.original.entry.profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ isConverted ? '≈' : '' }}{{ fmtAmount(tableRow.original.entry.profit) }}</div>
           <div v-if="tableRow.original.profit" class="cell-delta" :class="tableRow.original.profit.delta >= 0 ? 'trend--up' : 'trend--down'">
             <PhCaretUp v-if="tableRow.original.profit.delta >= 0" :size="7" weight="fill" />
             <PhCaretDown v-else :size="7" weight="fill" />
             <span v-if="tableRow.original.profit.pct !== null">{{ Math.abs(tableRow.original.profit.pct).toFixed(1) }}%</span>
-            <span v-else>{{ tableRow.original.profit.delta >= 0 ? '+' : '' }}{{ fmtAmount(tableRow.original.profit.delta) }}</span>
+            <span v-else>{{ tableRow.original.profit.delta >= 0 ? '+' : '' }}{{ isConverted ? '≈' : '' }}{{ fmtAmount(tableRow.original.profit.delta) }}</span>
           </div>
         </td>
         <td class="col-num" :class="tableRow.original.entry.derived_expense > 0 ? 'amount-negative' : 'amount-positive'">
-          {{ tableRow.original.entry.income === 0 && tableRow.original.entry.profit === 0 ? '—' : fmtAmount(tableRow.original.entry.derived_expense) }}
+          {{ tableRow.original.entry.income === 0 && tableRow.original.entry.profit === 0 ? '—' : `${isConverted ? '≈' : ''}${fmtAmount(tableRow.original.entry.derived_expense)}` }}
         </td>
-        <td class="col-num">{{ fmtAmount(tableRow.original.entry.avg_income) }}</td>
-        <td class="col-num" :class="tableRow.original.entry.avg_profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ fmtAmount(tableRow.original.entry.avg_profit) }}</td>
+        <td class="col-num">{{ isConverted ? '≈' : '' }}{{ fmtAmount(tableRow.original.entry.avg_income) }}</td>
+        <td class="col-num" :class="tableRow.original.entry.avg_profit >= 0 ? 'amount-positive' : 'amount-negative'">{{ isConverted ? '≈' : '' }}{{ fmtAmount(tableRow.original.entry.avg_profit) }}</td>
       </tr>
     </template>
   </BaseDataTable>

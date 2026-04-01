@@ -11,7 +11,8 @@ import { getErrorMessage } from '../api/errors'
 import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import PasswordRequirements from '../components/PasswordRequirements.vue'
-import { PhBookOpen } from '@phosphor-icons/vue'
+import { PhBookOpen, PhFileXls } from '@phosphor-icons/vue'
+import { reportsApi } from '../api/reports'
 
 const auth = useAuthStore()
 const { user } = storeToRefs(auth)
@@ -74,6 +75,49 @@ const { value: confirmNewPassword, meta: confirmMeta } = useField<string>('confi
 const passwordServerError = ref('')
 const passwordSuccess = ref('')
 
+// ── Data Export ──────────────────────────────────────────────
+const exportLoading = ref(false)
+const exportError = ref('')
+const exportSuccess = ref('')
+
+async function requestExport() {
+  exportLoading.value = true
+  exportError.value = ''
+  exportSuccess.value = ''
+  try {
+    const { data } = await reportsApi.requestExport()
+    await pollUntilReady(data.job_id)
+  } catch (err) {
+    exportError.value = getErrorMessage(err)
+  } finally {
+    exportLoading.value = false
+  }
+}
+
+async function pollUntilReady(jobId: string) {
+  for (let i = 0; i < 60; i++) {
+    await new Promise((r) => setTimeout(r, 2000))
+    const { data } = await reportsApi.getStatus(jobId)
+    if (data.status === 'ready') {
+      await triggerDownload(jobId)
+      exportSuccess.value = 'Export ready — downloading…'
+      setTimeout(() => { exportSuccess.value = '' }, 3000)
+      return
+    }
+  }
+  throw new Error('Export timed out. Please try again.')
+}
+
+async function triggerDownload(jobId: string) {
+  const response = await reportsApi.downloadExport(jobId)
+  const url = URL.createObjectURL(new Blob([response.data]))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `wallet-export-${jobId}.xlsx`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 const submitPassword = handlePasswordSubmit(async (values) => {
   passwordServerError.value = ''
   passwordSuccess.value = ''
@@ -133,6 +177,20 @@ const submitPassword = handlePasswordSubmit(async (values) => {
       <BaseButton variant="secondary" @click="replayGuide">
         <PhBookOpen :size="16" weight="duotone" /> Replay Guide
       </BaseButton>
+    </div>
+  </BaseCard>
+
+  <BaseCard title="Data Export" style="align-self: flex-start; min-width: 420px">
+    <div class="export-section">
+      <p class="export-desc">Export all your transactions and balance snapshots to an Excel file.</p>
+      <div class="export-actions">
+        <BaseButton variant="primary" :disabled="exportLoading" @click="requestExport">
+          <PhFileXls :size="16" weight="duotone" />
+          {{ exportLoading ? 'Generating…' : 'Export to Excel' }}
+        </BaseButton>
+        <p v-if="exportError" class="error-msg">{{ exportError }}</p>
+        <p v-if="exportSuccess" class="success-msg">{{ exportSuccess }}</p>
+      </div>
     </div>
   </BaseCard>
 
@@ -341,5 +399,27 @@ const submitPassword = handlePasswordSubmit(async (values) => {
   color: var(--text-secondary);
   margin: 0;
   line-height: 1.5;
+}
+
+/* ── Export section ─────────────────────────────────────── */
+
+.export-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.export-desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.export-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
 }
 </style>
