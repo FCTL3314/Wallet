@@ -18,6 +18,8 @@ dependencies = [
     "babel>=2.14",
     "redis>=5.0",
     "sqladmin[full]>=0.19",
+    "faststream[kafka]",
+    "wallet-sdk",
 ]
 
 [dependency-groups]
@@ -27,6 +29,12 @@ dev = [
     "httpx",
     "ruff",
 ]
+
+[tool.uv.sources]
+wallet-sdk = { path = "../wallet-sdk" }
+
+[tool.setuptools.packages.find]
+include = ["app*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

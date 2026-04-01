@@ -5,9 +5,7 @@ ENV PYTHONPATH=/app
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 COPY wallet-sdk/ /wallet-sdk/
-COPY backend/pyproject.toml backend/uv.lock ./
+COPY report-service/pyproject.toml report-service/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
-COPY backend/ .
-COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
+COPY report-service/ .
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]

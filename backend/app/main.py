@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -18,17 +19,30 @@ from app.api import (
     expense_categories,
     income_sources,
     oauth,
+    reports,
     storage,
     transactions,
 )
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.exceptions import AppException, ErrorResponse
+from app.core.redis import close_redis, init_redis
+from app.kafka import consumers  # noqa: F401 — registers @broker.subscriber handlers
+from app.kafka.broker import broker
 
 logger = logging.getLogger(__name__)
 
 
-app = FastAPI(title=settings.PROJECT_NAME)
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await init_redis()
+    await broker.start()
+    yield
+    await broker.close()
+    await close_redis()
+
+
+app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 
 if settings.CORS_ORIGINS:
     app.add_middleware(
@@ -91,6 +105,7 @@ for router in [
     transactions.router,
     balance_snapshots.router,
     analytics.router,
+    reports.router,
 ]:
     app.include_router(router, prefix=settings.API_PREFIX)
 
