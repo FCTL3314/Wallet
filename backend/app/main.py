@@ -27,8 +27,8 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.exceptions import AppException, ErrorResponse
 from app.core.redis import close_redis, init_redis
-from app.kafka import consumers  # noqa: F401 — registers @broker.subscriber handlers
-from app.kafka.broker import broker
+from app.messaging import consumers  # noqa: F401 — registers @broker.subscriber handlers
+from app.messaging.broker import broker
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ dependencies = [
     "uvicorn[standard]",
     "sqlalchemy[asyncio]",
     "asyncpg",
-    "faststream[kafka]",
+    "faststream[redis]",
     "openpyxl",
     "pydantic-settings",
     "wallet-sdk",

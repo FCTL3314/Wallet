@@ -1,16 +1,20 @@
 import json
 import logging
 
-from wallet_sdk.kafka.schemas import ReportCompletedMsg
-from wallet_sdk.kafka.topics import REPORT_COMPLETED
+from faststream.redis import StreamSub
+
+from wallet_sdk.messaging.schemas import ReportCompletedMsg
+from wallet_sdk.messaging.topics import REPORT_COMPLETED
 
 from app.core.redis import get_redis
-from app.kafka.broker import broker
+from app.messaging.broker import broker
 
 logger = logging.getLogger(__name__)
 
 
-@broker.subscriber(REPORT_COMPLETED)
+@broker.subscriber(
+    stream=StreamSub(REPORT_COMPLETED, group="backend", consumer="backend-1")
+)
 async def handle_report_completed(msg: ReportCompletedMsg) -> None:
     r = get_redis()
     key = f"report:{msg.job_id}"

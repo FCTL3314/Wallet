@@ -18,7 +18,7 @@ dependencies = [
     "babel>=2.14",
     "redis>=5.0",
     "sqladmin[full]>=0.19",
-    "faststream[kafka]",
+    "faststream[redis]",
     "wallet-sdk",
 ]
 

@@ -24,7 +24,6 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/auth/google/callback"
 
     REDIS_URL: str = "redis://localhost:6379/0"
-    KAFKA_URL: str = "localhost:9092"
     REPORTS_DIR: str = "/reports"
     EXCHANGERATE_API_KEY: str = ""
     COINGECKO_API_KEY: str | None = None

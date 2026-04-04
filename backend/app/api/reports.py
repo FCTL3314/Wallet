@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 
 from app.core.config import settings
 from app.core.dependencies import get_current_user, get_redis
-from app.kafka.publishers import publish_report_requested
+from app.messaging.publishers import publish_report_requested
 from app.models.user import User
 
 router = APIRouter(prefix="/reports", tags=["reports"])

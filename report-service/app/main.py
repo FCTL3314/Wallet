@@ -2,8 +2,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.kafka import consumers  # noqa: F401 — registers @broker.subscriber handlers
-from app.kafka.broker import broker
+from app.messaging import consumers  # noqa: F401 — registers @broker.subscriber handlers
+from app.messaging.broker import broker
 from app.reports.router import router as reports_router
 
 
