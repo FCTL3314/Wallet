@@ -119,10 +119,25 @@ const {
   afterDelete: () => load(),
 })
 
+function latestAmountForAccount(accountId: number): number {
+  const sorted = snapshots.value
+    .filter(s => s.storage_account_id === accountId)
+    .sort((a, b) => b.date.localeCompare(a.date))
+  return sorted[0]?.amount ?? 0
+}
+
 // Wrap openCreate to reset tagInput etc. if needed (none here — just delegate)
 function openCreate() {
   crudOpenCreate()
+  form.value.amount = latestAmountForAccount(form.value.storage_account_id)
 }
+
+// When account changes in create mode, auto-fill amount from last snapshot
+watch(() => form.value.storage_account_id, (accountId) => {
+  if (!editing.value) {
+    form.value.amount = latestAmountForAccount(accountId)
+  }
+})
 
 async function save() {
   if (formErrors.value.amount) {
