@@ -22,6 +22,10 @@ from app.models import (
 from app.models.currency_catalog import CurrencyCatalog
 from app.models.exchange_rate import ExchangeRate
 
+# Tests run over plain HTTP — disable the Secure cookie flag so httpx
+# stores and forwards auth cookies correctly.
+settings.DEV_MODE = True
+
 TEST_DB_NAME = "wallet_test"
 _base_url = settings.DATABASE_URL.rsplit("/", 1)[0]
 TEST_DB_URL = f"{_base_url}/{TEST_DB_NAME}"
@@ -102,7 +106,7 @@ async def test_user(db_session: AsyncSession) -> User:
 @pytest.fixture()
 async def auth_client(client: AsyncClient, test_user: User) -> AsyncClient:
     token = create_access_token(test_user.id)
-    client.headers["Authorization"] = f"Bearer {token}"
+    client.cookies.set("access_token", token)
     return client
 
 
@@ -129,7 +133,7 @@ async def other_auth_client(
     async with AsyncClient(
         transport=transport,
         base_url="http://test",
-        headers={"Authorization": f"Bearer {token}"},
+        cookies={"access_token": token},
     ) as ac:
         yield ac
 

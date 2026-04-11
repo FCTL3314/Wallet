@@ -8,10 +8,17 @@ import 'primeicons/primeicons.css'
 import App from './App.vue'
 import router from './router'
 import { initApiClient } from './api/client'
+import { useAuthStore } from './stores/auth'
 import './style.css'
 
 const app = createApp(App)
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
+
+// Restore session from cookie before router guard runs
+const authStore = useAuthStore()
+await authStore.fetchUser()
+
 app.use(router)
 app.use(PrimeVue, {
   theme: {

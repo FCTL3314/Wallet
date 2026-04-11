@@ -1,6 +1,7 @@
 import json
 import uuid
 from pathlib import Path
+from uuid import UUID
 
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException
@@ -31,11 +32,11 @@ async def request_export(
 
 @router.get("/export/{job_id}/status")
 async def get_export_status(
-    job_id: str,
+    job_id: UUID,
     user: User = Depends(get_current_user),
     r: aioredis.Redis = Depends(get_redis),
 ):
-    raw = await r.get(f"report:{job_id}")
+    raw = await r.get(f"report:{job_id!s}")
     if not raw:
         raise HTTPException(status_code=404, detail="Job not found")
     data = json.loads(raw)
@@ -46,11 +47,11 @@ async def get_export_status(
 
 @router.get("/export/{job_id}/download")
 async def download_export(
-    job_id: str,
+    job_id: UUID,
     user: User = Depends(get_current_user),
     r: aioredis.Redis = Depends(get_redis),
 ):
-    raw = await r.get(f"report:{job_id}")
+    raw = await r.get(f"report:{job_id!s}")
     if not raw:
         raise HTTPException(status_code=404, detail="Job not found")
     data = json.loads(raw)
@@ -58,11 +59,14 @@ async def download_export(
         raise HTTPException(status_code=403, detail="Forbidden")
     if data["status"] != "ready":
         raise HTTPException(status_code=409, detail="Report not ready yet")
-    file_path = Path(settings.REPORTS_DIR) / f"{job_id}.xlsx"
+    reports_dir = Path(settings.REPORTS_DIR).resolve()
+    file_path = (reports_dir / f"{job_id!s}.xlsx").resolve()
+    if not file_path.is_relative_to(reports_dir):
+        raise HTTPException(status_code=403, detail="Forbidden")
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Report file not found")
     return FileResponse(
         path=str(file_path),
-        filename=f"wallet-export-{job_id}.xlsx",
+        filename=f"wallet-export-{job_id!s}.xlsx",
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )

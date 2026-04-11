@@ -1,5 +1,4 @@
 from unittest.mock import AsyncMock, patch
-from urllib.parse import parse_qs, urlparse
 
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -16,7 +15,7 @@ async def test_github_login_redirects(client: AsyncClient):
     assert "github.com/login/oauth" in location
 
 
-async def test_github_callback_creates_new_user_and_returns_tokens(
+async def test_github_callback_creates_new_user_and_sets_cookies(
     client: AsyncClient, db_session: AsyncSession
 ):
     github_profile = {"id": 12345, "email": "gh@example.com", "login": "ghuser"}
@@ -35,9 +34,9 @@ async def test_github_callback_creates_new_user_and_returns_tokens(
     assert resp.status_code == 302
     location = resp.headers.get("location", "")
     assert "/oauth/callback" in location
-    qs = parse_qs(urlparse(location).query)
-    assert "access_token" in qs
-    assert "refresh_token" in qs
+    # Tokens are now in httpOnly cookies, not URL params
+    assert "access_token" in resp.cookies
+    assert "refresh_token" in resp.cookies
 
     result = await db_session.execute(
         select(User).where(User.email == "gh@example.com")
@@ -76,11 +75,9 @@ async def test_github_callback_returns_tokens_for_existing_github_user(
         )
 
     assert resp.status_code == 302
-    location = resp.headers.get("location", "")
-    assert "/oauth/callback" in location
-    qs = parse_qs(urlparse(location).query)
-    assert "access_token" in qs
-    assert "refresh_token" in qs
+    assert "/oauth/callback" in resp.headers.get("location", "")
+    assert "access_token" in resp.cookies
+    assert "refresh_token" in resp.cookies
 
     result = await db_session.execute(select(User).where(User.github_id == 12345))
     rows = result.scalars().all()
@@ -113,7 +110,7 @@ async def test_google_login_redirects(client: AsyncClient):
     assert "accounts.google.com" in location
 
 
-async def test_google_callback_creates_new_user_and_returns_tokens(
+async def test_google_callback_creates_new_user_and_sets_cookies(
     client: AsyncClient, db_session: AsyncSession
 ):
     google_profile = {"sub": "g-sub-123", "email": "goo@example.com"}
@@ -130,11 +127,9 @@ async def test_google_callback_creates_new_user_and_returns_tokens(
         )
 
     assert resp.status_code == 302
-    location = resp.headers.get("location", "")
-    assert "/oauth/callback" in location
-    qs = parse_qs(urlparse(location).query)
-    assert "access_token" in qs
-    assert "refresh_token" in qs
+    assert "/oauth/callback" in resp.headers.get("location", "")
+    assert "access_token" in resp.cookies
+    assert "refresh_token" in resp.cookies
 
     result = await db_session.execute(
         select(User).where(User.email == "goo@example.com")
@@ -169,11 +164,9 @@ async def test_google_callback_returns_tokens_for_existing_google_user(
         )
 
     assert resp.status_code == 302
-    location = resp.headers.get("location", "")
-    assert "/oauth/callback" in location
-    qs = parse_qs(urlparse(location).query)
-    assert "access_token" in qs
-    assert "refresh_token" in qs
+    assert "/oauth/callback" in resp.headers.get("location", "")
+    assert "access_token" in resp.cookies
+    assert "refresh_token" in resp.cookies
 
     result = await db_session.execute(
         select(User).where(User.google_sub == "g-sub-123")

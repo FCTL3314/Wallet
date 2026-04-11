@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Cookie, Depends, Response, status
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,8 +26,6 @@ from app.models.user import User
 from app.schemas.auth import (
     RegisterRequest,
     LoginRequest,
-    RefreshRequest,
-    TokenResponse,
     UserResponse,
     ChangeEmailRequest,
     ChangePasswordRequest,
@@ -47,7 +45,8 @@ async def _cleanup_tokens(user_id: int, db: AsyncSession) -> None:
     )
 
 
-async def _issue_tokens(user_id: int, db: AsyncSession) -> TokenResponse:
+async def _issue_tokens(user_id: int, db: AsyncSession) -> tuple[str, str]:
+    """Returns (access_token, raw_refresh_token). Stores only hash of refresh token in DB."""
     await _cleanup_tokens(user_id, db)
     access_token = create_access_token(user_id)
     raw_refresh, hashed_refresh = create_refresh_token()
@@ -57,13 +56,44 @@ async def _issue_tokens(user_id: int, db: AsyncSession) -> TokenResponse:
     db.add(
         RefreshToken(user_id=user_id, token_hash=hashed_refresh, expires_at=expires_at)
     )
-    return TokenResponse(access_token=access_token, refresh_token=raw_refresh)
+    return access_token, raw_refresh
+
+
+def _set_auth_cookies(
+    response: Response, access_token: str, refresh_token: str
+) -> None:
+    secure = not settings.DEV_MODE
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+        path="/api/auth",
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/api/auth")
 
 
 @router.post(
-    "/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
+    "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
 )
-async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(
+    body: RegisterRequest, response: Response, db: AsyncSession = Depends(get_db)
+):
     violations = validate_password(body.password)
     if violations:
         raise AuthWeakPassword(violations)
@@ -75,21 +105,33 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     user = User(email=body.email, password_hash=hash_password(body.password))
     db.add(user)
     await db.flush()
-    return await _issue_tokens(user.id, db)
+    access_token, refresh_token = await _issue_tokens(user.id, db)
+    _set_auth_cookies(response, access_token, refresh_token)
+    return user
 
 
-@router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
+@router.post("/login", response_model=UserResponse)
+async def login(
+    body: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
     if not user or not verify_password(body.password, user.password_hash):
         raise AuthInvalidCredentials()
-    return await _issue_tokens(user.id, db)
+    access_token, refresh_token = await _issue_tokens(user.id, db)
+    _set_auth_cookies(response, access_token, refresh_token)
+    return user
 
 
-@router.post("/refresh", response_model=TokenResponse)
-async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
-    token_hash = hash_refresh_token(body.refresh_token)
+@router.post("/refresh", status_code=status.HTTP_204_NO_CONTENT)
+async def refresh(
+    response: Response,
+    refresh_token: str | None = Cookie(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    if not refresh_token:
+        raise AuthInvalidRefreshToken()
+    token_hash = hash_refresh_token(refresh_token)
     result = await db.execute(
         select(RefreshToken).where(RefreshToken.token_hash == token_hash)
     )
@@ -99,18 +141,25 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
         raise AuthInvalidRefreshToken()
 
     token.revoked = True
-    return await _issue_tokens(token.user_id, db)
+    access_token, new_refresh = await _issue_tokens(token.user_id, db)
+    _set_auth_cookies(response, access_token, new_refresh)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
-    token_hash = hash_refresh_token(body.refresh_token)
-    result = await db.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-    )
-    token = result.scalar_one_or_none()
-    if token and not token.revoked:
-        token.revoked = True
+async def logout(
+    response: Response,
+    refresh_token: str | None = Cookie(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    if refresh_token:
+        token_hash = hash_refresh_token(refresh_token)
+        result = await db.execute(
+            select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        )
+        token = result.scalar_one_or_none()
+        if token and not token.revoked:
+            token.revoked = True
+    _clear_auth_cookies(response)
 
 
 @router.get("/me", response_model=UserResponse)

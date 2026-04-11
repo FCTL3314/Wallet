@@ -1,11 +1,5 @@
 import api from './client'
 
-export interface TokenResponse {
-  access_token: string
-  refresh_token: string
-  token_type: string
-}
-
 export interface UserResponse {
   id: number
   email: string
@@ -16,16 +10,16 @@ export interface UserResponse {
 
 export const authApi = {
   register(email: string, password: string) {
-    return api.post<TokenResponse>('/auth/register', { email, password })
+    return api.post<UserResponse>('/auth/register', { email, password })
   },
   login(email: string, password: string) {
-    return api.post<TokenResponse>('/auth/login', { email, password })
+    return api.post<UserResponse>('/auth/login', { email, password })
   },
-  refresh(refresh_token: string) {
-    return api.post<TokenResponse>('/auth/refresh', { refresh_token })
+  refresh() {
+    return api.post<void>('/auth/refresh')
   },
-  logout(refresh_token: string) {
-    return api.post('/auth/logout', { refresh_token })
+  logout() {
+    return api.post<void>('/auth/logout')
   },
   me() {
     return api.get<UserResponse>('/auth/me')

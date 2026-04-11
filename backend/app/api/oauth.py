@@ -6,7 +6,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.auth import _issue_tokens
+from app.api.auth import _issue_tokens, _set_auth_cookies
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.exceptions import AuthOAuthFailed
@@ -155,13 +155,11 @@ async def github_callback(
             db.add(user)
             await db.flush()
 
-    tokens = await _issue_tokens(user.id, db)
-    redirect_url = (
-        f"{settings.FRONTEND_URL}/oauth/callback"
-        f"?access_token={tokens.access_token}"
-        f"&refresh_token={tokens.refresh_token}"
+    access_token, refresh_token = await _issue_tokens(user.id, db)
+    redirect = RedirectResponse(
+        url=f"{settings.FRONTEND_URL}/oauth/callback", status_code=302
     )
-    redirect = RedirectResponse(url=redirect_url, status_code=302)
+    _set_auth_cookies(redirect, access_token, refresh_token)
     redirect.delete_cookie("oauth_state", path="/")
     return redirect
 
@@ -219,12 +217,10 @@ async def google_callback(
             db.add(user)
             await db.flush()
 
-    tokens = await _issue_tokens(user.id, db)
-    redirect_url = (
-        f"{settings.FRONTEND_URL}/oauth/callback"
-        f"?access_token={tokens.access_token}"
-        f"&refresh_token={tokens.refresh_token}"
+    access_token, refresh_token = await _issue_tokens(user.id, db)
+    redirect = RedirectResponse(
+        url=f"{settings.FRONTEND_URL}/oauth/callback", status_code=302
     )
-    redirect = RedirectResponse(url=redirect_url, status_code=302)
+    _set_auth_cookies(redirect, access_token, refresh_token)
     redirect.delete_cookie("oauth_state", path="/")
     return redirect

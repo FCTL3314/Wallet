@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useReferencesStore } from '../stores/references'
 
-const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const refs = useReferencesStore()
@@ -12,16 +11,8 @@ const refs = useReferencesStore()
 const error = ref('')
 
 onMounted(async () => {
-  const accessToken = route.query.access_token
-  const refreshToken = route.query.refresh_token
-
-  if (typeof accessToken !== 'string' || !accessToken || typeof refreshToken !== 'string' || !refreshToken) {
-    error.value = 'Authentication failed: missing tokens. Please try again.'
-    return
-  }
-
   try {
-    await auth.loginWithTokens(accessToken, refreshToken)
+    await auth.fetchUser()
     await refs.fetchAll()
     router.replace('/')
   } catch {
