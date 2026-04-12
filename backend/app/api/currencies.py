@@ -23,7 +23,6 @@ router = APIRouter(prefix="/currencies", tags=["currencies"])
 async def list_catalog_currencies(
     search: str | None = Query(default=None, max_length=50),
     limit: int = Query(default=50, ge=1, le=500),
-    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List all active currencies in the catalog with their rate availability."""

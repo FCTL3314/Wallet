@@ -3,10 +3,6 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
 from app.core.config import settings
 from app.core.database import Base, get_db
 from app.core.security import create_access_token, hash_password
@@ -21,6 +17,9 @@ from app.models import (
 )
 from app.models.currency_catalog import CurrencyCatalog
 from app.models.exchange_rate import ExchangeRate
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # Tests run over plain HTTP — disable the Secure cookie flag so httpx
 # stores and forwards auth cookies correctly.
@@ -121,7 +120,7 @@ async def other_user(db_session: AsyncSession) -> User:
 @pytest.fixture()
 async def other_auth_client(
     client: AsyncClient, other_user: User, db_session: AsyncSession
-) -> AsyncClient:
+) -> AsyncGenerator[AsyncClient, None]:
     """A second authenticated client for multi-tenancy tests."""
 
     async def _override() -> AsyncGenerator[AsyncSession, None]:

@@ -1,11 +1,16 @@
 import axios from 'axios'
 import type { App } from 'vue'
+import type { Router } from 'vue-router'
 import { getErrorMessage } from './errors'
 
 let toastService: { add: (options: object) => void } | null = null
+let router: Router | null = null
+let onSessionExpired: (() => void) | null = null
 
-export function initApiClient(app: App) {
+export function initApiClient(app: App, appRouter: Router, sessionExpiredHandler: () => void) {
   toastService = app.config.globalProperties.$toast
+  router = appRouter
+  onSessionExpired = sessionExpiredHandler
 }
 
 const api = axios.create({
@@ -46,9 +51,7 @@ api.interceptors.response.use(
         return api(originalRequest)
       } catch (refreshError) {
         processQueue(refreshError)
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login'
-        }
+        onSessionExpired?.()
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false

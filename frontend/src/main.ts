@@ -28,4 +28,7 @@ app.use(PrimeVue, {
 })
 app.use(ToastService)
 app.mount('#app')
-initApiClient(app)
+initApiClient(app, router, () => {
+  authStore.user = null
+  router.push('/login')
+})

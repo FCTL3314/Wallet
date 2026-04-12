@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Cookie, Depends, Response, status
-from sqlalchemy import select, delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -15,21 +15,21 @@ from app.core.exceptions import (
 )
 from app.core.password_policy import validate_password
 from app.core.security import (
-    hash_password,
-    verify_password,
     create_access_token,
     create_refresh_token,
+    hash_password,
     hash_refresh_token,
+    verify_password,
 )
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.schemas.auth import (
-    RegisterRequest,
-    LoginRequest,
-    UserResponse,
     ChangeEmailRequest,
     ChangePasswordRequest,
+    LoginRequest,
+    RegisterRequest,
     UpdatePreferencesRequest,
+    UserResponse,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -209,7 +209,6 @@ async def update_preferences(
 async def change_password(
     body: ChangePasswordRequest,
     user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
     if not verify_password(body.current_password, user.password_hash):
         raise AuthInvalidCredentials()
