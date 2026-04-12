@@ -4,12 +4,10 @@ import type { Router } from 'vue-router'
 import { getErrorMessage } from './errors'
 
 let toastService: { add: (options: object) => void } | null = null
-let router: Router | null = null
 let onSessionExpired: (() => void) | null = null
 
-export function initApiClient(app: App, appRouter: Router, sessionExpiredHandler: () => void) {
+export function initApiClient(app: App, _router: Router, sessionExpiredHandler: () => void) {
   toastService = app.config.globalProperties.$toast
-  router = appRouter
   onSessionExpired = sessionExpiredHandler
 }
 
