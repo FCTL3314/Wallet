@@ -56,13 +56,14 @@ async def _issue_tokens(user_id: int, db: AsyncSession) -> tuple[str, str]:
     db.add(
         RefreshToken(user_id=user_id, token_hash=hashed_refresh, expires_at=expires_at)
     )
+    await db.flush()
     return access_token, raw_refresh
 
 
 def _set_auth_cookies(
     response: Response, access_token: str, refresh_token: str
 ) -> None:
-    secure = not settings.DEV_MODE
+    secure = settings.COOKIE_SECURE
     response.set_cookie(
         key="access_token",
         value=access_token,

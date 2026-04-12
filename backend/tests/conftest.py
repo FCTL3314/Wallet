@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 # Tests run over plain HTTP — disable the Secure cookie flag so httpx
 # stores and forwards auth cookies correctly.
 settings.DEV_MODE = True
+settings.COOKIE_SECURE = False
 
 TEST_DB_NAME = "wallet_test"
 _base_url = settings.DATABASE_URL.rsplit("/", 1)[0]

@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     ADMIN_SECRET_KEY: str = "change-me-admin-secret"
 
     DEV_MODE: bool = False
+    COOKIE_SECURE: bool = True
 
     FRONTEND_URL: str = "http://localhost:5173"
 
