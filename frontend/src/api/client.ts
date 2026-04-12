@@ -26,8 +26,8 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
     const status = error.response?.status
-    const isAuthEndpoint = ['/auth/login', '/auth/register', '/auth/refresh'].some((path) =>
-      originalRequest.url?.includes(path),
+    const isAuthEndpoint = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/me'].some(
+      (path) => originalRequest.url?.includes(path),
     )
 
     if (status === 401 && !isAuthEndpoint && !originalRequest._retry) {
@@ -46,7 +46,9 @@ api.interceptors.response.use(
         return api(originalRequest)
       } catch (refreshError) {
         processQueue(refreshError)
-        window.location.href = '/login'
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false
