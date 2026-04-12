@@ -54,6 +54,8 @@ services:
       REPORTS_DIR: /reports
       EXCHANGERATE_API_KEY: ${EXCHANGERATE_API_KEY:-}
       COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      DEV_MODE: ${DEV_MODE:-false}
     volumes:
       - reports_data:/reports
     depends_on:
