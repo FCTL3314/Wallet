@@ -321,11 +321,23 @@ const donutOption = computed(() => {
     />
     <div v-if="currencies.length" class="currency-bar">
       <div class="currency-tabs">
-        <button
-          class="tab-pill tab-pill--all"
-          :class="{ 'tab-pill--active': selectedCurrencyId === 'all' }"
-          @click="selectedCurrencyId = 'all'"
-        ><PhCurrencyCircleDollar :size="14" weight="bold" /> All</button>
+        <div class="all-group" :class="{ 'all-group--active': selectedCurrencyId === 'all' }">
+          <button
+            class="tab-pill tab-pill--all"
+            :class="{ 'tab-pill--active': selectedCurrencyId === 'all' }"
+            @click="selectedCurrencyId = 'all'"
+            :title="isAllMode && currencies.length > 1 ? `Combine all currencies into ${convertToCurrency}` : 'Show all currencies'"
+          ><PhCurrencyCircleDollar :size="14" weight="bold" /> All</button>
+          <template v-if="isAllMode && currencies.length > 1">
+            <span class="all-group-arrow" aria-hidden="true">→</span>
+            <label class="all-group-select">
+              <PhArrowsClockwise :size="12" weight="bold" class="convert-to-icon" />
+              <select v-model="convertToCurrency" class="convert-select" aria-label="Convert all currencies to">
+                <option v-for="cur in currencies" :key="cur.code" :value="cur.code">{{ cur.code }}</option>
+              </select>
+            </label>
+          </template>
+        </div>
         <button
           v-for="cur in currencies"
           :key="cur.id"
@@ -333,12 +345,6 @@ const donutOption = computed(() => {
           :class="{ 'tab-pill--active': selectedCurrencyId === cur.id }"
           @click="selectedCurrencyId = cur.id"
         >{{ cur.code }}</button>
-      </div>
-      <div v-if="isAllMode && currencies.length > 1" class="convert-to-control">
-        <PhArrowsClockwise :size="13" weight="bold" class="convert-to-icon" />
-        <select v-model="convertToCurrency" class="convert-select">
-          <option v-for="cur in currencies" :key="cur.code" :value="cur.code">{{ cur.code }}</option>
-        </select>
       </div>
     </div>
   </BaseCard>
@@ -636,28 +642,70 @@ const donutOption = computed(() => {
   gap: 4px;
 }
 
-.convert-to-control {
+.all-group {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  margin-left: auto;
-  color: var(--text-label);
-  font-size: 0.78rem;
+  gap: 0.35rem;
+  padding: 2px;
+  border-radius: 9999px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.all-group--active {
+  background: rgba(var(--color-accent-rgb), 0.06);
+  box-shadow: inset 0 0 0 1px rgba(var(--color-accent-rgb), 0.25);
+}
+
+.all-group .tab-pill--all {
+  margin: 0;
+}
+
+.all-group-arrow {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  opacity: 0.7;
+  user-select: none;
+}
+
+.all-group-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.22rem 0.6rem 0.22rem 0.55rem;
+  border-radius: 9999px;
+  background: var(--card-bg);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.35);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.all-group-select:hover {
+  border-color: rgba(var(--color-accent-rgb), 0.55);
 }
 
 .convert-to-icon {
-  opacity: 0.6;
+  color: var(--color-accent);
+  opacity: 0.75;
+  flex-shrink: 0;
 }
 
 .convert-select {
-  padding: 0.2rem 0.45rem;
-  border-radius: 8px;
+  border: none;
+  outline: none;
+  background: transparent;
   font-size: 0.8rem;
   font-weight: 600;
-  border: 1px solid var(--card-border);
-  background: var(--card-bg);
-  color: var(--text-primary);
+  color: var(--color-accent);
   cursor: pointer;
+  padding: 0;
+  padding-right: 2px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%235585c5' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right center;
+  padding-right: 14px;
 }
 
 /* ── Trend tabs ─────────────────────────────────────────────── */
@@ -1045,7 +1093,7 @@ const donutOption = computed(() => {
 
 @media (max-width: 640px) {
   .currency-bar { flex-direction: column; align-items: stretch; }
-  .convert-to-control { margin-left: 0; }
+  .all-group { flex-wrap: wrap; }
   .trend-tabs { flex-wrap: wrap; }
   .warning-link { margin-left: 0; }
   .donut-layout { flex-direction: column; align-items: stretch; }
