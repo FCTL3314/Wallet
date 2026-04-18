@@ -2,6 +2,7 @@ import axios from 'axios'
 import type { App } from 'vue'
 import type { Router } from 'vue-router'
 import { getErrorMessage } from './errors'
+import { useLoadingStore } from '../stores/loading'
 
 let toastService: { add: (options: object) => void } | null = null
 let onSessionExpired: (() => void) | null = null
@@ -16,6 +17,11 @@ const api = axios.create({
   withCredentials: true,
 })
 
+api.interceptors.request.use((config) => {
+  useLoadingStore().start()
+  return config
+})
+
 let isRefreshing = false
 let failedQueue: Array<{ resolve: () => void; reject: (error: unknown) => void }> = []
 
@@ -25,10 +31,14 @@ function processQueue(error: unknown) {
 }
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    useLoadingStore().done()
+    return response
+  },
   async (error) => {
     const originalRequest = error.config
     const status = error.response?.status
+    useLoadingStore().done()
     const isAuthEndpoint = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/me'].some(
       (path) => originalRequest.url?.includes(path),
     )

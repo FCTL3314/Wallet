@@ -12,6 +12,7 @@ import TheBottomNav from './components/TheBottomNav.vue'
 import TheAppFooter from './components/TheAppFooter.vue'
 import OnboardingGuide from './components/OnboardingGuide.vue'
 import AppNotifications from './components/AppNotifications.vue'
+import GlobalLoadingBar from './components/GlobalLoadingBar.vue'
 
 const auth = useAuthStore()
 const refs = useReferencesStore()
@@ -70,6 +71,7 @@ function logout() {
 </script>
 
 <template>
+  <GlobalLoadingBar />
   <Toast position="top-right" />
   <OnboardingGuide />
   <AppNotifications />
