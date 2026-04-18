@@ -78,18 +78,31 @@ async def get_rate(
     if sys_rate is None:
         # Cross-rate fallback via USD: A → B = (A → USD) / (B → USD)
         if to_code != "USD":
-            stmt_from = (
-                select(ExchangeRate)
-                .where(
-                    ExchangeRate.from_code == from_code,
-                    ExchangeRate.to_code == "USD",
-                    ExchangeRate.valid_date <= at_date,
+            if from_code == "USD":
+                from_usd_rate = Decimal("1")
+                from_usd_valid_date = at_date
+                from_usd_source = "identity"
+                from_usd_found = True
+            else:
+                stmt_from = (
+                    select(ExchangeRate)
+                    .where(
+                        ExchangeRate.from_code == from_code,
+                        ExchangeRate.to_code == "USD",
+                        ExchangeRate.valid_date <= at_date,
+                    )
+                    .order_by(ExchangeRate.valid_date.desc())
+                    .limit(1)
                 )
-                .order_by(ExchangeRate.valid_date.desc())
-                .limit(1)
-            )
-            result_from = await db.execute(stmt_from)
-            from_usd = result_from.scalar_one_or_none()
+                result_from = await db.execute(stmt_from)
+                from_usd = result_from.scalar_one_or_none()
+                if from_usd is not None:
+                    from_usd_rate = from_usd.rate
+                    from_usd_valid_date = from_usd.valid_date
+                    from_usd_source = from_usd.source
+                    from_usd_found = True
+                else:
+                    from_usd_found = False
 
             stmt_base = (
                 select(ExchangeRate)
@@ -104,15 +117,15 @@ async def get_rate(
             result_base = await db.execute(stmt_base)
             base_usd = result_base.scalar_one_or_none()
 
-            if from_usd is not None and base_usd is not None:
-                cross_valid_date = min(from_usd.valid_date, base_usd.valid_date)
+            if from_usd_found and base_usd is not None:
+                cross_valid_date = min(from_usd_valid_date, base_usd.valid_date)
                 stale_threshold = at_date - timedelta(
                     days=settings.EXCHANGE_RATE_STALENESS_DAYS
                 )
                 cross_status = "ok" if cross_valid_date >= stale_threshold else "stale"
                 return RateResult(
-                    rate=from_usd.rate / base_usd.rate,
-                    source=from_usd.source,
+                    rate=from_usd_rate / base_usd.rate,
+                    source=from_usd_source,
                     valid_date=cross_valid_date,
                     status=cross_status,
                 )
@@ -203,18 +216,28 @@ async def get_rates_batch(
     cross_usd_map: dict[str, dict] = {}
     base_usd_row: dict | None = None
     if cross_needed and to_code != "USD":
+        # USD → USD is identity; synthesize instead of hitting DB.
+        if "USD" in cross_needed:
+            cross_usd_map["USD"] = {
+                "from_code": "USD",
+                "rate": Decimal("1"),
+                "valid_date": at_date,
+                "source": "identity",
+            }
         # Fetch from_code → USD for all still-missing codes
-        stmt = text("""
-            SELECT DISTINCT ON (from_code) *
-            FROM exchange_rates
-            WHERE from_code = ANY(:codes)
-              AND to_code = 'USD'
-              AND valid_date <= :at_date
-            ORDER BY from_code, valid_date DESC
-        """)
-        result = await db.execute(stmt, {"codes": cross_needed, "at_date": at_date})
-        for row in result.mappings():
-            cross_usd_map[row["from_code"]] = dict(row)
+        db_codes = [c for c in cross_needed if c != "USD"]
+        if db_codes:
+            stmt = text("""
+                SELECT DISTINCT ON (from_code) *
+                FROM exchange_rates
+                WHERE from_code = ANY(:codes)
+                  AND to_code = 'USD'
+                  AND valid_date <= :at_date
+                ORDER BY from_code, valid_date DESC
+            """)
+            result = await db.execute(stmt, {"codes": db_codes, "at_date": at_date})
+            for row in result.mappings():
+                cross_usd_map[row["from_code"]] = dict(row)
 
         # Fetch to_code → USD (the base conversion rate)
         stmt = text("""
@@ -330,19 +353,30 @@ async def get_rates_for_periods(
             c for c in non_base if c not in user_rate_map and c not in sys_rate_map
         ]
         if cross_needed_periods:
-            stmt = text("""
-                SELECT from_code, rate, valid_date, source
-                FROM exchange_rates
-                WHERE from_code = ANY(:codes)
-                  AND to_code = 'USD'
-                  AND valid_date <= :max_date
-                ORDER BY from_code, valid_date DESC
-            """)
-            result = await db.execute(
-                stmt, {"codes": cross_needed_periods, "max_date": max_date}
-            )
-            for row in result.mappings():
-                sys_usd_map.setdefault(row["from_code"], []).append(dict(row))
+            if "USD" in cross_needed_periods:
+                sys_usd_map["USD"] = [
+                    {
+                        "from_code": "USD",
+                        "rate": Decimal("1"),
+                        "valid_date": max_date,
+                        "source": "identity",
+                    }
+                ]
+            db_codes_periods = [c for c in cross_needed_periods if c != "USD"]
+            if db_codes_periods:
+                stmt = text("""
+                    SELECT from_code, rate, valid_date, source
+                    FROM exchange_rates
+                    WHERE from_code = ANY(:codes)
+                      AND to_code = 'USD'
+                      AND valid_date <= :max_date
+                    ORDER BY from_code, valid_date DESC
+                """)
+                result = await db.execute(
+                    stmt, {"codes": db_codes_periods, "max_date": max_date}
+                )
+                for row in result.mappings():
+                    sys_usd_map.setdefault(row["from_code"], []).append(dict(row))
 
         if sys_usd_map:
             stmt = text("""
@@ -413,7 +447,13 @@ async def get_rates_for_periods(
             if not resolved:
                 # Cross-rate fallback: A → to_code = (A → USD) / (to_code → USD)
                 from_usd_row: dict | None = None
-                if code in sys_usd_map:
+                if code == "USD":
+                    from_usd_row = {
+                        "rate": Decimal("1"),
+                        "valid_date": period_end,
+                        "source": "identity",
+                    }
+                elif code in sys_usd_map:
                     for row in sys_usd_map[code]:
                         if row["valid_date"] <= period_end:
                             from_usd_row = row
