@@ -339,6 +339,7 @@ const donutOption = computed(() => {
     labels,
     labels.map((l) => donutTotals.value[l] ?? 0),
     DONUT_COLORS.slice(0, labels.length),
+    isDark.value,
   )
 })
 

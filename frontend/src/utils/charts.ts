@@ -21,6 +21,9 @@ export function buildLineChartOption(
   const lineColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'
   const splitColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'
   const crossColor = isDark ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.15)'
+  const tooltipBg = isDark ? 'rgba(30,30,34,0.96)' : '#ffffff'
+  const tooltipBorder = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'
+  const tooltipText = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.85)'
   const fmt = (v: number) =>
     Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   return {
@@ -28,6 +31,9 @@ export function buildLineChartOption(
     tooltip: {
       trigger: 'axis',
       confine: true,
+      backgroundColor: tooltipBg,
+      borderColor: tooltipBorder,
+      textStyle: { color: tooltipText },
       axisPointer: { type: 'cross', crossStyle: { color: crossColor } },
       formatter: (params: Array<{ dataIndex: number; axisValue: string; marker: string; seriesName: string; value: number }>) => {
         const idx = params[0]?.dataIndex ?? null
@@ -81,11 +87,17 @@ export function buildLineChartOption(
   }
 }
 
-export function buildDonutChartOption(labels: string[], values: number[], colors: string[]) {
+export function buildDonutChartOption(labels: string[], values: number[], colors: string[], isDark = false) {
+  const tooltipBg = isDark ? 'rgba(30,30,34,0.96)' : '#ffffff'
+  const tooltipBorder = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'
+  const tooltipText = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.85)'
   return {
     tooltip: {
       trigger: 'item',
       confine: true,
+      backgroundColor: tooltipBg,
+      borderColor: tooltipBorder,
+      textStyle: { color: tooltipText },
       formatter: '{b}: <b>{c}</b> ({d}%)',
     },
     legend: { show: false },
