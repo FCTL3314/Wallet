@@ -6,7 +6,7 @@ import { analyticsApi, type GroupBy, type IncomeBySourceEntry, type BalanceBreak
 import { useReferencesStore } from '../stores/references'
 import { storeToRefs } from 'pinia'
 import { fmtAmount, fmtPeriod } from '../utils/format'
-import { buildLineChartOption, buildDonutChartOption, DONUT_COLORS } from '../utils/charts'
+import { buildLineChartOption, buildDonutChartOption, DONUT_COLORS, type TooltipBreakdownRow } from '../utils/charts'
 import { useTable, createColumnHelper } from '../composables/useTable'
 import { useDateRange } from '../composables/useDateRange'
 import VChart from 'vue-echarts'
@@ -242,6 +242,41 @@ const TREND_OPTIONS: { key: TrendKey; label: string; borderColor: string; backgr
   { key: 'profit',  label: 'Profit',  borderColor: '#2272cc', backgroundColor: 'rgba(34,114,204,0.08)' },
 ]
 
+const sourceByPeriod = computed(() => {
+  const m = new Map<string, Record<string, number>>()
+  for (const entry of sourceData.value) m.set(entry.period, entry.sources)
+  return m
+})
+
+const trendBreakdown = computed<(TooltipBreakdownRow[] | null)[]>(() => {
+  const key = selectedTrend.value
+  return chartEntries.value.map((e) => {
+    if (key === 'income') {
+      const sources = sourceByPeriod.value.get(e.period)
+      if (!sources) return null
+      const rows = Object.entries(sources)
+        .map(([label, value]) => ({ label, value: Number(value) }))
+        .filter((r) => r.value !== 0)
+        .sort((a, b) => b.value - a.value)
+      return rows.length ? rows : null
+    }
+    if (key === 'profit') {
+      const rows = Object.entries(e.balance_change ?? {})
+        .map(([label, value]) => ({ label, value: Number(value), prefix: Number(value) >= 0 ? '+' : '' }))
+        .filter((r) => r.value !== 0)
+        .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+      return rows.length ? rows : null
+    }
+    // expense = income − profit → show the decomposition
+    if (e.income === 0 && e.profit === 0) return null
+    const rows: TooltipBreakdownRow[] = [
+      { label: 'Income', value: e.income },
+      { label: '− Profit', value: e.profit },
+    ]
+    return rows
+  })
+})
+
 const lineOption = computed(() => {
   const t = TREND_OPTIONS.find((o) => o.key === selectedTrend.value)!
   const dataMap: Record<TrendKey, (e: SummaryEntry) => number> = {
@@ -258,6 +293,7 @@ const lineOption = computed(() => {
     displayCurrencyCode.value,
     (idx) => { hoveredPeriod.value = idx !== null ? (chartEntries.value[idx]?.period ?? null) : null },
     isDark.value,
+    trendBreakdown.value,
   )
 })
 

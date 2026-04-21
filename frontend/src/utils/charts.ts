@@ -1,5 +1,11 @@
 export const DONUT_COLORS = ['#5585c5', '#4aaa80', '#e0b84a', '#d46878', '#4cbecb', '#78a8e0']
 
+export interface TooltipBreakdownRow {
+  label: string
+  value: number
+  prefix?: string
+}
+
 export function buildLineChartOption(
   periods: string[],
   values: number[],
@@ -9,11 +15,14 @@ export function buildLineChartOption(
   currencyCode: string | null,
   onHover: (dataIndex: number | null) => void,
   isDark = false,
+  breakdownByIndex?: (TooltipBreakdownRow[] | null)[],
 ) {
   const textMuted = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)'
   const lineColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'
   const splitColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'
   const crossColor = isDark ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.15)'
+  const fmt = (v: number) =>
+    Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   return {
     grid: { left: 16, right: 24, bottom: 8, top: 36, containLabel: true },
     tooltip: {
@@ -25,8 +34,18 @@ export function buildLineChartOption(
         onHover(idx)
         const p = params[0]
         if (!p) return ''
-        const val = Number(p.value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-        return `<span style="font-size:11px;color:${textMuted}">${p.axisValue}</span><br/>${p.marker}${p.seriesName}: <b>${val}</b>`
+        const val = fmt(Number(p.value))
+        let html = `<span style="font-size:11px;color:${textMuted}">${p.axisValue}</span><br/>${p.marker}${p.seriesName}: <b>${val}</b>`
+        const rows = idx !== null && breakdownByIndex ? breakdownByIndex[idx] : null
+        if (rows && rows.length) {
+          html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid ${lineColor};font-size:11px;">`
+          for (const row of rows) {
+            const prefix = row.prefix ?? ''
+            html += `<div style="display:flex;justify-content:space-between;gap:12px;"><span style="color:${textMuted}">${row.label}</span><span style="font-variant-numeric:tabular-nums;">${prefix}${fmt(row.value)}</span></div>`
+          }
+          html += `</div>`
+        }
+        return html
       },
     },
     xAxis: {

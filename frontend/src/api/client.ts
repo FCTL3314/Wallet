@@ -39,7 +39,7 @@ api.interceptors.response.use(
     const originalRequest = error.config
     const status = error.response?.status
     useLoadingStore().done()
-    const isAuthEndpoint = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/me'].some(
+    const isAuthEndpoint = ['/auth/login', '/auth/register', '/auth/refresh'].some(
       (path) => originalRequest.url?.includes(path),
     )
 
