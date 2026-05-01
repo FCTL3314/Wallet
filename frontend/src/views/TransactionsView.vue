@@ -17,6 +17,7 @@ import { useDateRange } from '../composables/useDateRange'
 import BaseModal from '../components/BaseModal.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
 import BaseCard from '../components/BaseCard.vue'
+import BaseStatCard from '../components/BaseStatCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import EditDeleteActions from '../components/EditDeleteActions.vue'
 import PeriodFilterBar from '../components/PeriodFilterBar.vue'
@@ -234,10 +235,27 @@ function sourceName(id: number | null) {
   if (!id) return '—'
   return refs.incomeSourceById(id)?.name ?? '?'
 }
+
+const totalsByCcy = computed(() => {
+  const totals: Record<string, number> = {}
+  for (const t of items.value) {
+    const code = refs.currencyById(t.currency_id)?.code ?? '?'
+    totals[code] = (totals[code] ?? 0) + Number(t.amount)
+  }
+  return totals
+})
+
+const totalEntries = computed(() =>
+  Object.entries(totalsByCcy.value)
+    .map(([code, amount]) => ({ code, amount }))
+    .sort((a, b) => b.amount - a.amount),
+)
+
+const totalCount = computed(() => items.value.length)
 </script>
 
 <template>
-  <div class="page-sections">
+  <div class="sections">
   <BaseCard>
     <PeriodFilterBar
       v-model:dateFrom="dateFrom"
@@ -249,6 +267,33 @@ function sourceName(id: number | null) {
       <div ref="addBtn" data-onboarding="add-income-btn"><BaseButton variant="primary" size="sm" @click="openCreate">+ Add Income</BaseButton></div>
     </PeriodFilterBar>
   </BaseCard>
+
+  <div v-if="items.length || loading" class="kpis">
+    <BaseStatCard label="Income" variant="income">
+      <template v-if="!totalEntries.length">
+        <div class="stat-value">—</div>
+      </template>
+      <template v-else-if="totalEntries.length === 1">
+        <div class="stat-value">
+          <span class="stat-currency">{{ totalEntries[0]?.code }}</span>{{ fmtAmount(totalEntries[0]?.amount ?? 0) }}
+        </div>
+      </template>
+      <template v-else>
+        <div class="totals-list">
+          <div v-for="entry in totalEntries" :key="entry.code" class="totals-row">
+            <span class="totals-code">{{ entry.code }}</span>
+            <span class="num totals-amount">{{ fmtAmount(entry.amount) }}</span>
+          </div>
+        </div>
+      </template>
+    </BaseStatCard>
+    <BaseStatCard label="Entries">
+      <div class="stat-value">{{ totalCount }}</div>
+      <div class="stat-foot">
+        <span class="muted">{{ activePreset === 'custom' ? 'custom range' : activePreset }}</span>
+      </div>
+    </BaseStatCard>
+  </div>
 
   <BaseDataTable
     :table="table"

@@ -3,11 +3,12 @@ import { ref, useTemplateRef } from 'vue'
 import { PhInfo } from '@phosphor-icons/vue'
 import type { Component } from 'vue'
 
-defineProps<{
+const props = defineProps<{
   label: string
   variant?: 'income' | 'expense' | 'profit'
   hint?: string
   icon?: Component
+  flat?: boolean
 }>()
 
 const iconRef = useTemplateRef<HTMLElement>('iconRef')
@@ -30,7 +31,7 @@ function hideTooltip() {
 </script>
 
 <template>
-  <div :class="['stat-card', variant ? `stat-card--${variant}` : '']">
+  <div :class="[!props.flat && 'card', 'stat-card', variant ? `stat-card--${variant}` : '']">
     <div class="stat-label">
       <component :is="icon" v-if="icon" :size="14" weight="duotone" class="stat-label-icon" />
       {{ label }}

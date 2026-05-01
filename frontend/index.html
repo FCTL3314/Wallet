@@ -12,23 +12,26 @@
     <!-- Anti-FOUC: apply saved theme before first paint -->
     <script>
       (function () {
-        var accentMap = {
-          blue:   { main: '#2272cc', light: '#4298f5', rgb: '34, 114, 204' },
-          violet: { main: '#7c3aed', light: '#a78bfa', rgb: '124, 58, 237' },
-          teal:   { main: '#0e9488', light: '#2dd4bf', rgb: '14, 148, 136' },
-          green:  { main: '#16a34a', light: '#4ade80', rgb: '22, 163, 74' },
-          orange: { main: '#ea580c', light: '#fb923c', rgb: '234, 88, 12' },
-          rose:   { main: '#e11d48', light: '#fb7185', rgb: '225, 29, 72' },
-        };
         var mode = localStorage.getItem('theme-mode') || 'light';
-        var key  = localStorage.getItem('theme-accent') || 'blue';
-        var p = accentMap[key] || accentMap.blue;
+        var hue = parseInt(localStorage.getItem('theme-hue'), 10);
+        if (!Number.isFinite(hue)) hue = 150;
         var r = document.documentElement;
         r.dataset.theme = mode;
-        r.style.setProperty('--color-accent', p.main);
-        r.style.setProperty('--color-accent-light', p.light);
-        r.style.setProperty('--color-accent-rgb', p.rgb);
-        r.style.setProperty('--shadow-btn-accent', '0 4px 24px rgba(' + p.rgb + ', 0.30)');
+        if (mode === 'dark') {
+          r.style.setProperty('--accent',        'oklch(74% 0.17 ' + hue + ')');
+          r.style.setProperty('--accent-ink',    'oklch(88% 0.14 ' + hue + ')');
+          r.style.setProperty('--accent-soft',   'oklch(26% 0.06 ' + hue + ')');
+          r.style.setProperty('--accent-soft-2', 'oklch(34% 0.09 ' + hue + ')');
+          r.style.setProperty('--focus-ring',    '0 0 0 3px oklch(74% 0.17 ' + hue + ' / .3)');
+        } else {
+          r.style.setProperty('--accent',        'oklch(58% 0.14 ' + hue + ')');
+          r.style.setProperty('--accent-ink',    'oklch(36% 0.11 ' + hue + ')');
+          r.style.setProperty('--accent-soft',   'oklch(94% 0.04 ' + hue + ')');
+          r.style.setProperty('--accent-soft-2', 'oklch(88% 0.08 ' + hue + ')');
+          r.style.setProperty('--focus-ring',    '0 0 0 3px oklch(58% 0.14 ' + hue + ' / .22)');
+        }
+        r.style.setProperty('--color-accent', 'var(--accent)');
+        r.style.setProperty('--color-accent-light', 'var(--accent-soft-2)');
       })();
     </script>
   </head>

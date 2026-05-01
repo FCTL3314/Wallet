@@ -1,44 +1,66 @@
 /* ============================================================
-   APP LAYOUT
+   APP LAYOUT — humanist friendly green system
    ============================================================ */
 
 .app-layout {
     min-height: 100vh;
     position: relative;
-    z-index: 1; /* sit above the body::before/after ambient orbs */
+    z-index: 1;
 }
 
-/* ============================================================
-   HEADER
-   ============================================================ */
+/* ── Floating header pill ──────────────────────────────── */
 
 .app-header {
     position: fixed;
     top: 16px;
     left: 24px;
     right: 24px;
-    height: var(--header-height);
-    background: var(--card-bg);
-    border-radius: var(--radius-card);
-    border: 1px solid var(--card-border);
-    box-shadow: var(--shadow-card-solid);
+    max-width: 1352px;
+    margin: 0 auto;
+    z-index: 50;
+    background: color-mix(in oklab, var(--surface) 82%, transparent);
+    backdrop-filter: saturate(1.4) blur(18px);
+    -webkit-backdrop-filter: saturate(1.4) blur(18px);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-card);
+    padding: 10px 14px 10px 20px;
     display: flex;
     align-items: center;
-    padding: 0 20px;
     gap: 8px;
-    z-index: 100;
-    transition: background 0.3s, border-color 0.3s;
+    box-shadow: var(--shadow-md);
+    transition: background-color var(--t-med) var(--ease), border-color var(--t-med) var(--ease);
 }
 
 .header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-right: 14px;
+    margin-right: 6px;
+    border-right: 1px solid var(--hairline);
     font-family: var(--font-display);
-    font-size: 1.375rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--color-accent);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    font-size: 16px;
+    color: var(--ink);
     white-space: nowrap;
-    margin-right: 16px;
 }
+
+.brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: -0.04em;
+    flex-shrink: 0;
+}
+
+[data-theme="dark"] .brand-mark { color: #14150f; }
 
 .header-nav {
     display: flex;
@@ -48,17 +70,16 @@
 }
 
 .header-nav a {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 7px;
-    padding: 7px 11px;
-    border-radius: 10px;
-    color: var(--text-secondary);
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: var(--r-pill);
+    color: var(--ink-2);
     text-decoration: none;
-    font-family: var(--font-body);
-    font-size: 0.8125rem;
+    font-size: 14px;
     font-weight: 500;
-    transition: all 0.2s var(--ease-smooth);
+    transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
     white-space: nowrap;
 }
 
@@ -66,124 +87,89 @@
     width: 16px;
     height: 16px;
     flex-shrink: 0;
+    opacity: 0.9;
 }
 
 .header-nav a:hover {
-    background: rgba(var(--color-accent-rgb), 0.07);
-    color: var(--text-primary);
+    background: var(--surface-hover);
+    color: var(--ink);
 }
 
 .header-nav a.router-link-exact-active {
-    background: rgba(var(--color-accent-rgb), 0.09);
-    color: var(--color-accent);
+    background: var(--accent-soft);
+    color: var(--accent-ink);
 }
 
 .header-user {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 6px;
     margin-left: auto;
     padding-left: 16px;
 }
 
 .header-avatar-chip {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 10px 4px 4px;
-    background: rgba(var(--color-accent-rgb), 0.07);
-    border: 1px solid rgba(var(--color-accent-rgb), 0.13);
-    border-radius: 20px;
+    padding: 4px 12px 4px 4px;
+    background: var(--surface-2);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-pill);
     cursor: pointer;
-    transition: all 0.2s var(--ease-smooth);
+    transition: all var(--t-fast) var(--ease);
 }
 
 .header-avatar-chip:hover {
-    background: rgba(232, 69, 101, 0.07);
-    border-color: rgba(232, 69, 101, 0.20);
+    background: var(--expense-soft);
+    border-color: transparent;
 }
 
 .header-avatar {
-    width: 24px;
-    height: 24px;
-    background: var(--color-accent);
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, var(--accent-soft-2), var(--accent));
     color: #fff;
     border-radius: 50%;
-    font-size: 0.6875rem;
-    font-weight: 700;
-    font-family: var(--font-body);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font-display);
+    display: grid;
+    place-items: center;
     flex-shrink: 0;
-    transition: background 0.2s var(--ease-smooth);
+    transition: background var(--t-fast) var(--ease);
 }
 
-.header-avatar-chip:hover .header-avatar {
-    background: var(--color-expense);
-}
+[data-theme="dark"] .header-avatar { color: #14150f; }
 
 .header-username {
-    font-size: 0.8125rem;
+    font-size: 13px;
     font-weight: 500;
-    color: var(--color-accent);
-    font-family: var(--font-body);
+    color: var(--ink-2);
     white-space: nowrap;
     overflow: hidden;
     max-width: 160px;
     text-overflow: ellipsis;
-    transition: all 0.15s var(--ease-smooth);
 }
 
-.header-avatar-chip:hover .header-username {
-    display: none;
-}
+.header-avatar-chip:hover .header-username { display: none; }
 
 .header-logout-label {
     display: none;
     align-items: center;
-    gap: 5px;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--color-expense);
-    font-family: var(--font-body);
-    white-space: nowrap;
-}
-
-.header-avatar-chip:hover .header-logout-label {
-    display: flex;
-}
-
-.header-logout {
-    display: flex;
-    align-items: center;
     gap: 6px;
-    padding: 7px 14px;
-    background: rgba(0, 0, 0, 0.05);
-    border: 1px solid rgba(0, 0, 0, 0.10);
-    color: var(--text-secondary);
-    border-radius: var(--radius-btn);
-    cursor: pointer;
-    font-family: var(--font-body);
-    font-size: 0.8125rem;
+    font-size: 13px;
     font-weight: 500;
+    color: var(--expense-ink);
     white-space: nowrap;
-    transition: all 0.2s var(--ease-smooth);
 }
 
-.header-logout:hover {
-    background: rgba(220, 53, 69, 0.07);
-    border-color: rgba(220, 53, 69, 0.20);
-    color: var(--color-expense);
-}
+.header-avatar-chip:hover .header-logout-label { display: inline-flex; }
 
-/* ============================================================
-   MAIN CONTENT
-   ============================================================ */
+/* ── Main content ──────────────────────────────────────── */
 
 .main-content {
-    /* top: 16px header offset + 60px header height + 24px gap */
-    padding: calc(16px + var(--header-height) + var(--gap-section)) 24px 16px;
+    padding: calc(16px + 56px + var(--gap-section)) 24px 40px;
     min-height: 100vh;
     max-width: 1400px;
     margin: 0 auto;
@@ -195,36 +181,29 @@
     gap: var(--gap-section);
 }
 
-/* Constrain content-heavy pages that don't need full viewport width */
-.page-narrow {
-    max-width: 860px;
+.page-narrow { max-width: 860px; }
+
+/* ── Responsive ────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+    .header-nav a { padding: 7px 10px; font-size: 13px; }
+    .header-nav a span:not(.label) { display: none; }
 }
-
-/* ── Dark theme overrides ─────────────────────────────── */
-
-[data-theme="dark"] .header-logout {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.10);
-}
-
-/* ============================================================
-   RESPONSIVE — MOBILE (< 640px)
-   ============================================================ */
 
 @media (max-width: 640px) {
     .app-header {
         top: 8px;
         left: 12px;
         right: 12px;
-        height: 56px;
+        padding: 8px 10px;
     }
-
-    .header-nav {
-        display: none;
+    .header-nav { display: none; }
+    .header-brand {
+        border-right: 0;
+        padding-right: 0;
+        margin-right: 0;
     }
-
     .main-content {
-        /* 8px offset + 56px header + 16px gap */
         padding: calc(8px + 56px + 16px) 12px 80px;
     }
 }

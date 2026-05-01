@@ -4,6 +4,8 @@ import { useAuthStore } from '../stores/auth'
 declare module 'vue-router' {
   interface RouteMeta {
     guest?: boolean
+    eyebrow?: string
+    title?: string
   }
 }
 
@@ -30,31 +32,37 @@ const routes = [
     path: '/',
     name: 'Dashboard',
     component: () => import('../views/DashboardView.vue'),
+    meta: { eyebrow: 'Overview', title: 'Dashboard' },
   },
   {
     path: '/transactions',
     name: 'Transactions',
     component: () => import('../views/TransactionsView.vue'),
+    meta: { eyebrow: 'Movement', title: 'Transactions' },
   },
   {
     path: '/balance-snapshots',
     name: 'BalanceSnapshots',
     component: () => import('../views/BalanceSnapshotsView.vue'),
+    meta: { eyebrow: 'Accounts', title: 'Balances' },
   },
   {
     path: '/expenses',
     name: 'Expenses',
     component: () => import('../views/ExpensesView.vue'),
+    meta: { eyebrow: 'Scheduled', title: 'Regular expenses' },
   },
   {
     path: '/references',
     name: 'References',
     component: () => import('../views/ReferencesView.vue'),
+    meta: { eyebrow: 'Library', title: 'References' },
   },
   {
     path: '/settings',
     name: 'Settings',
     component: () => import('../views/SettingsView.vue'),
+    meta: { eyebrow: 'Account', title: 'Settings' },
   },
 ]
 

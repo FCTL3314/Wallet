@@ -323,6 +323,15 @@ async function addSource() {
 }
 const deleteSource = (id: number) => sourceCrud.remove(id)
 const editingSource = ref<IncomeSource | null>(null)
+type ReferencesTab = 'currencies' | 'locations' | 'accounts' | 'income'
+const activeTab = ref<ReferencesTab>('currencies')
+const REF_TABS: { id: ReferencesTab; label: string }[] = [
+  { id: 'currencies', label: 'Currencies' },
+  { id: 'locations',  label: 'Storage Locations' },
+  { id: 'accounts',   label: 'Storage Accounts' },
+  { id: 'income',     label: 'Income sources' },
+]
+
 const editSourceForm = ref({ name: '' })
 function openEditSource(s: IncomeSource) {
   editingSource.value = s
@@ -337,11 +346,22 @@ async function saveEditSource() {
 </script>
 
 <template>
-  <div class="page-sections page-narrow">
-  <div class="settings-grid">
+  <div class="sections">
+  <BaseCard class="ref-tabs-card">
+    <div class="segmented ref-tabs">
+      <button
+        v-for="t in REF_TABS"
+        :key="t.id"
+        :class="{ on: activeTab === t.id }"
+        @click="activeTab = t.id"
+      >{{ t.label }}</button>
+    </div>
+  </BaseCard>
+
+  <div class="ref-pane">
 
     <!-- Currencies -->
-    <BaseCard data-onboarding="currencies-section" title="Currencies">
+    <BaseCard v-if="activeTab === 'currencies'" data-onboarding="currencies-section" title="Currencies">
       <!-- Base currency picker -->
       <div class="base-currency-row">
         <span class="base-currency-label">Base currency</span>
@@ -458,7 +478,7 @@ async function saveEditSource() {
     </BaseCard>
 
     <!-- Storage Locations -->
-    <SettingsSection data-onboarding="storage-locations-section" title="Storage Locations" :items="refs.storageLocations" @add="addLocation">
+    <SettingsSection v-if="activeTab === 'locations'" data-onboarding="storage-locations-section" title="Storage Locations" :items="refs.storageLocations" @add="addLocation">
       <template #add-form>
         <input v-model="newLocation" placeholder="Name" class="form-input-sm" style="flex: 1" />
       </template>
@@ -478,7 +498,7 @@ async function saveEditSource() {
     </SettingsSection>
 
     <!-- Storage Accounts -->
-    <SettingsSection data-onboarding="storage-accounts-section" title="Storage Accounts" :items="refs.storageAccounts" @add="addAccount">
+    <SettingsSection v-if="activeTab === 'accounts'" data-onboarding="storage-accounts-section" title="Storage Accounts" :items="refs.storageAccounts" @add="addAccount">
       <template #add-form>
         <select v-model.number="newAccount.storage_location_id" class="form-input-sm" style="flex: 1">
           <option :value="0" disabled>Location</option>
@@ -496,7 +516,7 @@ async function saveEditSource() {
     </SettingsSection>
 
     <!-- Income Sources -->
-    <SettingsSection data-onboarding="income-sources-section" title="Income Sources" :items="refs.incomeSources" @add="addSource">
+    <SettingsSection v-if="activeTab === 'income'" data-onboarding="income-sources-section" title="Income Sources" :items="refs.incomeSources" @add="addSource">
       <template #add-form>
         <input v-model="newSource" placeholder="Name" class="form-input-sm" style="flex: 1" />
       </template>
@@ -519,6 +539,7 @@ async function saveEditSource() {
   </div>
 
   <!-- Manual Rates Modal -->
+  <!-- (existing modal below) -->
   <BaseModal
     :show="!!manualRateModalCurrency"
     :title="`Manual Exchange Rates — ${manualRateModalCurrency?.code ?? ''}`"
@@ -604,6 +625,10 @@ async function saveEditSource() {
 </template>
 
 <style scoped>
+.ref-tabs-card { padding: 14px 16px; }
+.ref-tabs { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; }
+.ref-pane { display: flex; flex-direction: column; gap: var(--gap-section); }
+
 /* ── Catalog autocomplete ── */
 
 .catalog-autocomplete {

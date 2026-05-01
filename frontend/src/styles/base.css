@@ -8,100 +8,63 @@
     box-sizing: border-box;
 }
 
+html, body {
+    margin: 0;
+    padding: 0;
+}
+
 body {
-    font-family: var(--font-body);
+    font-family: var(--font-sans);
     background: var(--bg-base);
-    color: var(--text-primary);
+    color: var(--ink);
     min-height: 100vh;
     overflow-x: hidden;
     position: relative;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    transition: background-color var(--t-med) var(--ease), color var(--t-med) var(--ease);
 }
 
-/* ── Ambient background orbs ─────────────────────────────────
-   Two large, heavily-blurred colour orbs fixed to the viewport.
-   They sit behind all content and give the page a living glow
-   that adapts to the theme. Never on cards — always behind them.
-   ──────────────────────────────────────────────────────────── */
-
-body::before,
-body::after {
-    content: '';
-    position: fixed;
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 0;
-    animation: glow-breathe 7s ease-in-out infinite;
+button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    cursor: pointer;
 }
 
-/* Top-left orb — income green */
-body::before {
-    width: 560px;
-    height: 560px;
-    top: -180px;
-    left: -160px;
-    background: var(--color-income);
-    filter: blur(130px);
-    --glow-min: 0.18;
-    --glow-max: 0.28;
-    animation-delay: 0s;
+input, select, textarea {
+    font: inherit;
+    color: inherit;
 }
 
-/* Bottom-right orb — accent blue */
-body::after {
-    width: 500px;
-    height: 500px;
-    bottom: -150px;
-    right: -140px;
-    background: var(--color-accent);
-    filter: blur(120px);
-    --glow-min: 0.16;
-    --glow-max: 0.26;
-    animation-delay: -3.5s; /* offset so they don't pulse in sync */
+a { color: inherit; }
+
+.num, .mono {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
 }
 
-/* Dark mode: glows shine more through the dark surface */
-[data-theme="dark"] body::before {
-    --glow-min: 0.14;
-    --glow-max: 0.22;
-}
-
-[data-theme="dark"] body::after {
-    --glow-min: 0.12;
-    --glow-max: 0.20;
-}
+.mono { font-family: var(--font-mono); }
 
 ::selection {
-    background: rgba(var(--color-accent-rgb), 0.25);
+    background: var(--accent-soft-2);
+    color: var(--ink);
 }
 
 :focus-visible {
-    outline: 2px solid rgba(var(--color-accent-rgb), 0.60);
-    outline-offset: 2px;
+    outline: none;
+    box-shadow: var(--focus-ring);
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-}
-
-::-webkit-scrollbar-track {
-    background: transparent;
-}
-
+/* Custom scrollbar — subtle to match calm humanist tone */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.20);
-    border-radius: 999px;
+    background: var(--hairline-strong);
+    border-radius: 10px;
+    border: 2px solid var(--bg-base);
 }
-
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.35);
-}
-
-[data-theme="dark"] ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.18);
-}
-
-[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.30);
+    background: var(--ink-4);
 }

@@ -153,13 +153,15 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="page-sections">
-  <div v-if="template" class="stats-grid">
-    <BaseStatCard label="Total Monthly">
+  <div class="sections">
+  <div v-if="template" class="kpis">
+    <BaseStatCard label="Budget · monthly">
       <div class="stat-value">{{ fmtAmount(template.total) }}</div>
+      <div class="stat-foot"><span class="muted">{{ template.items.length }} categories</span></div>
     </BaseStatCard>
-    <BaseStatCard label="Annual Total">
+    <BaseStatCard label="Annual projection" variant="profit">
       <div class="stat-value">{{ fmtAmount(template.total * 12) }}</div>
+      <div class="stat-foot"><span class="muted">If pace continues</span></div>
     </BaseStatCard>
   </div>
 
@@ -187,7 +189,9 @@ onMounted(load)
         <td>{{ row.original.name }}</td>
         <td class="col-num">{{ fmtAmount(row.original.budgeted_amount) }}</td>
         <td>
-          <span v-for="tag in row.original.tags" :key="tag" class="type-tag">{{ tag }}</span>
+          <span class="tag-chips">
+            <span v-for="tag in row.original.tags" :key="tag" class="tag-chip">{{ tag }}</span>
+          </span>
         </td>
         <td style="white-space: nowrap; text-align: right">
           <EditDeleteActions @edit="openEdit(row.original)" @confirm="remove(row.original.id)" />
@@ -209,7 +213,7 @@ onMounted(load)
     <div class="form-group">
       <label>Tags</label>
       <div class="tag-input-wrap">
-        <span v-for="tag in form.tags" :key="tag" class="type-tag editable">
+        <span v-for="tag in form.tags" :key="tag" class="tag-chip">
           {{ tag }}<button type="button" class="tag-remove" @click="removeTag(tag)">×</button>
         </span>
         <input
@@ -225,48 +229,35 @@ onMounted(load)
 </template>
 
 <style scoped>
-.type-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 0.7rem;
-  padding: 1px 6px;
-  border-radius: 9999px;
-  border: 1px solid var(--card-border);
-  color: var(--text-label);
-  margin-right: 4px;
-  letter-spacing: 0.02em;
-}
-
 .tag-remove {
   background: none;
   border: none;
-  color: var(--text-placeholder);
+  color: var(--ink-4);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 13px;
   line-height: 1;
   padding: 0;
   margin-left: 2px;
 }
 
-.tag-remove:hover {
-  color: var(--text-secondary);
-}
+.tag-remove:hover { color: var(--ink-2); }
 
 .tag-input-wrap {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
-  padding: 6px 8px;
-  border: 1px solid var(--card-border);
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.03);
-  min-height: 38px;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-inner);
+  background: var(--surface);
+  min-height: 40px;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
 
-[data-theme="dark"] .tag-input-wrap {
-  background: rgba(255, 255, 255, 0.03);
+.tag-input-wrap:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
 }
 
 .tag-text-input {
@@ -274,7 +265,7 @@ onMounted(load)
   background: transparent;
   outline: none;
   color: inherit;
-  font-size: 0.875rem;
+  font-size: 14px;
   min-width: 80px;
   flex: 1;
   padding: 0;

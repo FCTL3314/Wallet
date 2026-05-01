@@ -2,56 +2,96 @@
    MODAL OVERLAY & MODAL
    ============================================================ */
 
-.modal-overlay {
+.modal-overlay,
+.scrim {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.45);
+    background: rgba(28, 29, 26, 0.45);
     backdrop-filter: var(--blur-overlay);
     -webkit-backdrop-filter: var(--blur-overlay);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    place-items: center;
     z-index: 200;
+    animation: scrim-fade var(--t-med) var(--ease);
+}
+
+@keyframes scrim-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .modal {
-    background: var(--card-bg);
-    backdrop-filter: var(--blur-modal);
-    -webkit-backdrop-filter: var(--blur-modal);
-    border: 1px solid var(--card-border);
-    border-radius: var(--radius-modal);
-    padding: 32px;
-    width: 100%;
-    max-width: 500px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-card);
+    padding: 24px;
+    width: min(560px, calc(100vw - 48px));
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: var(--shadow-card);
-    animation: modal-in 0.22s var(--ease-spring) both;
+    box-shadow: var(--shadow-lg);
+    animation: modal-rise var(--t-med) var(--ease-out);
+}
+
+@keyframes modal-rise {
+    from { opacity: 0; transform: translateY(12px) scale(0.98); }
+    to { opacity: 1; transform: none; }
 }
 
 .modal h2 {
-    font-family: var(--font-heading);
-    font-size: 1.25rem;
-    font-weight: 700;
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     margin-bottom: 20px;
-    color: var(--text-primary);
+    color: var(--ink);
 }
 
 .modal-actions {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     justify-content: flex-end;
     margin-top: 24px;
 }
 
-/* ============================================================
-   RESPONSIVE — MOBILE (< 640px) — bottom sheet
-   ============================================================ */
+/* ── Autocomplete suggestions panel ────────────────────── */
+
+.autocomplete {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    box-shadow: var(--shadow-md);
+    padding: 4px;
+    z-index: 10;
+    max-height: 280px;
+    overflow: auto;
+}
+
+.autocomplete-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    text-align: left;
+    font-size: 13px;
+    transition: background var(--t-fast) var(--ease);
+}
+
+.autocomplete-item:hover { background: var(--surface-2); }
+
+/* ── Mobile bottom-sheet ───────────────────────────────── */
 
 @media (max-width: 640px) {
-    .modal-overlay {
-        align-items: flex-end;
-    }
+    .modal-overlay,
+    .scrim { align-items: flex-end; }
 
     .modal {
         position: fixed;
@@ -59,6 +99,7 @@
         left: 0;
         right: 0;
         max-width: none;
+        width: auto;
         border-radius: 24px 24px 0 0;
         padding: 24px 20px;
         max-height: 90vh;
@@ -69,19 +110,11 @@
         display: block;
         width: 36px;
         height: 4px;
-        background: rgba(0, 0, 0, 0.15);
+        background: var(--hairline-strong);
         border-radius: 9999px;
         margin: 0 auto 20px;
     }
-
-    [data-theme="dark"] .modal::before {
-        background: rgba(255, 255, 255, 0.15);
-    }
 }
-
-/* ============================================================
-   CONFIRM BUTTON WRAP
-   ============================================================ */
 
 .confirm-btn-wrap {
     display: inline-flex;

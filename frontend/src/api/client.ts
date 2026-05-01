@@ -2,6 +2,7 @@ import axios from 'axios'
 import type { App } from 'vue'
 import type { Router } from 'vue-router'
 import { getErrorMessage } from './errors'
+import { coerceMoney } from './_money'
 import { useLoadingStore } from '../stores/loading'
 
 let toastService: { add: (options: object) => void } | null = null
@@ -33,6 +34,7 @@ function processQueue(error: unknown) {
 api.interceptors.response.use(
   (response) => {
     useLoadingStore().done()
+    if (response.data) coerceMoney(response.data)
     return response
   },
   async (error) => {

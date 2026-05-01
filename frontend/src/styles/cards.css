@@ -1,72 +1,58 @@
 /* ============================================================
-   CARDS
+   CARDS — everything is a card
    ============================================================ */
 
-.card,
-.stat-card {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    box-shadow: var(--shadow-card-solid);
-    animation: fade-up 0.4s var(--ease-spring) both;
-}
-
 .card {
-    border-radius: var(--radius-card);
-    padding: 24px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    box-shadow: var(--shadow-sm);
+    border-radius: var(--r-card);
+    padding: var(--pad-card);
+    transition: background-color var(--t-med) var(--ease),
+                border-color var(--t-med) var(--ease),
+                box-shadow var(--t-med) var(--ease);
 }
 
-.card--flush {
-    padding: 0;
-    overflow: hidden;
-}
+.card--flat { box-shadow: none; }
+.card--pad-sm { padding: 14px; }
+.card--pad-lg { padding: 28px; }
+.card--flush { padding: 0; overflow: hidden; }
 
 .card-title {
-    font-family: var(--font-heading);
-    font-size: 1rem;
+    font-family: var(--font-display);
+    font-size: 18px;
     font-weight: 600;
     margin-bottom: 16px;
-    color: var(--text-primary);
+    color: var(--ink);
+    letter-spacing: -0.01em;
 }
 
 /* ============================================================
    STAT CARDS
    ============================================================ */
 
-.stats-grid {
+.stats-grid,
+.kpis {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--gap-section);
 }
 
 .stat-card {
-    border-radius: var(--radius-stat);
-    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .stat-label {
-    font-family: var(--font-body);
-    font-size: 0.6875rem;
-    font-weight: 600;
-    color: var(--text-label);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 6px;
-}
-
-.stat-value {
-    font-family: var(--font-number);
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    line-height: 1.1;
-}
-
-.stat-currency {
-    font-size: 1rem;
+    font-size: 11px;
     font-weight: 500;
-    opacity: 0.55;
-    margin-right: 6px;
-    vertical-align: baseline;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .stat-label-icon {
@@ -74,69 +60,191 @@
     flex-shrink: 0;
 }
 
-/* Trend delta badge */
-.stat-trend {
+.stat-value {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
+.stat-currency {
+    font-size: 0.55em;
+    font-weight: 500;
+    color: var(--ink-3);
+    margin-right: 6px;
+    vertical-align: baseline;
+}
+
+.stat-foot {
     display: flex;
     align-items: center;
-    gap: 3px;
-    margin-top: 5px;
-    padding: 2px 7px;
-    border-radius: 999px;
-    font-size: 0.72rem;
+    gap: 10px;
+    color: var(--ink-3);
+    font-size: 12px;
+}
+
+/* Variant tints — applied to .stat-value via class chain */
+.stat-card--income .stat-value { color: var(--income-ink); }
+.stat-card--expense .stat-value { color: var(--expense-ink); }
+.stat-card--profit .stat-value { color: var(--accent-ink); }
+
+/* Multi-currency totals list (used inside stat cards when totals are split per ccy) */
+.totals-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 2px;
+}
+.totals-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+.totals-code {
+    font-size: 11px;
     font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+}
+.totals-amount {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+.stat-card--income .totals-amount { color: var(--income-ink); }
+.stat-card--expense .totals-amount { color: var(--expense-ink); }
+.stat-card--profit .totals-amount { color: var(--accent-ink); }
+
+/* ── Trend delta badge (legacy + new) ───────────────────── */
+
+.stat-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 5px;
+    padding: 3px 8px;
+    border-radius: var(--r-pill);
+    font-size: 12px;
+    font-weight: 500;
     width: fit-content;
 }
 
-.stat-trend.trend--up {
-    color: var(--color-income);
-    background: rgba(31, 160, 104, 0.10);
-    border: 1px solid rgba(31, 160, 104, 0.18);
+.stat-trend.trend--up,
+.stat-trend.growth--up {
+    color: var(--income-ink);
+    background: var(--income-soft);
+    border: 1px solid transparent;
 }
 
-.stat-trend.trend--down {
-    color: var(--color-expense);
-    background: rgba(232, 69, 101, 0.10);
-    border: 1px solid rgba(232, 69, 101, 0.18);
-}
-
-[data-theme="dark"] .stat-trend.trend--up {
-    background: rgba(37, 192, 126, 0.12);
-    border-color: rgba(37, 192, 126, 0.22);
-}
-
-[data-theme="dark"] .stat-trend.trend--down {
-    background: rgba(240, 86, 111, 0.12);
-    border-color: rgba(240, 86, 111, 0.22);
+.stat-trend.trend--down,
+.stat-trend.growth--down {
+    color: var(--expense-ink);
+    background: var(--expense-soft);
+    border: 1px solid transparent;
 }
 
 .stat-trend-label {
-    color: var(--text-label);
+    color: var(--ink-3);
     font-weight: 400;
     margin-left: 1px;
 }
 
 /* ============================================================
-   TAB PILLS — shared across views
+   HERO balance card — giant display number
    ============================================================ */
 
-/* Active pill gets a subtle accent glow — echoes the background ambient orbs */
-.tab-pill--active {
-    box-shadow: 0 0 0 1px rgba(var(--color-accent-rgb), 0.35),
-                0 2px 12px rgba(var(--color-accent-rgb), 0.18);
+.hero {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.hero-main {
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-right: 1px solid var(--hairline);
+}
+.hero-main > .hero-actions { margin-top: auto; padding-top: 8px; }
+
+.hero-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.hero-number {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(52px, 6.5vw, 88px);
+    letter-spacing: -0.035em;
+    line-height: 1;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 2px 0;
+    flex-wrap: wrap;
+}
+
+.hero-number .ccy {
+    font-size: 0.28em;
+    font-weight: 500;
+    color: var(--ink-3);
+    letter-spacing: 0.02em;
+    margin-right: 4px;
+}
+
+.hero-number .cents {
+    font-size: 0.45em;
+    color: var(--ink-3);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+}
+
+.hero-foot {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+    color: var(--ink-3);
+    font-size: 13px;
+}
+
+.hero-side {
+    padding: 18px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: var(--surface-2);
+}
+.hero-side .stat-value { font-size: 26px; }
+
+@media (max-width: 720px) {
+    .hero { grid-template-columns: 1fr; }
+    .hero-main { border-right: 0; border-bottom: 1px solid var(--hairline); }
 }
 
 /* ============================================================
-   RESPONSIVE — MOBILE (< 640px)
+   RESPONSIVE
    ============================================================ */
 
 @media (max-width: 640px) {
-    .card {
-        border-radius: 18px;
-        padding: 16px;
-    }
-
-    .stat-card {
-        border-radius: 16px;
-        padding: 14px;
-    }
+    .card { border-radius: 18px; padding: 16px; }
+    .hero-main { padding: 20px; }
+    .hero-side { padding: 16px 20px; }
 }

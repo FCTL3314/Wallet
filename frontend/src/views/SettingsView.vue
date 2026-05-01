@@ -4,13 +4,14 @@ import { useForm, useField } from 'vee-validate'
 import * as yup from 'yup'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '../stores/auth'
-import { useThemeStore, ACCENT_PRESETS, type AccentKey } from '../stores/theme'
 import { useOnboardingStore } from '../stores/onboarding'
 import { authApi } from '../api/auth'
 import { getErrorMessage } from '../api/errors'
 import BaseCard from '../components/BaseCard.vue'
 import BaseButton from '../components/BaseButton.vue'
 import PasswordRequirements from '../components/PasswordRequirements.vue'
+import ThemeToggle from '../components/ThemeToggle.vue'
+import AccentPicker from '../components/AccentPicker.vue'
 import { PhBookOpen, PhFileXls } from '@phosphor-icons/vue'
 import { reportsApi } from '../api/reports'
 
@@ -24,8 +25,14 @@ function replayGuide() {
   onboarding.start()
 }
 
-const themeStore = useThemeStore()
-const { mode: themeMode, accent: themeAccent } = storeToRefs(themeStore)
+type SettingsTab = 'email' | 'password' | 'appearance' | 'data'
+const activeTab = ref<SettingsTab>('email')
+const TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'email', label: 'Change email' },
+  { id: 'password', label: 'Password' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'data', label: 'Data' },
+]
 
 // ── Change Email ─────────────────────────────────────────────
 const emailSchema = yup.object({
@@ -132,46 +139,43 @@ const submitPassword = handlePasswordSubmit(async (values) => {
 </script>
 
 <template>
-  <div class="page-sections page-narrow">
-  <BaseCard title="Appearance" style="align-self: flex-start; min-width: 420px">
+  <div class="sections page-narrow">
+
+  <BaseCard class="settings-tabs-card">
+    <div class="segmented settings-tabs">
+      <button
+        v-for="t in TABS"
+        :key="t.id"
+        :class="{ on: activeTab === t.id }"
+        @click="activeTab = t.id"
+      >{{ t.label }}</button>
+    </div>
+  </BaseCard>
+
+  <template v-if="activeTab === 'appearance'">
+  <BaseCard title="Appearance">
     <div class="appearance-section">
       <div class="appearance-row">
-        <span class="appearance-label">Theme</span>
-        <div class="theme-segmented">
-          <button
-            :class="['theme-btn', { 'theme-btn--active': themeMode === 'light' }]"
-            @click="themeStore.setMode('light')"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-            Light
-          </button>
-          <button
-            :class="['theme-btn', { 'theme-btn--active': themeMode === 'dark' }]"
-            @click="themeStore.setMode('dark')"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            Dark
-          </button>
+        <div class="appearance-row-text">
+          <span class="appearance-label">Theme</span>
+          <span class="appearance-hint">Light or dark surface tones.</span>
         </div>
+        <ThemeToggle />
       </div>
       <div class="appearance-row">
-        <span class="appearance-label">Accent Color</span>
-        <div class="accent-swatches">
-          <button
-            v-for="(preset, key) in ACCENT_PRESETS"
-            :key="key"
-            class="accent-swatch"
-            :class="{ 'accent-swatch--active': themeAccent === key }"
-            :style="{ background: preset.main }"
-            :title="preset.label"
-            @click="themeStore.setAccent(key as AccentKey)"
-          />
+        <div class="appearance-row-text">
+          <span class="appearance-label">Accent</span>
+          <span class="appearance-hint">The brand hue used for primary actions and highlights.</span>
         </div>
+        <AccentPicker />
       </div>
     </div>
   </BaseCard>
 
-  <BaseCard title="Onboarding Guide" style="align-self: flex-start; min-width: 420px">
+  </template>
+
+  <template v-if="activeTab === 'data'">
+  <BaseCard title="Onboarding Guide">
     <div class="guide-section">
       <p class="guide-desc">Replay the interactive guide to learn about all app features.</p>
       <BaseButton variant="secondary" @click="replayGuide">
@@ -180,7 +184,7 @@ const submitPassword = handlePasswordSubmit(async (values) => {
     </div>
   </BaseCard>
 
-  <BaseCard title="Data Export" style="align-self: flex-start; min-width: 420px">
+  <BaseCard title="Data Export">
     <div class="export-section">
       <p class="export-desc">Export all your transactions and balance snapshots to an Excel file.</p>
       <div class="export-actions">
@@ -194,7 +198,10 @@ const submitPassword = handlePasswordSubmit(async (values) => {
     </div>
   </BaseCard>
 
-  <div class="settings-grid">
+  </template>
+
+  <template v-if="activeTab === 'email'">
+  <div class="settings-single">
     <BaseCard title="Change Email">
       <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 16px">
         Current email: <strong style="color: var(--text-primary)">{{ user?.email }}</strong>
@@ -232,6 +239,11 @@ const submitPassword = handlePasswordSubmit(async (values) => {
       </form>
     </BaseCard>
 
+  </div>
+  </template>
+
+  <template v-if="activeTab === 'password'">
+  <div class="settings-single">
     <BaseCard title="Change Password">
       <form @submit.prevent="submitPassword">
         <div class="form-group">
@@ -280,109 +292,49 @@ const submitPassword = handlePasswordSubmit(async (values) => {
       </form>
     </BaseCard>
   </div>
+  </template>
   </div>
 </template>
 
 <style scoped>
+.settings-tabs-card { padding: 14px 16px; }
+.settings-tabs { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; }
+.settings-single { display: flex; flex-direction: column; gap: var(--gap-section); }
+.settings-single .card { max-width: 560px; }
+
 /* ── Appearance section ─────────────────────────────────── */
 
 .appearance-section {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
 }
 
 .appearance-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 24px;
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border-radius: 14px;
+}
+
+.appearance-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .appearance-label {
-  font-size: 0.875rem;
   font-weight: 500;
-  color: var(--text-secondary);
-  width: 100px;
-  flex-shrink: 0;
+  color: var(--ink);
 }
 
-/* Theme segmented control */
-
-.theme-segmented {
-  display: flex;
-  background: rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
-  padding: 3px;
-  gap: 2px;
-}
-
-[data-theme="dark"] .theme-segmented {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.theme-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: 9px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  font-family: var(--font-body);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.18s var(--ease-smooth);
-}
-
-.theme-btn:hover {
-  color: var(--text-primary);
-}
-
-.theme-btn--active {
-  background: var(--card-bg);
-  color: var(--color-accent);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.10);
-}
-
-[data-theme="dark"] .theme-btn--active {
-  background: rgba(255, 255, 255, 0.10);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.30);
-}
-
-/* Accent color swatches */
-
-.accent-swatches {
-  display: flex;
-  gap: 8px;
-}
-
-.accent-swatch {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  transition: transform 0.18s var(--ease-spring), box-shadow 0.18s;
-  outline: none;
-  padding: 0;
-}
-
-.accent-swatch:hover {
-  transform: scale(1.15);
-}
-
-.accent-swatch--active {
-  /* card-bg gap ring + subtle outer border */
-  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px rgba(0, 0, 0, 0.30);
-  transform: scale(1.12);
-}
-
-[data-theme="dark"] .accent-swatch--active {
-  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px rgba(255, 255, 255, 0.40);
+.appearance-hint {
+  font-size: 12px;
+  color: var(--ink-3);
 }
 
 /* ── Guide section ──────────────────────────────────────── */

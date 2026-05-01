@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { GroupBy } from '../api/analytics'
 import { localDateStr } from '../utils/format'
+import { PhCalendar } from '@phosphor-icons/vue'
 
 type Preset = 'All' | 'YTD' | '3M' | '6M' | '12M' | 'custom'
 
@@ -52,101 +53,80 @@ function handleDateInput(field: 'dateFrom' | 'dateTo', value: string) {
 </script>
 
 <template>
-  <div class="toolbar">
-    <div class="preset-pills">
+  <div class="filter-bar-row">
+    <div class="segmented">
       <button
         v-for="p in (['All', 'YTD', '3M', '6M', '12M'] as const)"
         :key="p"
-        class="tab-pill"
-        :class="{ 'tab-pill--active': activePreset === p }"
+        :class="{ on: activePreset === p }"
         @click="setPreset(p)"
       >{{ p }}</button>
-      <button class="tab-pill" :class="{ 'tab-pill--active': activePreset === 'custom' }" disabled>Custom</button>
     </div>
-    <div class="date-range-group">
+    <div class="date-range">
+      <PhCalendar :size="14" weight="bold" />
       <input
         :value="dateFrom"
         type="date"
+        class="form-input-sm"
         @input="handleDateInput('dateFrom', ($event.target as HTMLInputElement).value)"
       />
-      <span class="text-muted">—</span>
+      <span class="muted">—</span>
       <input
         :value="dateTo"
         type="date"
+        class="form-input-sm"
         @input="handleDateInput('dateTo', ($event.target as HTMLInputElement).value)"
       />
     </div>
-    <select
-      v-if="showGroupBy !== false"
-      :value="groupBy"
-      @change="emit('update:groupBy', ($event.target as HTMLSelectElement).value as GroupBy)"
-    >
-      <option value="month">Month</option>
-      <option value="quarter">Quarter</option>
-      <option value="year">Year</option>
-    </select>
-    <div v-if="$slots.default" style="margin-left: auto;">
+    <div v-if="showGroupBy !== false" class="group-select">
+      <span class="label">Group</span>
+      <div class="segmented segmented--mini">
+        <button
+          v-for="g in (['month', 'quarter', 'year'] as const)"
+          :key="g"
+          :class="{ on: groupBy === g }"
+          @click="emit('update:groupBy', g)"
+        >{{ g[0]!.toUpperCase() }}{{ g.slice(1) }}</button>
+      </div>
+    </div>
+    <slot name="middle" />
+    <div v-if="$slots.default" class="filter-actions">
       <slot />
     </div>
   </div>
 </template>
 
 <style scoped>
-.preset-pills {
+.filter-bar-row {
   display: flex;
-  gap: 0.25rem;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
 }
-
-.tab-pill {
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  border: 1px solid var(--card-border);
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--text-secondary);
-  transition: background 0.15s, color 0.15s;
+.date-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-3);
+  font-size: 12px;
 }
-
-[data-theme="dark"] .tab-pill {
-  background: rgba(255, 255, 255, 0.05);
+.date-range input[type="date"] {
+  font-size: 12px;
+  padding: 4px 8px;
 }
-
-.tab-pill:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.10);
-  color: var(--text-primary);
+.group-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
-
-[data-theme="dark"] .tab-pill:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.10);
+.filter-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
-
-.tab-pill:disabled {
-  cursor: default;
-}
-
-.tab-pill--active {
-  background: rgba(var(--color-accent-rgb), 0.10);
-  border-color: rgba(var(--color-accent-rgb), 0.40);
-  color: var(--color-accent);
-}
-
 @media (max-width: 640px) {
-  .preset-pills {
-    flex-wrap: wrap;
-  }
-
-  .date-range-group {
-    flex-basis: 100%;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .date-range-group input[type="date"] {
-    flex: 1;
-    min-width: 0;
-  }
+  .filter-actions { margin-left: 0; }
+  .date-range { flex-wrap: wrap; }
 }
 </style>
