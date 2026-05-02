@@ -21,6 +21,7 @@ import {CanvasRenderer} from 'echarts/renderers'
 import {LineChart, PieChart} from 'echarts/charts'
 import {GridComponent, LegendComponent, TooltipComponent} from 'echarts/components'
 import BaseCard from '../components/BaseCard.vue'
+import BaseDataTable from '../components/BaseDataTable.vue'
 import PeriodFilterBar from '../components/PeriodFilterBar.vue'
 import RateBadge from '../components/RateBadge.vue'
 import GrowthBadge from '../components/GrowthBadge.vue'
@@ -288,13 +289,6 @@ const donutOption = computed(() => {
   )
 })
 
-// Latest periods table (last 4 only)
-const summaryRows = computed(() =>
-    periods.value
-        .filter((e) => !e.is_bootstrap)
-        .slice(-4)
-        .reverse(),
-)
 
 const showRateDetails = ref(false)
 </script>
@@ -457,60 +451,83 @@ const showRateDetails = ref(false)
       <v-chart :option="lineOption" :style="{ height: '260px' }" autoresize @globalout="hoveredPeriod = null"/>
     </BaseCard>
 
-    <!-- Donut + summary side-by-side -->
-    <div class="grid grid-2">
-      <BaseCard v-if="Object.keys(donutTotals).length"
-                :title="isConverted ? `Income by source · ≈${convertToCurrency}` : 'Income by source'">
-        <div class="donut-wrap">
-          <v-chart :option="donutOption" class="donut-chart" autoresize/>
-          <div class="donut-legend">
-            <div v-for="item in donutStats.entries" :key="item.name" class="row-between donut-row">
-              <span class="row donut-row-name">
-                <span class="dot" :style="{ background: item.color }"/>
-                <span>{{ item.name }}</span>
-              </span>
-              <span class="num muted">
-                {{ donutStats.total > 0 ? Math.round(item.amount / donutStats.total * 100) : 0 }}%
-              </span>
-            </div>
-            <div v-if="donutStats.entries.length" class="donut-total row-between">
-              <span class="label">Total</span>
-              <span class="num">{{ isConverted ? '≈' : '' }}{{ fmtAmount(donutStats.total) }}</span>
-            </div>
+    <!-- Income by source (donut) -->
+    <BaseCard v-if="Object.keys(donutTotals).length"
+              :title="isConverted ? `Income by source · ≈${convertToCurrency}` : 'Income by source'">
+      <div class="donut-wrap">
+        <v-chart :option="donutOption" class="donut-chart" autoresize/>
+        <div class="donut-legend">
+          <div v-for="item in donutStats.entries" :key="item.name" class="row-between donut-row">
+            <span class="row donut-row-name">
+              <span class="dot" :style="{ background: item.color }"/>
+              <span>{{ item.name }}</span>
+            </span>
+            <span class="num muted">
+              {{ donutStats.total > 0 ? Math.round(item.amount / donutStats.total * 100) : 0 }}%
+            </span>
+          </div>
+          <div v-if="donutStats.entries.length" class="donut-total row-between">
+            <span class="label">Total</span>
+            <span class="num">{{ isConverted ? '≈' : '' }}{{ fmtAmount(donutStats.total) }}</span>
           </div>
         </div>
-      </BaseCard>
+      </div>
+    </BaseCard>
 
-      <BaseCard class="card--flush">
-        <div class="summary-head">
-          <div class="label">Cashflow</div>
-          <div class="summary-title">Recent periods</div>
-        </div>
-        <table class="table">
-          <thead>
-          <tr>
-            <th>Period</th>
-            <th class="right">Income</th>
-            <th class="right">Expense</th>
-            <th class="right">Profit</th>
-          </tr>
-          </thead>
-          <tbody>
-          <tr v-if="!summaryRows.length">
-            <td colspan="4" class="muted center-cell">No data for selected period.</td>
-          </tr>
-          <tr v-for="row in summaryRows" :key="row.period">
-            <td>{{ fmtPeriod(row.period) }}</td>
-            <td class="right num up">+{{ isConverted ? '≈' : '' }}{{ fmtAmount(row.income) }}</td>
-            <td class="right num down">−{{ isConverted ? '≈' : '' }}{{ fmtAmount(row.derived_expense) }}</td>
-            <td class="right num" :class="row.profit >= 0 ? 'up' : 'down'">
-              {{ row.profit >= 0 ? '+' : '−' }}{{ isConverted ? '≈' : '' }}{{ fmtAmount(Math.abs(row.profit)) }}
-            </td>
-          </tr>
-          </tbody>
-        </table>
-      </BaseCard>
-    </div>
+    <!-- Full Summary Table — every period in range -->
+    <BaseDataTable
+      title="Summary Table"
+      :loading="loading"
+      :empty="!periods.length"
+      empty-message="No data for selected period."
+    >
+      <template #head>
+        <tr>
+          <th>Period</th>
+          <th class="col-num">Balance</th>
+          <th class="col-num">Income</th>
+          <th class="col-num">Profit</th>
+          <th class="col-num">Expense</th>
+          <th class="col-num">Avg Income</th>
+          <th class="col-num">Avg Profit</th>
+        </tr>
+      </template>
+      <template #body>
+        <tr
+          v-for="row in periods"
+          :key="row.period"
+          :class="{ 'row-highlighted': row.period === hoveredPeriod }"
+        >
+          <td>
+            {{ fmtPeriod(row.period) }}
+            <span
+              v-if="row.is_bootstrap"
+              class="badge-initial"
+              title="Starting balance snapshot — reflects initial capital, not earned income."
+            >Initial</span>
+          </td>
+          <td class="col-num">
+            <template v-if="Object.keys(row.balances).length">
+              <div class="balance-cell">
+                <span v-for="(val, cur) in row.balances" :key="cur" class="num">
+                  {{ cur }} {{ fmtAmount(val) }}
+                </span>
+              </div>
+            </template>
+            <span v-else class="muted">—</span>
+          </td>
+          <td class="col-num up">{{ fmtAmount(row.income) }}</td>
+          <td class="col-num" :class="row.profit >= 0 ? 'up' : 'down'">
+            {{ fmtAmount(row.profit) }}
+          </td>
+          <td class="col-num" :class="row.derived_expense > 0 ? 'down' : 'muted'">
+            {{ row.income === 0 && row.profit === 0 ? '—' : fmtAmount(row.derived_expense) }}
+          </td>
+          <td class="col-num">{{ fmtAmount(row.avg_income) }}</td>
+          <td class="col-num">{{ fmtAmount(row.avg_profit) }}</td>
+        </tr>
+      </template>
+    </BaseDataTable>
 
     <!-- Rate details (collapsible) -->
     <button
@@ -553,6 +570,34 @@ const showRateDetails = ref(false)
 <style scoped>
 .filter-card {
   padding: 14px 16px;
+}
+
+/* Summary Table cells */
+.balance-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.row-highlighted {
+  background: var(--accent-soft);
+  transition: background var(--t-fast) var(--ease);
+}
+
+.badge-initial {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  border-radius: var(--r-pill);
+  vertical-align: middle;
 }
 
 .ccy-arrow {
