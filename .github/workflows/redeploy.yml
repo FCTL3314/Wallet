@@ -1,0 +1,54 @@
+name: Redeploy
+
+# Manual-only: redeploys already-built images from GHCR to the server
+# WITHOUT rebuilding them. Useful for restarting the stack or rolling back
+# to a previously built tag. For a full build + deploy use the Deploy workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (commit SHA, or 'latest' for the most recent build)"
+        required: true
+        default: latest
+        type: string
+
+jobs:
+  redeploy:
+    name: Redeploy to Server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set owner (lowercase)
+        id: owner
+        run: echo "value=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Encode compose file
+        id: compose
+        run: echo "content=$(base64 -w 0 docker/prod/docker-compose.yml)" >> $GITHUB_OUTPUT
+
+      - name: Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          OWNER: ${{ steps.owner.outputs.value }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GH_ACTOR: ${{ github.actor }}
+          RCLONE_CONFIG_PATH: ${{ secrets.RCLONE_CONFIG_PATH }}
+          COMPOSE_B64: ${{ steps.compose.outputs.content }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: OWNER,IMAGE_TAG,GHCR_TOKEN,GH_ACTOR,RCLONE_CONFIG_PATH,COMPOSE_B64
+          script: |
+            mkdir -p /opt/wallet
+            echo "$COMPOSE_B64" | base64 -d > /opt/wallet/docker-compose.yml
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
+            cd /opt/wallet
+            OWNER=$OWNER IMAGE_TAG=$IMAGE_TAG RCLONE_CONFIG_PATH=$RCLONE_CONFIG_PATH \
+              docker compose -f docker-compose.yml pull
+            OWNER=$OWNER IMAGE_TAG=$IMAGE_TAG RCLONE_CONFIG_PATH=$RCLONE_CONFIG_PATH \
+              docker compose -f docker-compose.yml up -d --remove-orphans
+            docker image prune -f
