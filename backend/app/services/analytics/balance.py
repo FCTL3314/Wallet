@@ -5,7 +5,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import BalanceSnapshot, Currency, StorageAccount, StorageLocation
-from app.services.analytics.periods import GroupBy
+from app.services.analytics.periods import GroupBy, _generate_periods
 
 
 def _latest_snapshot_subquery(user_id: int, before_date: date | None = None):
@@ -52,56 +52,76 @@ async def _get_balance_at_date(
 async def get_balance_by_storage(
     db: AsyncSession, user_id: int, date_from: date, date_to: date, group_by: GroupBy
 ) -> list[dict]:
-    """For each period, get balance per storage account from the latest snapshot in that period."""
-    period = (func.date_trunc(group_by.value, BalanceSnapshot.date)).label("period")
+    """For each period, the balance of every account carried forward to the period end.
 
-    subq = (
-        select(
-            period,
-            BalanceSnapshot.storage_account_id,
-            func.max(BalanceSnapshot.id).label("max_id"),
-        )
-        .where(
-            BalanceSnapshot.user_id == user_id,
-            BalanceSnapshot.date >= date_from,
-            BalanceSnapshot.date <= date_to,
-        )
-        .group_by("period", BalanceSnapshot.storage_account_id)
-        .subquery()
-    )
+    An account with no snapshot inside a period keeps the amount from its most
+    recent snapshot before it. Accounts with no snapshot at all up to the period
+    end are omitted, since their balance is unknown rather than zero.
+    """
+    periods = _generate_periods(date_from, date_to, group_by)
+    if not periods:
+        return []
 
     q = (
         select(
-            subq.c.period,
+            BalanceSnapshot.storage_account_id,
+            BalanceSnapshot.date,
+            BalanceSnapshot.amount,
             StorageLocation.name.label("location"),
             Currency.code.label("currency"),
-            BalanceSnapshot.amount,
         )
-        .join(subq, BalanceSnapshot.id == subq.c.max_id)
         .join(StorageAccount, BalanceSnapshot.storage_account_id == StorageAccount.id)
         .join(StorageLocation, StorageAccount.storage_location_id == StorageLocation.id)
         .join(Currency, StorageAccount.currency_id == Currency.id)
-        .where(BalanceSnapshot.user_id == user_id)
-        .order_by(subq.c.period)
+        .where(
+            BalanceSnapshot.user_id == user_id,
+            BalanceSnapshot.date <= periods[-1][1],
+        )
+        .order_by(
+            BalanceSnapshot.storage_account_id,
+            BalanceSnapshot.date,
+            BalanceSnapshot.id,
+        )
     )
     result = await db.execute(q)
-    rows = result.all()
 
-    grouped: dict[str, dict] = {}
-    for row in rows:
-        p = row.period.date().isoformat() if row.period else "unknown"
-        if p not in grouped:
-            grouped[p] = {"period": p, "accounts": [], "totals": {}}
-        acc_name = f"{row.location} {row.currency}"
-        amount = Decimal(str(row.amount))
-        grouped[p]["accounts"].append(
-            {"name": acc_name, "currency": row.currency, "amount": amount}
-        )
-        grouped[p]["totals"][row.currency] = (
-            grouped[p]["totals"].get(row.currency, Decimal("0")) + amount
+    history: dict[int, list] = {}
+    for row in result.all():
+        history.setdefault(row.storage_account_id, []).append(row)
+
+    out: list[dict] = []
+    for period_start, period_end in periods:
+        accounts: list[dict] = []
+        totals: dict[str, Decimal] = {}
+        for account_rows in history.values():
+            latest = None
+            for row in account_rows:
+                if row.date > period_end:
+                    break
+                latest = row
+            if latest is None:
+                continue
+            amount = Decimal(str(latest.amount))
+            accounts.append(
+                {
+                    "name": f"{latest.location} {latest.currency}",
+                    "currency": latest.currency,
+                    "amount": amount,
+                }
+            )
+            totals[latest.currency] = totals.get(latest.currency, Decimal("0")) + amount
+        if not accounts:
+            continue
+        accounts.sort(key=lambda a: a["name"])
+        out.append(
+            {
+                "period": period_start.isoformat(),
+                "accounts": accounts,
+                "totals": totals,
+            }
         )
 
-    return list(grouped.values())
+    return out
 
 
 async def get_balance_breakdown(db: AsyncSession, user_id: int) -> list[dict]:

@@ -160,12 +160,26 @@
     gap: 4px;
 }
 
+.snap-ccy-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.snap-ccy-code {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+}
+
 .snap-total-num {
     font-family: var(--font-display);
-    font-size: 19px;
+    font-size: 16px;
     font-weight: 600;
     color: var(--ink);
     letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
 }
 
 .snap-actions {
@@ -209,6 +223,20 @@
     background: var(--surface);
     border: 1px solid var(--hairline);
     border-radius: 12px;
+}
+
+.snap-cell--carried {
+    border-style: dashed;
+    background: transparent;
+}
+
+.snap-cell--carried .snap-cell-name,
+.snap-cell--carried .snap-cell-amt > .num {
+    color: var(--ink-2);
+}
+
+.snap-cell-since {
+    font-size: 10px;
 }
 
 .snap-cell-head {

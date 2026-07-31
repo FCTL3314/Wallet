@@ -14,7 +14,12 @@ export interface BalanceSnapshotCreate {
 }
 
 export const balanceSnapshotsApi = {
-  list: (params?: { storage_account_id?: number; date_from?: string; date_to?: string }) =>
+  list: (params?: {
+    storage_account_id?: number
+    date_from?: string
+    date_to?: string
+    limit?: number
+  }) =>
     api.get<BalanceSnapshot[]>('/balance-snapshots/', { params }),
   create: (data: BalanceSnapshotCreate) => api.post<BalanceSnapshot>('/balance-snapshots/', data),
   update: (id: number, data: Partial<BalanceSnapshotCreate>) =>

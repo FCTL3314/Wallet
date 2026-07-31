@@ -242,6 +242,66 @@ async def test_balance_by_storage(auth_client, test_user, ref_data, db_session):
     assert float(period["accounts"][0]["amount"]) == 5000.0
 
 
+async def test_balance_by_storage_carries_unchanged_accounts_forward(
+    auth_client, test_user, ref_data, db_session
+):
+    from app.models import Currency, StorageAccount
+
+    eur = Currency(code="EUR", symbol="€", user_id=test_user.id)
+    db_session.add(eur)
+    await db_session.flush()
+
+    eur_account = StorageAccount(
+        storage_location_id=ref_data["location"].id,
+        currency_id=eur.id,
+        user_id=test_user.id,
+    )
+    db_session.add(eur_account)
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=ref_data["account"].id,
+                date=date(2025, 1, 31),
+                amount=Decimal("7060.00"),
+            ),
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=eur_account.id,
+                date=date(2025, 1, 31),
+                amount=Decimal("2000.00"),
+            ),
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=eur_account.id,
+                date=date(2025, 2, 28),
+                amount=Decimal("2058.44"),
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    resp = await auth_client.get(
+        "/api/analytics/balance-by-storage",
+        params={
+            "date_from": "2025-01-01",
+            "date_to": "2025-02-28",
+            "group_by": "month",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 2
+
+    february = data[1]
+    assert february["period"] == "2025-02-01"
+    assert len(february["accounts"]) == 2
+    assert float(february["totals"]["USD"]) == 7060.0
+    assert float(february["totals"]["EUR"]) == 2058.44
+
+
 async def test_expense_template(auth_client, test_user, ref_data, db_session):
     from app.models import ExpenseCategory
 

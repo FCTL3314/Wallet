@@ -21,7 +21,7 @@ import { storageLocationsApi } from '../api/references'
 const refs = useReferencesStore()
 const { spawn } = useSuccessAnimation()
 const addBtnRef = useTemplateRef<HTMLElement>('addBtn')
-const snapshots = ref<BalanceSnapshot[]>([])
+const allSnapshots = ref<BalanceSnapshot[]>([])
 const storageData = ref<BalanceByStorageEntry[]>([])
 const loading = ref(false)
 
@@ -77,6 +77,10 @@ function snapshotsForPeriod(period: string): BalanceSnapshot[] {
 const groupBy = ref<GroupBy>('month')
 const { dateFrom, dateTo, activePreset, allRange, initRange } = useDateRange('YTD')
 
+const snapshots = computed(() =>
+  allSnapshots.value.filter((s) => s.date >= dateFrom.value && s.date <= dateTo.value),
+)
+
 const formErrors = computed(() => ({
   amount: (form.value.amount ?? -1) < 0 ? 'Must be 0 or greater' : null,
 }))
@@ -124,12 +128,26 @@ const {
 })
 
 // ── Snapshot timeline (group all individual snapshots by date) ────────────
-interface TimelineSet {
-  date: string
-  rows: BalanceSnapshot[]
+interface TimelineRow {
+  accountId: number
+  ccy: string
+  amount: number
+  snapshot: BalanceSnapshot | null
+  since: string
+}
+
+interface TimelineCurrency {
+  code: string
   total: number
   delta: number | null
   deltaPct: number | null
+}
+
+interface TimelineSet {
+  date: string
+  rows: TimelineRow[]
+  currencies: TimelineCurrency[]
+  capturedCount: number
   locations: string[]
 }
 
@@ -143,36 +161,70 @@ function toggleTimelineDate(d: string) {
 
 const timelineSets = computed<TimelineSet[]>(() => {
   const byDate = new Map<string, BalanceSnapshot[]>()
-  for (const s of snapshots.value) {
+  for (const s of allSnapshots.value) {
     const arr = byDate.get(s.date) ?? []
     arr.push(s)
     byDate.set(s.date, arr)
   }
-  // sort each group; aggregate totals (in nominal account currency, so we sum raw)
-  const dates = [...byDate.keys()].sort().reverse()
-  const sets: TimelineSet[] = dates.map((date) => {
-    const rows = (byDate.get(date) ?? []).slice().sort((a, b) =>
-      (refs.storageAccountLabelById(a.storage_account_id) || '').localeCompare(
-        refs.storageAccountLabelById(b.storage_account_id) || '',
-      ),
-    )
-    const total = rows.reduce((sum, r) => sum + Number(r.amount), 0)
-    const locations = [...new Set(rows.map((r) => {
-      const acc = refs.storageAccounts.find((a) => a.id === r.storage_account_id)
-      const loc = acc ? refs.storageLocations.find((l) => l.id === acc.storage_location_id) : null
-      return loc?.name ?? '—'
-    }))]
-    return { date, rows, total, delta: null, deltaPct: null, locations }
-  })
-  // delta vs the next (older) set
-  for (let i = 0; i < sets.length - 1; i++) {
-    const cur = sets[i]
-    const prev = sets[i + 1]
-    if (!cur || !prev) continue
-    cur.delta = cur.total - prev.total
-    cur.deltaPct = prev.total !== 0 ? (cur.delta / prev.total) * 100 : null
+
+  const state = new Map<number, { snapshot: BalanceSnapshot; since: string }>()
+  const built: { date: string; rows: TimelineRow[]; totals: Record<string, number> }[] = []
+
+  for (const date of [...byDate.keys()].sort()) {
+    for (const s of byDate.get(date) ?? []) {
+      const cur = state.get(s.storage_account_id)
+      if (!cur || cur.since < date || s.id > cur.snapshot.id) {
+        state.set(s.storage_account_id, { snapshot: s, since: date })
+      }
+    }
+
+    const rows: TimelineRow[] = [...state.entries()]
+      .map(([accountId, held]) => ({
+        accountId,
+        ccy: accountCurrency(accountId),
+        amount: Number(held.snapshot.amount),
+        snapshot: held.since === date ? held.snapshot : null,
+        since: held.since,
+      }))
+      .sort((a, b) =>
+        (refs.storageAccountLabelById(a.accountId) || '').localeCompare(
+          refs.storageAccountLabelById(b.accountId) || '',
+        ),
+      )
+
+    const totals: Record<string, number> = {}
+    for (const r of rows) totals[r.ccy] = (totals[r.ccy] ?? 0) + r.amount
+
+    built.push({ date, rows, totals })
   }
+
+  const sets: TimelineSet[] = built.map((entry, i) => {
+    const prev = i > 0 ? built[i - 1] : null
+    const currencies = Object.entries(entry.totals)
+      .map(([code, total]) => {
+        const before = prev?.totals[code]
+        const delta = before === undefined ? null : total - before
+        return {
+          code,
+          total,
+          delta,
+          deltaPct: delta !== null && before ? (delta / before) * 100 : null,
+        }
+      })
+      .sort((a, b) => a.code.localeCompare(b.code))
+
+    return {
+      date: entry.date,
+      rows: entry.rows,
+      currencies,
+      capturedCount: entry.rows.filter((r) => r.snapshot).length,
+      locations: [...new Set(entry.rows.map((r) => locationNameForAccount(r.accountId)))],
+    }
+  })
+
   return sets
+    .filter((s) => s.date >= dateFrom.value && s.date <= dateTo.value)
+    .reverse()
 })
 
 function dateParts(d: string): { day: string; month: string; year: string } {
@@ -188,6 +240,12 @@ function accountCurrency(accountId: number): string {
   const acc = refs.storageAccounts.find((a) => a.id === accountId)
   if (!acc) return ''
   return refs.currencyById(acc.currency_id)?.code ?? ''
+}
+
+function locationNameForAccount(accountId: number): string {
+  const acc = refs.storageAccounts.find((a) => a.id === accountId)
+  const loc = acc ? refs.storageLocations.find((l) => l.id === acc.storage_location_id) : null
+  return loc?.name ?? '—'
 }
 
 // ── Locations grid (per design) ────────────────────────────────────────────
@@ -207,18 +265,18 @@ const locationCards = computed<LocationCard[]>(() =>
           id: a.id,
           ccy: cur?.code ?? '?',
           symbol: cur?.symbol ?? '',
-          latest: latestAmountForAccountSafe(a.id),
+          latest: latestAmountForAccount(a.id),
         }
       })
     return { id: loc.id, name: loc.name, accounts }
   }),
 )
 
-function latestAmountForAccountSafe(accountId: number): number {
-  const sorted = snapshots.value
+function latestAmountForAccount(accountId: number): number {
+  const held = allSnapshots.value
     .filter((s) => s.storage_account_id === accountId)
-    .sort((a, b) => b.date.localeCompare(a.date))
-  return sorted[0]?.amount ?? 0
+    .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)
+  return held[0]?.amount ?? 0
 }
 
 const newLocationName = ref('')
@@ -240,7 +298,7 @@ const totalsByCcy = computed(() => {
   for (const a of refs.storageAccounts) {
     const cur = refs.currencyById(a.currency_id)
     if (!cur) continue
-    totals[cur.code] = (totals[cur.code] ?? 0) + Number(latestAmountForAccountSafe(a.id))
+    totals[cur.code] = (totals[cur.code] ?? 0) + Number(latestAmountForAccount(a.id))
   }
   return totals
 })
@@ -251,14 +309,6 @@ const totalEntries = computed(() =>
     .sort((a, b) => b.amount - a.amount),
 )
 
-function latestAmountForAccount(accountId: number): number {
-  const sorted = snapshots.value
-    .filter(s => s.storage_account_id === accountId)
-    .sort((a, b) => b.date.localeCompare(a.date))
-  return sorted[0]?.amount ?? 0
-}
-
-// Wrap openCreate to reset tagInput etc. if needed (none here — just delegate)
 function openCreate() {
   crudOpenCreate()
   form.value.amount = latestAmountForAccount(form.value.storage_account_id)
@@ -281,15 +331,18 @@ async function save() {
 
 async function load() {
   loading.value = true
-  const [snaps, analytics] = await Promise.all([
-    balanceSnapshotsApi.list({ date_from: dateFrom.value, date_to: dateTo.value }),
-    analyticsApi.balanceByStorage({
-      date_from: dateFrom.value, date_to: dateTo.value, group_by: groupBy.value,
-    }),
-  ])
-  snapshots.value = snaps.data
-  storageData.value = analytics.data
-  loading.value = false
+  try {
+    const [snaps, analytics] = await Promise.all([
+      balanceSnapshotsApi.list({ limit: 1000 }),
+      analyticsApi.balanceByStorage({
+        date_from: dateFrom.value, date_to: dateTo.value, group_by: groupBy.value,
+      }),
+    ])
+    allSnapshots.value = snaps.data
+    storageData.value = analytics.data
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(() => {
@@ -455,16 +508,19 @@ watch([dateFrom, dateTo, groupBy], load)
             <span class="snap-locs">
               <span v-for="loc in set.locations" :key="loc" class="snap-loc-chip">{{ loc }}</span>
             </span>
-            <span class="muted snap-meta-count">{{ set.rows.length }} balances captured</span>
+            <span class="muted snap-meta-count">{{ set.capturedCount }} of {{ set.rows.length }} updated</span>
           </div>
           <div class="snap-total">
-            <span class="num snap-total-num">{{ fmtAmount(set.total) }}</span>
-            <GrowthBadge v-if="set.delta !== null" :delta="set.delta" :show-icon="false">
-              {{ set.delta >= 0 ? '+' : '−' }}{{ fmtAmount(Math.abs(set.delta)) }}
-              <span v-if="set.deltaPct !== null" class="snap-delta-pct">·
-                {{ set.deltaPct >= 0 ? '+' : '' }}{{ set.deltaPct.toFixed(1) }}%
-              </span>
-            </GrowthBadge>
+            <div v-for="c in set.currencies" :key="c.code" class="snap-ccy-line">
+              <span class="muted snap-ccy-code">{{ c.code }}</span>
+              <span class="num snap-total-num">{{ fmtAmount(c.total) }}</span>
+              <GrowthBadge v-if="c.delta !== null" :delta="c.delta" :show-icon="false">
+                {{ c.delta >= 0 ? '+' : '−' }}{{ fmtAmount(Math.abs(c.delta)) }}
+                <span v-if="c.deltaPct !== null" class="snap-delta-pct">·
+                  {{ c.deltaPct >= 0 ? '+' : '' }}{{ c.deltaPct.toFixed(1) }}%
+                </span>
+              </GrowthBadge>
+            </div>
           </div>
           <div class="snap-actions">
             <span class="snap-chevron"><PhCaretDown :size="14" /></span>
@@ -472,19 +528,32 @@ watch([dateFrom, dateTo, groupBy], load)
         </button>
         <div v-if="openTimelineDates.has(set.date)" class="snap-body">
           <div class="snap-grid">
-            <div v-for="r in set.rows" :key="r.id" class="snap-cell">
+            <div
+              v-for="r in set.rows"
+              :key="r.accountId"
+              class="snap-cell"
+              :class="{ 'snap-cell--carried': !r.snapshot }"
+            >
               <div class="snap-cell-head">
                 <span class="snap-cell-icon"><PhWallet :size="14" /></span>
                 <div class="stack snap-cell-meta">
-                  <span class="snap-cell-name">{{ refs.storageAccountLabelById(r.storage_account_id) }}</span>
-                  <span class="muted snap-cell-ccy">{{ accountCurrency(r.storage_account_id) }}</span>
+                  <span class="snap-cell-name">{{ refs.storageAccountLabelById(r.accountId) }}</span>
+                  <span class="muted snap-cell-ccy">{{ r.ccy }}</span>
                 </div>
                 <div class="snap-cell-actions">
-                  <button class="icon-btn" @click="openEdit(r)" title="Edit"><PhPencilSimple :size="13" /></button>
+                  <button
+                    v-if="r.snapshot"
+                    class="icon-btn"
+                    title="Edit"
+                    @click="openEdit(r.snapshot)"
+                  ><PhPencilSimple :size="13" /></button>
                 </div>
               </div>
               <div class="snap-cell-amt">
                 <span class="num">{{ fmtAmount(r.amount) }}</span>
+                <span v-if="!r.snapshot" class="muted snap-cell-since">
+                  unchanged since {{ dateParts(r.since).day }} {{ dateParts(r.since).month }}
+                </span>
               </div>
             </div>
           </div>
