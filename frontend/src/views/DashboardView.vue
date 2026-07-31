@@ -22,13 +22,33 @@ import {LineChart, PieChart} from 'echarts/charts'
 import {GridComponent, LegendComponent, TooltipComponent} from 'echarts/components'
 import BaseCard from '../components/BaseCard.vue'
 import BaseDataTable from '../components/BaseDataTable.vue'
+import BaseStatCard from '../components/BaseStatCard.vue'
 import PeriodFilterBar from '../components/PeriodFilterBar.vue'
 import RateBadge from '../components/RateBadge.vue'
 import GrowthBadge from '../components/GrowthBadge.vue'
 import type {SummaryEntry} from '../types/index'
-import {PhArrowsClockwise, PhCaretDown, PhCaretRight, PhWallet, PhWarning,} from '@phosphor-icons/vue'
+import {
+  PhArrowsClockwise,
+  PhCaretDown,
+  PhCaretRight,
+  PhCheck,
+  PhInfo,
+  PhWallet,
+  PhWarning,
+} from '@phosphor-icons/vue'
 
 use([CanvasRenderer, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent])
+
+const HINT_AVG_INCOME =
+    'Average income per period, across the periods that actually had income. Income is the sum of the income transactions you recorded.'
+const HINT_AVG_EXPENSE =
+    'Derived, not recorded: average income minus average profit. It is what your balances imply you spent — Wallet never sums up expense entries for this number.'
+const HINT_AVG_PROFIT =
+    'Average profit per period, across the periods with any activity. Profit is how much your total balance grew, measured from balance snapshots.'
+const HINT_COL_PROFIT =
+    'Change in your total balance over the period, taken from balance snapshots — not income minus recorded expenses. A period with no new snapshot carries the previous balance forward, so its profit is zero.'
+const HINT_COL_EXPENSE =
+    'Income minus profit for the period: the money that came in but did not end up in your balances. It is derived from the two columns to the left, never entered by hand, and never goes below zero.'
 
 const refs = useReferencesStore()
 const {currencies} = storeToRefs(refs)
@@ -61,12 +81,17 @@ watch(
 const {dateFrom, dateTo, activePreset, allRange, initRange} = useDateRange('YTD')
 
 const breakdown = ref<BalanceBreakdownItem[]>([])
+const breakdownLoaded = ref(false)
 const showBreakdown = ref(false)
 const hoveredPeriod = ref<string | null>(null)
 
 async function loadBreakdown() {
-  const {data: bd} = await analyticsApi.balanceBreakdown()
-  breakdown.value = bd
+  try {
+    const {data: bd} = await analyticsApi.balanceBreakdown()
+    breakdown.value = bd
+  } finally {
+    breakdownLoaded.value = true
+  }
 }
 
 async function load() {
@@ -141,7 +166,6 @@ const displayCurrencyCode = computed(() => {
 const displayedBalances = computed(() => lastEntry.value?.balances ?? {})
 const hasMultipleCurrencies = computed(() => Object.keys(displayedBalances.value).length > 1)
 
-// Hero number split: integer + cents
 const heroTotalRaw = computed(() => {
   if (isAllMode.value && lastEntry.value?.converted_balance != null && hasMultipleCurrencies.value) {
     return lastEntry.value.converted_balance
@@ -150,13 +174,12 @@ const heroTotalRaw = computed(() => {
   return vals.length ? Number(vals[0]) : 0
 })
 
-const heroWhole = computed(() => Math.floor(Math.abs(heroTotalRaw.value)))
-const heroCents = computed(() =>
-    String(Math.round((Math.abs(heroTotalRaw.value) - heroWhole.value) * 100)).padStart(2, '0'),
-)
+const heroTotalCents = computed(() => Math.round(Math.abs(heroTotalRaw.value) * 100))
+const heroSign = computed(() => (heroTotalRaw.value < 0 && heroTotalCents.value > 0 ? '−' : ''))
+const heroWhole = computed(() => Math.floor(heroTotalCents.value / 100))
+const heroCents = computed(() => String(heroTotalCents.value % 100).padStart(2, '0'))
 const heroCcy = computed(() => displayCurrencyCode.value || '')
 
-// Hero growth (converted in All mode if available)
 const heroGrowth = computed(() => {
   if (isAllMode.value && hasMultipleCurrencies.value && balanceGrowthConverted.value) {
     return {
@@ -173,7 +196,47 @@ const heroGrowth = computed(() => {
   return null
 })
 
-// Trend chart
+interface SetupStep {
+  title: string
+  description: string
+  to: string
+  cta: string
+  done: boolean
+}
+
+const hasIncomeRecorded = computed(() => periods.value.some((e) => e.income > 0))
+const hasBalanceRecorded = computed(() => breakdown.value.length > 0)
+
+const isEmptyDashboard = computed(
+    () => !loading.value && breakdownLoaded.value && !hasIncomeRecorded.value && !hasBalanceRecorded.value,
+)
+
+const setupSteps = computed<SetupStep[]>(() => [
+  {
+    title: 'Create a storage account',
+    description: 'A storage location (a bank, a wallet, cash) plus the currency you keep there.',
+    to: '/references',
+    cta: 'Open references',
+    done: refs.storageAccounts.length > 0,
+  },
+  {
+    title: 'Record your income',
+    description: 'Every payment you receive, tagged with the source it came from.',
+    to: '/transactions',
+    cta: 'Add income',
+    done: hasIncomeRecorded.value,
+  },
+  {
+    title: 'Take your first balance snapshot',
+    description: 'What each account actually holds today. Profit is the change between snapshots, so nothing is charted until there is one.',
+    to: '/balance-snapshots',
+    cta: 'Add snapshot',
+    done: hasBalanceRecorded.value,
+  },
+])
+
+const showOverview = computed(() => periods.value.length > 0 && !isEmptyDashboard.value)
+
 type TrendKey = 'balance' | 'income' | 'expense' | 'profit'
 const selectedTrend = ref<TrendKey>('balance')
 
@@ -229,7 +292,7 @@ const lineOption = computed(() => {
       return code ? (e.balances[code] ?? 0) : Object.values(e.balances)[0] ?? 0
     })
     return buildLineChartOption(
-        chartEntries.value.map((e) => fmtPeriod(e.period)),
+        chartEntries.value.map((e) => fmtPeriod(e.period, groupBy.value)),
         values,
         'Balance',
         t.borderColor,
@@ -246,7 +309,7 @@ const lineOption = computed(() => {
     profit: (e) => e.profit,
   }
   return buildLineChartOption(
-      chartEntries.value.map((e) => fmtPeriod(e.period)),
+      chartEntries.value.map((e) => fmtPeriod(e.period, groupBy.value)),
       chartEntries.value.map(dataMap[selectedTrend.value as Exclude<TrendKey, 'balance'>]),
       t.label,
       t.borderColor,
@@ -260,7 +323,6 @@ const lineOption = computed(() => {
   )
 })
 
-// Donut: income by source
 const donutTotals = computed(() => {
   const totals: Record<string, number> = {}
   for (const entry of sourceData.value) {
@@ -342,8 +404,40 @@ const showRateDetails = ref(false)
       </div>
     </BaseCard>
 
-    <!-- Hero balance card -->
-    <div v-if="periods.length" class="card hero">
+    <BaseCard v-if="isEmptyDashboard" class="getting-started">
+      <div>
+        <div class="label">Getting started</div>
+        <h2 class="gs-title">Nothing to chart yet</h2>
+        <p class="muted gs-lead">
+          Wallet reads profit as the change in what you hold, not as income minus receipts. That takes
+          three things — an account to hold money, the income you received, and a snapshot of the real
+          balance. Once all three exist, every card on this page fills in.
+        </p>
+      </div>
+      <ol class="gs-steps">
+        <li
+            v-for="(step, i) in setupSteps"
+            :key="step.to"
+            class="gs-step"
+            :class="{ 'gs-step--done': step.done }"
+        >
+          <span class="gs-step-num" aria-hidden="true">
+            <PhCheck v-if="step.done" :size="13" weight="bold"/>
+            <template v-else>{{ i + 1 }}</template>
+          </span>
+          <div class="gs-step-body">
+            <div class="gs-step-title">
+              {{ step.title }}
+              <span v-if="step.done" class="chip chip--income gs-step-chip">done</span>
+            </div>
+            <p class="muted gs-step-text">{{ step.description }}</p>
+          </div>
+          <RouterLink :to="step.to" class="btn btn--sm gs-step-link">{{ step.cta }}</RouterLink>
+        </li>
+      </ol>
+    </BaseCard>
+
+    <div v-if="showOverview" class="card hero">
       <div class="hero-main">
         <div class="hero-label">
           <span class="label">Total balance</span>
@@ -359,7 +453,7 @@ const showRateDetails = ref(false)
         </div>
         <div class="hero-number">
           <span class="ccy">{{ heroCcy }}</span>
-          <span>{{ heroWhole.toLocaleString('en-US') }}</span>
+          <span>{{ heroSign }}{{ heroWhole.toLocaleString('en-US') }}</span>
           <span class="cents">.{{ heroCents }}</span>
         </div>
         <div v-if="hasMultipleCurrencies" class="hero-foot">
@@ -395,8 +489,7 @@ const showRateDetails = ref(false)
         </div>
       </div>
       <div class="hero-side">
-        <div class="stat-card stat-card--income card--flat">
-          <div class="stat-label">Avg income / period</div>
+        <BaseStatCard flat variant="income" label="Avg income / period" :hint="HINT_AVG_INCOME">
           <div class="stat-value">
             <span class="stat-currency">{{ heroCcy }}</span>{{ fmtAmount(avgIncome) }}
           </div>
@@ -405,17 +498,15 @@ const showRateDetails = ref(false)
               <span v-if="incomeGrowth.pct !== null">{{ Math.abs(incomeGrowth.pct).toFixed(1) }}%</span>
             </GrowthBadge>
           </div>
-        </div>
+        </BaseStatCard>
         <hr class="divider"/>
-        <div class="stat-card stat-card--expense card--flat">
-          <div class="stat-label">Avg expense / period</div>
+        <BaseStatCard flat variant="expense" label="Avg expense / period" :hint="HINT_AVG_EXPENSE">
           <div class="stat-value">
             <span class="stat-currency">{{ heroCcy }}</span>{{ fmtAmount(avgExpense) }}
           </div>
-        </div>
+        </BaseStatCard>
         <hr class="divider"/>
-        <div class="stat-card stat-card--profit card--flat">
-          <div class="stat-label">Avg profit / period</div>
+        <BaseStatCard flat variant="profit" label="Avg profit / period" :hint="HINT_AVG_PROFIT">
           <div class="stat-value">
             <span class="stat-currency">{{ heroCcy }}</span>{{ fmtAmount(avgProfit) }}
           </div>
@@ -424,12 +515,11 @@ const showRateDetails = ref(false)
               <span v-if="profitGrowth.pct !== null">{{ Math.abs(profitGrowth.pct).toFixed(1) }}%</span>
             </GrowthBadge>
           </div>
-        </div>
+        </BaseStatCard>
       </div>
     </div>
 
-    <!-- Trend chart -->
-    <BaseCard v-if="periods.length" class="card--flush trend-card">
+    <BaseCard v-if="showOverview" class="card--flush trend-card">
       <div class="trend-head">
         <div>
           <div class="label">Trend</div>
@@ -451,7 +541,6 @@ const showRateDetails = ref(false)
       <v-chart :option="lineOption" :style="{ height: '260px' }" autoresize @globalout="hoveredPeriod = null"/>
     </BaseCard>
 
-    <!-- Income by source (donut) -->
     <BaseCard v-if="Object.keys(donutTotals).length"
               :title="isConverted ? `Income by source · ≈${convertToCurrency}` : 'Income by source'">
       <div class="donut-wrap">
@@ -474,20 +563,28 @@ const showRateDetails = ref(false)
       </div>
     </BaseCard>
 
-    <!-- Full Summary Table — every period in range -->
     <BaseDataTable
+      v-if="!isEmptyDashboard"
       title="Summary Table"
       :loading="loading"
       :empty="!periods.length"
-      empty-message="No data for selected period."
+      empty-message="No data for the selected period. Try a wider date range."
     >
       <template #head>
         <tr>
           <th>Period</th>
           <th class="col-num">Balance</th>
           <th class="col-num">Income</th>
-          <th class="col-num">Profit</th>
-          <th class="col-num">Expense</th>
+          <th class="col-num">
+            <span class="th-hint" :title="HINT_COL_PROFIT">
+              Profit<PhInfo :size="12" weight="bold" aria-hidden="true"/>
+            </span>
+          </th>
+          <th class="col-num">
+            <span class="th-hint" :title="HINT_COL_EXPENSE">
+              Expense<PhInfo :size="12" weight="bold" aria-hidden="true"/>
+            </span>
+          </th>
           <th class="col-num">Avg Income</th>
           <th class="col-num">Avg Profit</th>
         </tr>
@@ -499,7 +596,7 @@ const showRateDetails = ref(false)
           :class="{ 'row-highlighted': row.period === hoveredPeriod }"
         >
           <td>
-            {{ fmtPeriod(row.period) }}
+            {{ fmtPeriod(row.period, groupBy) }}
             <span
               v-if="row.is_bootstrap"
               class="badge-initial"
@@ -529,7 +626,6 @@ const showRateDetails = ref(false)
       </template>
     </BaseDataTable>
 
-    <!-- Rate details (collapsible) -->
     <button
         v-if="isAllMode && rateCoverage && Object.keys(rateCoverage.currencies).length"
         class="btn btn--ghost rate-toggle"
@@ -572,7 +668,121 @@ const showRateDetails = ref(false)
   padding: 14px 16px;
 }
 
-/* Summary Table cells */
+.getting-started {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.gs-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 6px 0 0;
+}
+
+.gs-lead {
+  font-size: 13px;
+  line-height: 1.65;
+  max-width: 62ch;
+  margin: 8px 0 0;
+}
+
+.gs-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: none;
+}
+
+.gs-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-inner);
+  background: var(--surface-2);
+}
+
+.gs-step-num {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.gs-step--done .gs-step-num {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-ink);
+}
+
+.gs-step-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.gs-step-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.gs-step-chip {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+}
+
+.gs-step-text {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 4px 0 0;
+}
+
+.gs-step-link {
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+@media (max-width: 560px) {
+  .gs-step {
+    flex-wrap: wrap;
+  }
+
+  .gs-step-link {
+    margin-left: 40px;
+  }
+}
+
+.th-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: help;
+}
+
+.th-hint svg {
+  color: var(--ink-4);
+  flex-shrink: 0;
+}
+
 .balance-cell {
   display: flex;
   flex-direction: column;
@@ -697,18 +907,6 @@ const showRateDetails = ref(false)
   letter-spacing: -0.01em;
 }
 
-.grid-2 {
-  display: grid;
-  grid-template-columns: 1fr 1.4fr;
-  gap: var(--gap-section);
-}
-
-@media (max-width: 900px) {
-  .grid-2 {
-    grid-template-columns: 1fr;
-  }
-}
-
 .donut-chart {
   width: 220px;
   height: 220px;
@@ -730,27 +928,6 @@ const showRateDetails = ref(false)
   padding-top: 10px;
   border-top: 1px solid var(--hairline);
   font-weight: 600;
-}
-
-.summary-head {
-  padding: 18px 22px 12px;
-}
-
-.summary-title {
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 600;
-  margin-top: 4px;
-  letter-spacing: -0.01em;
-}
-
-.center-cell {
-  text-align: center;
-  padding: 32px 16px;
-}
-
-.right {
-  text-align: right;
 }
 
 .rate-toggle {

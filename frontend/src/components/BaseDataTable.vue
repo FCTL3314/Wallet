@@ -10,15 +10,10 @@ const props = defineProps<{
   empty?: boolean
   emptyMessage?: string
   title?: string
-  columns?: number
   /** TanStack Table instance — enables new table-driven mode */
   table?: Table<TData>
   /** Show a global search input above the table (only relevant in table-prop mode) */
   searchable?: boolean
-}>()
-
-const emit = defineEmits<{
-  'update:search': [value: string]
 }>()
 
 defineSlots<{
@@ -37,10 +32,7 @@ defineSlots<{
 const isManagedMode = computed(() => !!props.table)
 
 /** Number of columns to use for skeleton / empty colspan */
-const columnCount = computed(() => {
-  if (props.table) return props.table.getAllLeafColumns().length
-  return props.columns ?? 5
-})
+const columnCount = computed(() => props.table?.getAllLeafColumns().length ?? 5)
 
 function getSortIcon(direction: 'asc' | 'desc' | false): string {
   if (direction === 'asc') return '↑'
@@ -49,9 +41,7 @@ function getSortIcon(direction: 'asc' | 'desc' | false): string {
 }
 
 function onSearchInput(e: Event) {
-  const value = (e.target as HTMLInputElement).value
-  props.table?.setGlobalFilter(value)
-  emit('update:search', value)
+  props.table?.setGlobalFilter((e.target as HTMLInputElement).value)
 }
 </script>
 

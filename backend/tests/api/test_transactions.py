@@ -1,3 +1,6 @@
+from app.models import Currency, StorageAccount, StorageLocation
+
+
 async def test_create_income(auth_client, ref_data):
     resp = await auth_client.post(
         "/api/transactions/",
@@ -332,3 +335,168 @@ async def test_multi_tenancy(auth_client, other_auth_client, ref_data):
     resp = await other_auth_client.get("/api/transactions/")
     assert resp.status_code == 200
     assert len(resp.json()) == 0
+
+
+async def _create_income(auth_client, ref_data, amount, tx_date="2025-01-15", **extra):
+    payload = {
+        "type": "income",
+        "date": tx_date,
+        "amount": amount,
+        "currency_id": ref_data["currency"].id,
+        "storage_account_id": ref_data["account"].id,
+    }
+    payload.update(extra)
+    resp = await auth_client.post("/api/transactions/", json=payload)
+    assert resp.status_code == 201
+    return resp.json()
+
+
+async def test_summary_empty(auth_client, ref_data):
+    resp = await auth_client.get("/api/transactions/summary")
+    assert resp.status_code == 200
+    assert resp.json() == {"count": 0, "totals": []}
+
+
+async def test_summary_covers_all_rows_not_just_a_page(auth_client, ref_data):
+    """Totals must reflect every matching row, not the paginated slice the list returns."""
+    for i in range(5):
+        await _create_income(auth_client, ref_data, "100.00", f"2025-08-{i + 1:02d}")
+
+    resp = await auth_client.get("/api/transactions/summary", params={"limit": 2})
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "count": 5,
+        "totals": [
+            {
+                "currency_id": ref_data["currency"].id,
+                "currency_code": "USD",
+                "amount": 500.0,
+            }
+        ],
+    }
+
+
+async def test_summary_groups_by_currency_sorted_by_amount_desc(
+    auth_client, ref_data, db_session, test_user
+):
+    eur = Currency(code="EUR", symbol="E", user_id=test_user.id)
+    db_session.add(eur)
+    await db_session.flush()
+    eur_account = StorageAccount(
+        storage_location_id=ref_data["location"].id,
+        currency_id=eur.id,
+        user_id=test_user.id,
+    )
+    db_session.add(eur_account)
+    await db_session.flush()
+
+    await _create_income(auth_client, ref_data, "100.00")
+    await _create_income(
+        auth_client,
+        ref_data,
+        "900.00",
+        currency_id=eur.id,
+        storage_account_id=eur_account.id,
+    )
+
+    resp = await auth_client.get("/api/transactions/summary")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 2
+    assert data["totals"] == [
+        {"currency_id": eur.id, "currency_code": "EUR", "amount": 900.0},
+        {
+            "currency_id": ref_data["currency"].id,
+            "currency_code": "USD",
+            "amount": 100.0,
+        },
+    ]
+
+
+async def test_summary_respects_date_range_filter(auth_client, ref_data):
+    for tx_date, amount in (
+        ("2025-01-01", "100.00"),
+        ("2025-06-01", "200.00"),
+        ("2025-12-01", "400.00"),
+    ):
+        await _create_income(auth_client, ref_data, amount, tx_date)
+
+    resp = await auth_client.get(
+        "/api/transactions/summary",
+        params={"date_from": "2025-03-01", "date_to": "2025-09-01"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 1
+    assert data["totals"][0]["amount"] == 200.0
+
+
+async def test_summary_respects_income_source_filter(auth_client, ref_data):
+    await _create_income(
+        auth_client,
+        ref_data,
+        "100.00",
+        income_source_id=ref_data["income_source"].id,
+    )
+    await _create_income(auth_client, ref_data, "700.00")
+
+    resp = await auth_client.get(
+        "/api/transactions/summary",
+        params={"income_source_id": ref_data["income_source"].id},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 1
+    assert data["totals"][0]["amount"] == 100.0
+
+
+async def test_summary_respects_storage_account_filter(
+    auth_client, ref_data, db_session, test_user
+):
+    other_location = StorageLocation(name="Cash", user_id=test_user.id)
+    db_session.add(other_location)
+    await db_session.flush()
+    other_account = StorageAccount(
+        storage_location_id=other_location.id,
+        currency_id=ref_data["currency"].id,
+        user_id=test_user.id,
+    )
+    db_session.add(other_account)
+    await db_session.flush()
+
+    await _create_income(auth_client, ref_data, "100.00")
+    await _create_income(
+        auth_client, ref_data, "700.00", storage_account_id=other_account.id
+    )
+
+    resp = await auth_client.get(
+        "/api/transactions/summary",
+        params={"storage_account_id": other_account.id},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 1
+    assert data["totals"][0]["amount"] == 700.0
+
+
+async def test_summary_type_filter_excludes_non_matching(auth_client, ref_data):
+    await _create_income(auth_client, ref_data, "100.00")
+
+    resp = await auth_client.get(
+        "/api/transactions/summary", params={"type": "expense"}
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"count": 0, "totals": []}
+
+
+async def test_summary_multi_tenancy(auth_client, other_auth_client, ref_data):
+    await _create_income(auth_client, ref_data, "999.00")
+
+    resp = await other_auth_client.get("/api/transactions/summary")
+    assert resp.status_code == 200
+    assert resp.json() == {"count": 0, "totals": []}
+
+
+async def test_summary_requires_auth(client):
+    resp = await client.get("/api/transactions/summary")
+    assert resp.status_code == 401

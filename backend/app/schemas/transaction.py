@@ -58,3 +58,14 @@ class TransactionResponse(BaseModel):
     expense_category_id: int | None
 
     model_config = {"from_attributes": True}
+
+
+class TransactionCurrencyTotal(BaseModel):
+    currency_id: int
+    currency_code: str
+    amount: float
+
+
+class TransactionSummaryResponse(BaseModel):
+    count: int
+    totals: list[TransactionCurrencyTotal]

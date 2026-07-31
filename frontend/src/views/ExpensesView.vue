@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { analyticsApi, type ExpenseTemplate, type ExpenseTemplateItem } from '../api/analytics'
 import { expenseCategoriesApi } from '../api/references'
 import { useReferencesStore } from '../stores/references'
+import { useAuthStore } from '../stores/auth'
 import { fmtAmount } from '../utils/format'
 import { useTable, createColumnHelper } from '../composables/useTable'
 import { useCrudModal } from '../composables/useCrudModal'
@@ -18,10 +20,21 @@ interface ExpenseCategoryForm {
   tags: string[]
 }
 
+const MONTHS_PER_YEAR = 12
+
 const refs = useReferencesStore()
+const { user } = storeToRefs(useAuthStore())
 const template = ref<ExpenseTemplate | null>(null)
 const loading = ref(false)
 const tagInput = ref('')
+
+const baseCurrencyCode = computed(() => user.value?.base_currency_code ?? null)
+
+const annualTotal = computed(() => (template.value?.total ?? 0) * MONTHS_PER_YEAR)
+
+const amountFieldLabel = computed(() =>
+  baseCurrencyCode.value ? `Monthly Amount (${baseCurrencyCode.value})` : 'Monthly Amount',
+)
 
 function addTag() {
   const tag = tagInput.value.trim()
@@ -42,16 +55,10 @@ function onTagKeydown(e: KeyboardEvent) {
   }
 }
 
-// ── TanStack Table (client-side sort + global search) ────────────────────────
-
 const expColHelper = createColumnHelper<ExpenseTemplateItem>()
 
 const expenseItems = computed<ExpenseTemplateItem[]>(() => template.value?.items ?? [])
 
-/**
- * Custom global filter function that searches across both name and tags array.
- * TanStack's built-in global filter only handles string/number scalars.
- */
 function expenseGlobalFilter(
   row: { original: ExpenseTemplateItem },
   _columnId: string,
@@ -87,7 +94,6 @@ const expenseColumns = [
     id: 'actions',
     header: '',
     enableSorting: false,
-    meta: { style: 'text-align: right' },
   }),
 ]
 
@@ -97,13 +103,14 @@ const { table: expenseTable } = useTable(
   { globalFilter: true },
 )
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 async function load() {
   loading.value = true
-  const { data } = await analyticsApi.expenseTemplate()
-  template.value = data
-  loading.value = false
+  try {
+    const { data } = await analyticsApi.expenseTemplate()
+    template.value = data
+  } finally {
+    loading.value = false
+  }
 }
 
 async function afterMutate() {
@@ -156,12 +163,18 @@ onMounted(load)
   <div class="sections">
   <div v-if="template" class="kpis">
     <BaseStatCard label="Budget · monthly">
-      <div class="stat-value">{{ fmtAmount(template.total) }}</div>
+      <div class="stat-value">
+        <span v-if="baseCurrencyCode" class="stat-currency">{{ baseCurrencyCode }}</span
+        >{{ fmtAmount(template.total) }}
+      </div>
       <div class="stat-foot"><span class="muted">{{ template.items.length }} categories</span></div>
     </BaseStatCard>
     <BaseStatCard label="Annual projection" variant="profit">
-      <div class="stat-value">{{ fmtAmount(template.total * 12) }}</div>
-      <div class="stat-foot"><span class="muted">If pace continues</span></div>
+      <div class="stat-value">
+        <span v-if="baseCurrencyCode" class="stat-currency">{{ baseCurrencyCode }}</span
+        >{{ fmtAmount(annualTotal) }}
+      </div>
+      <div class="stat-foot"><span class="muted">Monthly budget × {{ MONTHS_PER_YEAR }}</span></div>
     </BaseStatCard>
   </div>
 
@@ -174,7 +187,7 @@ onMounted(load)
     searchable
   >
     <template #actions>
-      <div data-onboarding="add-expense-btn" style="display: inline-flex">
+      <div data-onboarding="add-expense-btn" class="actions-slot">
         <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Category</BaseButton>
       </div>
     </template>
@@ -193,7 +206,7 @@ onMounted(load)
             <span v-for="tag in row.original.tags" :key="tag" class="tag-chip">{{ tag }}</span>
           </span>
         </td>
-        <td style="white-space: nowrap; text-align: right">
+        <td class="col-actions">
           <EditDeleteActions @edit="openEdit(row.original)" @confirm="remove(row.original.id)" />
         </td>
       </tr>
@@ -203,20 +216,21 @@ onMounted(load)
 
   <BaseModal :show="showModal" :title="`${editing ? 'Edit' : 'New'} Expense Category`" @close="showModal = false" @submit="save">
     <div class="form-group">
-      <label>Name</label>
-      <input v-model="form.name" required />
+      <label for="expense-name">Name</label>
+      <input id="expense-name" v-model="form.name" required />
     </div>
     <div class="form-group">
-      <label>Monthly Amount ($)</label>
-      <input v-model.number="form.budgeted_amount" type="number" step="0.01" min="0" required />
+      <label for="expense-amount">{{ amountFieldLabel }}</label>
+      <input id="expense-amount" v-model.number="form.budgeted_amount" type="number" step="0.01" min="0" required />
     </div>
     <div class="form-group">
-      <label>Tags</label>
+      <label for="expense-tags">Tags</label>
       <div class="tag-input-wrap">
         <span v-for="tag in form.tags" :key="tag" class="tag-chip">
-          {{ tag }}<button type="button" class="tag-remove" @click="removeTag(tag)">×</button>
+          {{ tag }}<button type="button" class="tag-remove" :aria-label="`Remove tag ${tag}`" @click="removeTag(tag)">×</button>
         </span>
         <input
+          id="expense-tags"
           v-model="tagInput"
           class="tag-text-input"
           @keydown.enter.prevent="addTag"
@@ -229,6 +243,15 @@ onMounted(load)
 </template>
 
 <style scoped>
+.actions-slot {
+  display: inline-flex;
+}
+
+.col-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
 .tag-remove {
   background: none;
   border: none;

@@ -1,7 +1,8 @@
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 
-export type ThemeMode = 'light' | 'dark'
+export type ThemeMode = 'light' | 'dark' | 'system'
+export type ResolvedTheme = 'light' | 'dark'
 
 export interface AccentPreset {
   key: string
@@ -9,7 +10,6 @@ export interface AccentPreset {
   hue: number
 }
 
-// Six hue presets that the design's oklch palette gracefully accepts.
 export const ACCENT_PRESETS: AccentPreset[] = [
   { key: 'green',  label: 'Green',  hue: 150 },
   { key: 'teal',   label: 'Teal',   hue: 195 },
@@ -20,12 +20,29 @@ export const ACCENT_PRESETS: AccentPreset[] = [
 ]
 
 const DEFAULT_HUE = 150
+const PREFERENCE_KEY = 'theme-preference'
+const RESOLVED_KEY = 'theme-mode'
+const HUE_KEY = 'theme-hue'
+const DARK_QUERY = '(prefers-color-scheme: dark)'
 
-export function accentSwatchColor(hue: number, mode: ThemeMode = 'light'): string {
+export function accentSwatchColor(hue: number, mode: ResolvedTheme = 'light'): string {
   return mode === 'dark' ? `oklch(74% 0.17 ${hue})` : `oklch(58% 0.14 ${hue})`
 }
 
-function applyToDOM(mode: ThemeMode, hue: number) {
+let darkMedia: MediaQueryList | null = null
+
+function darkMediaQuery(): MediaQueryList {
+  darkMedia ??= window.matchMedia(DARK_QUERY)
+  return darkMedia
+}
+
+function readPreference(): ThemeMode {
+  const stored = localStorage.getItem(PREFERENCE_KEY)
+  if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
+  return localStorage.getItem(RESOLVED_KEY) === 'dark' ? 'dark' : 'light'
+}
+
+function applyToDOM(mode: ResolvedTheme, hue: number) {
   const root = document.documentElement
   root.dataset.theme = mode
 
@@ -43,30 +60,50 @@ function applyToDOM(mode: ThemeMode, hue: number) {
     root.style.setProperty('--focus-ring',    `0 0 0 3px oklch(58% 0.14 ${hue} / .22)`)
   }
 
-  // Legacy aliases for code that hasn't migrated yet. Kept in sync with --accent.
   root.style.setProperty('--color-accent', `var(--accent)`)
   root.style.setProperty('--color-accent-light', `var(--accent-soft-2)`)
 }
 
 export const useThemeStore = defineStore('theme', () => {
-  const mode = ref<ThemeMode>((localStorage.getItem('theme-mode') as ThemeMode) ?? 'light')
-  const hue = ref<number>(Number(localStorage.getItem('theme-hue')) || DEFAULT_HUE)
+  const preference = ref<ThemeMode>(readPreference())
+  const systemPrefersDark = ref(darkMediaQuery().matches)
+  const hue = ref<number>(Number(localStorage.getItem(HUE_KEY)) || DEFAULT_HUE)
+
+  const mode = computed<ResolvedTheme>(() =>
+    preference.value === 'system'
+      ? (systemPrefersDark.value ? 'dark' : 'light')
+      : preference.value,
+  )
+
+  function apply() {
+    localStorage.setItem(RESOLVED_KEY, mode.value)
+    applyToDOM(mode.value, hue.value)
+  }
+
+  watch([mode, hue], apply)
 
   function setMode(value: ThemeMode) {
-    mode.value = value
-    localStorage.setItem('theme-mode', value)
-    applyToDOM(mode.value, hue.value)
+    preference.value = value
+    localStorage.setItem(PREFERENCE_KEY, value)
   }
 
   function setHue(value: number) {
     hue.value = value
-    localStorage.setItem('theme-hue', String(value))
-    applyToDOM(mode.value, hue.value)
+    localStorage.setItem(HUE_KEY, String(value))
   }
+
+  let systemListenerAttached = false
 
   function init() {
-    applyToDOM(mode.value, hue.value)
+    localStorage.setItem(PREFERENCE_KEY, preference.value)
+    if (!systemListenerAttached) {
+      darkMediaQuery().addEventListener('change', (event) => {
+        systemPrefersDark.value = event.matches
+      })
+      systemListenerAttached = true
+    }
+    apply()
   }
 
-  return { mode, hue, setMode, setHue, init }
+  return { preference, mode, hue, systemPrefersDark, setMode, setHue, init }
 })

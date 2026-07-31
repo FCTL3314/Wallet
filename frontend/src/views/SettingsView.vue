@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useForm, useField } from 'vee-validate'
 import * as yup from 'yup'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '../stores/auth'
 import { useOnboardingStore } from '../stores/onboarding'
+import { useReferencesStore } from '../stores/references'
 import { authApi } from '../api/auth'
 import { getErrorMessage } from '../api/errors'
 import BaseCard from '../components/BaseCard.vue'
@@ -12,11 +14,12 @@ import BaseButton from '../components/BaseButton.vue'
 import PasswordRequirements from '../components/PasswordRequirements.vue'
 import ThemeToggle from '../components/ThemeToggle.vue'
 import AccentPicker from '../components/AccentPicker.vue'
-import { PhBookOpen, PhFileXls } from '@phosphor-icons/vue'
+import { PhBookOpen, PhFileXls, PhX } from '@phosphor-icons/vue'
 import { reportsApi } from '../api/reports'
 
 const auth = useAuthStore()
 const { user } = storeToRefs(auth)
+const refs = useReferencesStore()
 
 const onboarding = useOnboardingStore()
 
@@ -25,16 +28,43 @@ function replayGuide() {
   onboarding.start()
 }
 
-type SettingsTab = 'email' | 'password' | 'appearance' | 'data'
-const activeTab = ref<SettingsTab>('email')
-const TABS: { id: SettingsTab; label: string }[] = [
-  { id: 'email', label: 'Change email' },
-  { id: 'password', label: 'Password' },
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'data', label: 'Data' },
-]
+type SettingsTab = 'general' | 'data' | 'account' | 'help'
 
-// ── Change Email ─────────────────────────────────────────────
+const TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'data', label: 'Data' },
+  { id: 'account', label: 'Account' },
+  { id: 'help', label: 'Help' },
+]
+const DEFAULT_TAB: SettingsTab = 'general'
+
+const route = useRoute()
+const router = useRouter()
+
+function isSettingsTab(value: unknown): value is SettingsTab {
+  return TABS.some((tab) => tab.id === value)
+}
+
+const activeTab = computed<SettingsTab>({
+  get: () => (isSettingsTab(route.query.tab) ? route.query.tab : DEFAULT_TAB),
+  set: (value) => {
+    router.replace({ query: { ...route.query, tab: value } })
+  },
+})
+
+const baseCurrencyCode = computed(() => user.value?.base_currency_code ?? 'USD')
+const baseCurrencySaving = ref(false)
+
+async function changeBaseCurrency(code: string) {
+  if (code === baseCurrencyCode.value) return
+  baseCurrencySaving.value = true
+  try {
+    await auth.updateBaseCurrency(code)
+  } finally {
+    baseCurrencySaving.value = false
+  }
+}
+
 const emailSchema = yup.object({
   currentPasswordForEmail: yup.string().required('Current password is required'),
   newEmail: yup.string().required('New email is required').email('Invalid email format'),
@@ -60,7 +90,6 @@ const submitEmail = handleEmailSubmit(async (values) => {
   }
 })
 
-// ── Change Password ──────────────────────────────────────────
 const passwordSchema = yup.object({
   currentPassword: yup.string().required('Current password is required'),
   newPassword: yup.string()
@@ -82,38 +111,111 @@ const { value: confirmNewPassword, meta: confirmMeta } = useField<string>('confi
 const passwordServerError = ref('')
 const passwordSuccess = ref('')
 
-// ── Data Export ──────────────────────────────────────────────
-const exportLoading = ref(false)
-const exportError = ref('')
-const exportSuccess = ref('')
+const EXPORT_POLL_INTERVAL_MS = 2000
+const EXPORT_TIMEOUT_MS = 120_000
+const EXPORT_TICK_MS = 500
+
+type ExportPhase = 'idle' | 'preparing' | 'downloading' | 'done' | 'cancelled' | 'timeout' | 'failed'
+
+interface ExportRun {
+  cancelled: boolean
+  ticker: ReturnType<typeof setInterval> | null
+}
+
+const exportPhase = ref<ExportPhase>('idle')
+const exportElapsedMs = ref(0)
+const exportMessage = ref('')
+
+let activeExportRun: ExportRun | null = null
+
+const exportRunning = computed(
+  () => exportPhase.value === 'preparing' || exportPhase.value === 'downloading'
+)
+const exportElapsedSeconds = computed(() => Math.floor(exportElapsedMs.value / 1000))
+const exportTimeoutSeconds = Math.round(EXPORT_TIMEOUT_MS / 1000)
+const exportProgress = computed(() =>
+  Math.min(100, Math.round((exportElapsedMs.value / EXPORT_TIMEOUT_MS) * 100))
+)
+const exportStatusText = computed(() =>
+  exportPhase.value === 'downloading'
+    ? 'Report ready — downloading the file…'
+    : 'Generating your report…'
+)
+
+function stopTicker(run: ExportRun) {
+  if (run.ticker !== null) {
+    clearInterval(run.ticker)
+    run.ticker = null
+  }
+}
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms))
+}
 
 async function requestExport() {
-  exportLoading.value = true
-  exportError.value = ''
-  exportSuccess.value = ''
+  if (exportRunning.value) return
+
+  const run: ExportRun = { cancelled: false, ticker: null }
+  activeExportRun = run
+  exportPhase.value = 'preparing'
+  exportMessage.value = ''
+  exportElapsedMs.value = 0
+
+  const startedAt = Date.now()
+  run.ticker = setInterval(() => {
+    exportElapsedMs.value = Date.now() - startedAt
+  }, EXPORT_TICK_MS)
+
   try {
-    const { data } = await reportsApi.requestExport()
-    await pollUntilReady(data.job_id)
+    const { data: job } = await reportsApi.requestExport()
+    if (run.cancelled) return
+
+    while (Date.now() - startedAt < EXPORT_TIMEOUT_MS) {
+      const { data: status } = await reportsApi.getStatus(job.job_id)
+      if (run.cancelled) return
+
+      if (status.status === 'ready') {
+        exportPhase.value = 'downloading'
+        await triggerDownload(job.job_id)
+        if (run.cancelled) return
+        exportPhase.value = 'done'
+        exportMessage.value = 'Your Excel file has been downloaded.'
+        return
+      }
+
+      await wait(EXPORT_POLL_INTERVAL_MS)
+      if (run.cancelled) return
+    }
+
+    exportPhase.value = 'timeout'
+    exportMessage.value = `The report is still being generated after ${exportTimeoutSeconds} seconds. It may finish on its own — start the export again in a minute.`
   } catch (err) {
-    exportError.value = getErrorMessage(err)
+    if (run.cancelled) return
+    exportPhase.value = 'failed'
+    exportMessage.value = `Export failed: ${getErrorMessage(err)}`
   } finally {
-    exportLoading.value = false
+    stopTicker(run)
+    if (activeExportRun === run) activeExportRun = null
   }
 }
 
-async function pollUntilReady(jobId: string) {
-  for (let i = 0; i < 60; i++) {
-    await new Promise((r) => setTimeout(r, 2000))
-    const { data } = await reportsApi.getStatus(jobId)
-    if (data.status === 'ready') {
-      await triggerDownload(jobId)
-      exportSuccess.value = 'Export ready — downloading…'
-      setTimeout(() => { exportSuccess.value = '' }, 3000)
-      return
-    }
-  }
-  throw new Error('Export timed out. Please try again.')
+function cancelExport() {
+  const run = activeExportRun
+  if (!run) return
+  run.cancelled = true
+  stopTicker(run)
+  activeExportRun = null
+  exportPhase.value = 'cancelled'
+  exportMessage.value = 'Export cancelled. The file was not downloaded.'
 }
+
+onBeforeUnmount(() => {
+  if (!activeExportRun) return
+  activeExportRun.cancelled = true
+  stopTicker(activeExportRun)
+  activeExportRun = null
+})
 
 async function triggerDownload(jobId: string) {
   const response = await reportsApi.downloadExport(jobId)
@@ -142,23 +244,48 @@ const submitPassword = handlePasswordSubmit(async (values) => {
   <div class="sections page-narrow">
 
   <BaseCard class="settings-tabs-card">
-    <div class="segmented settings-tabs">
+    <div class="segmented settings-tabs" role="group" aria-label="Settings sections">
       <button
         v-for="t in TABS"
         :key="t.id"
+        type="button"
         :class="{ on: activeTab === t.id }"
+        :aria-current="activeTab === t.id ? 'page' : undefined"
         @click="activeTab = t.id"
       >{{ t.label }}</button>
     </div>
   </BaseCard>
 
-  <template v-if="activeTab === 'appearance'">
+  <template v-if="activeTab === 'general'">
+  <BaseCard title="Preferences">
+    <div class="appearance-section">
+      <div class="appearance-row">
+        <div class="appearance-row-text">
+          <label class="appearance-label" for="base-currency">Base currency</label>
+          <span class="appearance-hint">Every amount on the dashboard is converted to this currency.</span>
+        </div>
+        <select
+          id="base-currency"
+          class="form-input-sm base-currency-select"
+          :value="baseCurrencyCode"
+          :disabled="baseCurrencySaving"
+          @change="changeBaseCurrency(($event.target as HTMLSelectElement).value)"
+        >
+          <option v-if="!refs.currencies.length" :value="baseCurrencyCode">{{ baseCurrencyCode }}</option>
+          <option v-for="c in refs.currencies" :key="c.code" :value="c.code">
+            {{ c.code }}<template v-if="c.name"> — {{ c.name }}</template>
+          </option>
+        </select>
+      </div>
+    </div>
+  </BaseCard>
+
   <BaseCard title="Appearance">
     <div class="appearance-section">
       <div class="appearance-row">
         <div class="appearance-row-text">
           <span class="appearance-label">Theme</span>
-          <span class="appearance-hint">Light or dark surface tones.</span>
+          <span class="appearance-hint">Light, dark, or follow your device setting.</span>
         </div>
         <ThemeToggle />
       </div>
@@ -175,6 +302,48 @@ const submitPassword = handlePasswordSubmit(async (values) => {
   </template>
 
   <template v-if="activeTab === 'data'">
+  <BaseCard title="Data Export">
+    <div class="export-section">
+      <p class="export-desc">Export all your transactions and balance snapshots to an Excel file.</p>
+      <div class="export-actions">
+        <div class="export-buttons">
+          <BaseButton variant="primary" :loading="exportRunning" :disabled="exportRunning" @click="requestExport">
+            <PhFileXls :size="16" weight="duotone" />
+            {{ exportRunning ? 'Generating…' : 'Export to Excel' }}
+          </BaseButton>
+          <BaseButton v-if="exportRunning" variant="secondary" @click="cancelExport">
+            <PhX :size="16" weight="bold" /> Cancel
+          </BaseButton>
+        </div>
+
+        <div v-if="exportRunning" class="export-progress">
+          <div
+            class="export-progress-track"
+            role="progressbar"
+            aria-label="Export progress"
+            :aria-valuenow="exportProgress"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-valuetext="`${exportElapsedSeconds} of ${exportTimeoutSeconds} seconds elapsed`"
+          >
+            <div class="export-progress-bar" :style="{ width: `${exportProgress}%` }" />
+          </div>
+          <p class="export-status" aria-live="polite">
+            {{ exportStatusText }}
+            <span class="export-elapsed">{{ exportElapsedSeconds }}s / {{ exportTimeoutSeconds }}s</span>
+          </p>
+        </div>
+
+        <p v-if="exportPhase === 'done'" class="success-msg" role="status">{{ exportMessage }}</p>
+        <p v-else-if="exportPhase === 'cancelled'" class="export-note" role="status">{{ exportMessage }}</p>
+        <p v-else-if="exportPhase === 'timeout' || exportPhase === 'failed'" class="error-msg" role="alert">{{ exportMessage }}</p>
+      </div>
+    </div>
+  </BaseCard>
+
+  </template>
+
+  <template v-if="activeTab === 'help'">
   <BaseCard title="Onboarding Guide">
     <div class="guide-section">
       <p class="guide-desc">Replay the interactive guide to learn about all app features.</p>
@@ -184,32 +353,19 @@ const submitPassword = handlePasswordSubmit(async (values) => {
     </div>
   </BaseCard>
 
-  <BaseCard title="Data Export">
-    <div class="export-section">
-      <p class="export-desc">Export all your transactions and balance snapshots to an Excel file.</p>
-      <div class="export-actions">
-        <BaseButton variant="primary" :disabled="exportLoading" @click="requestExport">
-          <PhFileXls :size="16" weight="duotone" />
-          {{ exportLoading ? 'Generating…' : 'Export to Excel' }}
-        </BaseButton>
-        <p v-if="exportError" class="error-msg">{{ exportError }}</p>
-        <p v-if="exportSuccess" class="success-msg">{{ exportSuccess }}</p>
-      </div>
-    </div>
-  </BaseCard>
-
   </template>
 
-  <template v-if="activeTab === 'email'">
+  <template v-if="activeTab === 'account'">
   <div class="settings-single">
     <BaseCard title="Change Email">
-      <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 16px">
-        Current email: <strong style="color: var(--text-primary)">{{ user?.email }}</strong>
+      <p class="current-email">
+        Current email: <strong>{{ user?.email }}</strong>
       </p>
       <form @submit.prevent="submitEmail">
         <div class="form-group">
-          <label>Current Password</label>
+          <label for="email-current-password">Current Password</label>
           <input
+            id="email-current-password"
             v-model="currentPasswordForEmail"
             type="password"
             placeholder="••••••••"
@@ -221,8 +377,9 @@ const submitPassword = handlePasswordSubmit(async (values) => {
           <p v-if="emailErrors.currentPasswordForEmail" class="field-error">{{ emailErrors.currentPasswordForEmail }}</p>
         </div>
         <div class="form-group">
-          <label>New Email</label>
+          <label for="new-email">New Email</label>
           <input
+            id="new-email"
             v-model="newEmail"
             type="email"
             placeholder="new@example.com"
@@ -233,22 +390,18 @@ const submitPassword = handlePasswordSubmit(async (values) => {
           />
           <p v-if="emailErrors.newEmail" class="field-error">{{ emailErrors.newEmail }}</p>
         </div>
-        <p v-if="emailServerError" class="error-msg">{{ emailServerError }}</p>
-        <p v-if="emailSuccess" class="success-msg">{{ emailSuccess }}</p>
-        <BaseButton type="submit" variant="primary" style="margin-top: 4px">Update Email</BaseButton>
+        <p v-if="emailServerError" class="error-msg" role="alert">{{ emailServerError }}</p>
+        <p v-if="emailSuccess" class="success-msg" role="status">{{ emailSuccess }}</p>
+        <BaseButton type="submit" variant="primary" class="form-submit">Update Email</BaseButton>
       </form>
     </BaseCard>
 
-  </div>
-  </template>
-
-  <template v-if="activeTab === 'password'">
-  <div class="settings-single">
     <BaseCard title="Change Password">
       <form @submit.prevent="submitPassword">
         <div class="form-group">
-          <label>Current Password</label>
+          <label for="current-password">Current Password</label>
           <input
+            id="current-password"
             v-model="currentPassword"
             type="password"
             placeholder="••••••••"
@@ -260,8 +413,9 @@ const submitPassword = handlePasswordSubmit(async (values) => {
           <p v-if="passwordErrors.currentPassword" class="field-error">{{ passwordErrors.currentPassword }}</p>
         </div>
         <div class="form-group">
-          <label>New Password</label>
+          <label for="new-password">New Password</label>
           <input
+            id="new-password"
             v-model="newPassword"
             type="password"
             placeholder="••••••••"
@@ -274,8 +428,9 @@ const submitPassword = handlePasswordSubmit(async (values) => {
           <PasswordRequirements :password="newPassword ?? ''" />
         </div>
         <div class="form-group">
-          <label>Confirm New Password</label>
+          <label for="confirm-new-password">Confirm New Password</label>
           <input
+            id="confirm-new-password"
             v-model="confirmNewPassword"
             type="password"
             placeholder="••••••••"
@@ -286,9 +441,9 @@ const submitPassword = handlePasswordSubmit(async (values) => {
           />
           <p v-if="passwordErrors.confirmNewPassword" class="field-error">{{ passwordErrors.confirmNewPassword }}</p>
         </div>
-        <p v-if="passwordServerError" class="error-msg">{{ passwordServerError }}</p>
-        <p v-if="passwordSuccess" class="success-msg">{{ passwordSuccess }}</p>
-        <BaseButton type="submit" variant="primary" style="margin-top: 4px">Update Password</BaseButton>
+        <p v-if="passwordServerError" class="error-msg" role="alert">{{ passwordServerError }}</p>
+        <p v-if="passwordSuccess" class="success-msg" role="status">{{ passwordSuccess }}</p>
+        <BaseButton type="submit" variant="primary" class="form-submit">Update Password</BaseButton>
       </form>
     </BaseCard>
   </div>
@@ -373,5 +528,75 @@ const submitPassword = handlePasswordSubmit(async (values) => {
   flex-direction: column;
   align-items: flex-start;
   gap: 10px;
+  width: 100%;
+}
+
+.export-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.export-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.export-progress-track {
+  height: 6px;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.export-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width var(--t-fast) var(--ease);
+}
+
+.export-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.export-elapsed {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.export-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* ── Account forms ──────────────────────────────────────── */
+
+.current-email {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.current-email strong {
+  color: var(--text-primary);
+}
+
+.form-submit {
+  margin-top: 4px;
+}
+
+.base-currency-select {
+  min-width: 180px;
 }
 </style>

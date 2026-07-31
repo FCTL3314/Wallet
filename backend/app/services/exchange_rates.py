@@ -117,7 +117,7 @@ async def get_rate(
             result_base = await db.execute(stmt_base)
             base_usd = result_base.scalar_one_or_none()
 
-            if from_usd_found and base_usd is not None:
+            if from_usd_found and base_usd is not None and base_usd.rate:
                 cross_valid_date = min(from_usd_valid_date, base_usd.valid_date)
                 stale_threshold = at_date - timedelta(
                     days=settings.EXCHANGE_RATE_STALENESS_DAYS
@@ -273,7 +273,9 @@ async def get_rates_batch(
                 valid_date=valid_date,
                 status=status,
             )
-        elif code in cross_usd_map and base_usd_row is not None:
+        elif (
+            code in cross_usd_map and base_usd_row is not None and base_usd_row["rate"]
+        ):
             from_usd = cross_usd_map[code]
             cross_valid_date = min(from_usd["valid_date"], base_usd_row["valid_date"])
             cross_status = "ok" if cross_valid_date >= stale_threshold else "stale"
@@ -464,7 +466,11 @@ async def get_rates_for_periods(
                         base_usd_row_period = row
                         break
 
-                if from_usd_row is not None and base_usd_row_period is not None:
+                if (
+                    from_usd_row is not None
+                    and base_usd_row_period is not None
+                    and base_usd_row_period["rate"]
+                ):
                     cross_valid_date = min(
                         from_usd_row["valid_date"], base_usd_row_period["valid_date"]
                     )

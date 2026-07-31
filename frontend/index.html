@@ -34,9 +34,46 @@
         r.style.setProperty('--color-accent-light', 'var(--accent-soft-2)');
       })();
     </script>
+    <style>
+      /* Boot splash — replaced by Vue on mount */
+      html[data-theme="dark"] body { background: #14150f; }
+      body { background: #f7f6f2; }
+      .app-splash {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+      }
+      .app-splash-mark {
+        width: 46px;
+        height: 46px;
+        border-radius: 15px;
+        background: var(--accent, #4aaa80);
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+        animation: app-splash-pulse 1.4s ease-in-out infinite;
+      }
+      html[data-theme="dark"] .app-splash-mark { color: #14150f; }
+      @keyframes app-splash-pulse {
+        0%, 100% { opacity: 0.5; transform: scale(0.94); }
+        50% { opacity: 1; transform: scale(1); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .app-splash-mark { animation: none; opacity: 1; }
+      }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div class="app-splash" role="status" aria-label="Loading Wallet">
+        <div class="app-splash-mark" aria-hidden="true">W</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

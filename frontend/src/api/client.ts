@@ -1,15 +1,18 @@
 import axios from 'axios'
-import type { App } from 'vue'
-import type { Router } from 'vue-router'
+import type { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import { getErrorMessage } from './errors'
 import { coerceMoney } from './_money'
 import { useLoadingStore } from '../stores/loading'
+import { useNotificationsStore } from '../stores/notifications'
 
-let toastService: { add: (options: object) => void } | null = null
+const AUTH_PATH_PREFIX = '/auth/'
+const NO_REFRESH_PATHS = ['/auth/login', '/auth/register', '/auth/refresh'] as const
+
+type RetriableRequest = InternalAxiosRequestConfig & { _retry?: boolean }
+
 let onSessionExpired: (() => void) | null = null
 
-export function initApiClient(app: App, _router: Router, sessionExpiredHandler: () => void) {
-  toastService = app.config.globalProperties.$toast
+export function initApiClient(sessionExpiredHandler: () => void) {
   onSessionExpired = sessionExpiredHandler
 }
 
@@ -37,15 +40,16 @@ api.interceptors.response.use(
     if (response.data) coerceMoney(response.data)
     return response
   },
-  async (error) => {
-    const originalRequest = error.config
+  async (error: AxiosError) => {
+    const originalRequest = error.config as RetriableRequest | undefined
+    const requestUrl = originalRequest?.url ?? ''
     const status = error.response?.status
     useLoadingStore().done()
-    const isAuthEndpoint = ['/auth/login', '/auth/register', '/auth/refresh'].some(
-      (path) => originalRequest.url?.includes(path),
-    )
 
-    if (status === 401 && !isAuthEndpoint && !originalRequest._retry) {
+    const isAuthRequest = requestUrl.includes(AUTH_PATH_PREFIX)
+    const skipsRefresh = NO_REFRESH_PATHS.some((path) => requestUrl.includes(path))
+
+    if (status === 401 && originalRequest && !skipsRefresh && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise<void>((resolve, reject) => {
           failedQueue.push({ resolve, reject })
@@ -68,12 +72,11 @@ api.interceptors.response.use(
       }
     }
 
-    if (toastService && !isAuthEndpoint) {
-      toastService.add({
-        severity: 'error',
-        summary: 'Error',
-        detail: getErrorMessage(error),
-        life: 5000,
+    if (!isAuthRequest) {
+      useNotificationsStore().add({
+        type: 'error',
+        title: 'Request failed',
+        message: getErrorMessage(error),
       })
     }
 

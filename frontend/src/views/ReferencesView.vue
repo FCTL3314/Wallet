@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useReferencesStore } from '../stores/references'
 import { useAuthStore } from '../stores/auth'
+import { useNotificationsStore } from '../stores/notifications'
 import {
   currenciesApi, storageLocationsApi, storageAccountsApi, incomeSourcesApi,
   type Currency, type StorageLocation, type IncomeSource, type CatalogCurrency,
   type RateInfo, type UserManualRate,
 } from '../api/references'
-import { fmtAmount } from '../utils/format'
+import { fmtAmount, localDateStr } from '../utils/format'
 import { useCrudSection } from '../composables/useCrudSection'
 import BaseButton from '../components/BaseButton.vue'
 import BaseCard from '../components/BaseCard.vue'
@@ -18,32 +19,53 @@ import BaseModal from '../components/BaseModal.vue'
 import EditDeleteActions from '../components/EditDeleteActions.vue'
 import SettingsSection from '../components/SettingsSection.vue'
 
+type ReferencesTab = 'currencies' | 'locations' | 'accounts' | 'income'
+
+const REF_TABS: { id: ReferencesTab; label: string }[] = [
+  { id: 'currencies', label: 'Currencies' },
+  { id: 'locations',  label: 'Storage Locations' },
+  { id: 'accounts',   label: 'Storage Accounts' },
+  { id: 'income',     label: 'Income sources' },
+]
+const DEFAULT_TAB: ReferencesTab = 'currencies'
+
 const route = useRoute()
+const router = useRouter()
 const refs = useReferencesStore()
 const authStore = useAuthStore()
+const notifications = useNotificationsStore()
 const { user } = storeToRefs(authStore)
 const fetchAll = () => refs.fetchAll()
 
 const baseCurrencyCode = computed(() => user.value?.base_currency_code ?? 'USD')
+const baseCurrency = computed(
+  () => refs.currencies.find((c) => c.code === baseCurrencyCode.value) ?? null
+)
 
-async function updateBaseCurrency(code: string) {
-  await authStore.updateBaseCurrency(code)
-  await loadAllRates()
+function isReferencesTab(value: unknown): value is ReferencesTab {
+  return REF_TABS.some((tab) => tab.id === value)
 }
+
+const activeTab = computed<ReferencesTab>({
+  get: () => (isReferencesTab(route.query.tab) ? route.query.tab : DEFAULT_TAB),
+  set: (value) => {
+    router.replace({ query: { ...route.query, tab: value } })
+  },
+})
 
 const locationCrud = useCrudSection(storageLocationsApi, fetchAll)
 const accountCrud = useCrudSection(storageAccountsApi, fetchAll)
 const sourceCrud = useCrudSection(incomeSourcesApi, fetchAll)
 
-// ── Currency catalog & add form ─────────────────────────────────────────────
+function warnIncomplete(message: string) {
+  notifications.add({ type: 'warning', title: 'Nothing to add', message })
+}
 
 const catalogLoading = ref(false)
 const filteredCatalog = ref<CatalogCurrency[]>([])
 
-// Mode: 'catalog' | 'custom'
 const addMode = ref<'catalog' | 'custom'>('catalog')
 
-// Catalog mode state
 const catalogSearch = ref('')
 const selectedCatalog = ref<CatalogCurrency | null>(null)
 
@@ -80,7 +102,6 @@ function onCatalogInputFocus() {
 }
 
 function onCatalogInputBlur() {
-  // Delay to allow click on dropdown item
   setTimeout(() => { showCatalogDropdown.value = false }, 150)
 }
 
@@ -90,8 +111,13 @@ function selectCatalogItem(item: CatalogCurrency) {
   showCatalogDropdown.value = false
 }
 
-// Custom mode state
 const newCustom = ref({ code: '', symbol: '', name: '' })
+
+const canAddCurrency = computed(() =>
+  addMode.value === 'catalog'
+    ? selectedCatalog.value !== null
+    : Boolean(newCustom.value.code.trim() && newCustom.value.symbol.trim())
+)
 
 function switchToCustom() {
   addMode.value = 'custom'
@@ -105,24 +131,28 @@ function switchToCatalog() {
 }
 
 async function addCurrency() {
-  if (addMode.value === 'catalog') {
-    if (!selectedCatalog.value) return
+  if (!canAddCurrency.value) {
+    warnIncomplete(
+      addMode.value === 'catalog'
+        ? 'Pick a currency from the catalog first.'
+        : 'Enter a currency code and symbol first.'
+    )
+    return
+  }
+  if (addMode.value === 'catalog' && selectedCatalog.value) {
     await currenciesApi.create({ catalog_id: selectedCatalog.value.id })
     selectedCatalog.value = null
     catalogSearch.value = ''
   } else {
-    if (!newCustom.value.code || !newCustom.value.symbol) return
     await currenciesApi.create({
-      code: newCustom.value.code,
-      symbol: newCustom.value.symbol,
-      name: newCustom.value.name || undefined,
+      code: newCustom.value.code.trim(),
+      symbol: newCustom.value.symbol.trim(),
+      name: newCustom.value.name.trim() || undefined,
     })
     newCustom.value = { code: '', symbol: '', name: '' }
   }
   await refs.fetchAll()
-  // Refresh rate info for new currency
   await loadAllRates()
-  // Refresh catalog to exclude newly added currency
   await fetchCatalog(catalogSearch.value)
 }
 
@@ -132,7 +162,6 @@ const deleteCurrency = async (id: number) => {
   rateInfoMap.value.delete(id)
 }
 
-// Edit currency
 const editingCurrency = ref<Currency | null>(null)
 const editCurrencyForm = ref({ code: '', symbol: '', name: '' })
 
@@ -152,8 +181,6 @@ async function saveEditCurrency() {
   await refs.fetchAll()
 }
 
-// ── Rate info per currency ──────────────────────────────────────────────────
-
 const rateInfoMap = ref<Map<number, RateInfo>>(new Map())
 
 async function loadAllRates() {
@@ -163,7 +190,10 @@ async function loadAllRates() {
   )
 }
 
-// Load rate info after currencies are available; auto-open rates modal if query param present
+watch(baseCurrencyCode, () => {
+  if (refs.currencies.length) loadAllRates()
+})
+
 function tryAutoOpenRates() {
   const openRatesId = Number(route.query.openRates)
   if (openRatesId) {
@@ -173,10 +203,8 @@ function tryAutoOpenRates() {
 }
 
 onMounted(async () => {
-  // Load initial catalog results
   await fetchCatalog('')
 
-  // Load rate info (after currencies are available)
   if (refs.currencies.length) {
     await loadAllRates()
     tryAutoOpenRates()
@@ -191,26 +219,33 @@ onMounted(async () => {
   }
 })
 
-// ── Manual rates modal ──────────────────────────────────────────────────────
-
 const manualRateModalCurrency = ref<Currency | null>(null)
 const manualRates = ref<UserManualRate[]>([])
 const manualRatesLoading = ref(false)
-const manualRateForm = ref({
-  to_code: 'USD',
-  rate: '',
-  valid_from: '',
-  valid_to: '',
-})
+const manualRateSaving = ref(false)
+const manualRateError = ref('')
+
+function emptyManualRateForm(toCode: string) {
+  return {
+    to_code: toCode,
+    rate: '',
+    valid_from: localDateStr(),
+    valid_to: '',
+  }
+}
+
+const manualRateForm = ref(emptyManualRateForm('USD'))
+
+const manualRateTargets = computed(() =>
+  refs.currencies.filter((c) => c.id !== manualRateModalCurrency.value?.id)
+)
+
+watch(manualRateForm, () => { manualRateError.value = '' }, { deep: true })
 
 async function openManualRatesModal(c: Currency) {
   manualRateModalCurrency.value = c
-  manualRateForm.value = {
-    to_code: baseCurrencyCode.value,
-    rate: '',
-    valid_from: new Date().toISOString().slice(0, 10),
-    valid_to: '',
-  }
+  manualRateForm.value = emptyManualRateForm(baseCurrencyCode.value)
+  manualRateError.value = ''
   showRateHistory.value = false
   rateHistory.value = []
   await loadManualRates(c.id)
@@ -226,23 +261,50 @@ async function loadManualRates(currencyId: number) {
   }
 }
 
+function validateManualRate(): string {
+  const form = manualRateForm.value
+  if (!form.to_code) return 'Choose the currency to convert to.'
+  const rateVal = Number(form.rate)
+  if (!form.rate.trim() || !Number.isFinite(rateVal) || rateVal <= 0) {
+    return 'Enter a rate greater than zero.'
+  }
+  if (!form.valid_from) return 'Choose the date this rate starts from.'
+  if (form.valid_to && form.valid_to < form.valid_from) {
+    return '"Valid to" cannot be earlier than "Valid from".'
+  }
+  return ''
+}
+
 async function saveManualRate() {
-  if (!manualRateModalCurrency.value) return
-  const rateVal = parseFloat(manualRateForm.value.rate)
-  if (!manualRateForm.value.to_code || !rateVal || !manualRateForm.value.valid_from) return
-  await currenciesApi.createManualRate(manualRateModalCurrency.value.id, {
-    to_code: manualRateForm.value.to_code,
-    rate: rateVal,
-    valid_from: manualRateForm.value.valid_from,
-    valid_to: manualRateForm.value.valid_to || null,
-  })
-  manualRateForm.value.rate = ''
-  manualRateForm.value.valid_from = ''
-  manualRateForm.value.valid_to = ''
-  await loadManualRates(manualRateModalCurrency.value.id)
-  // Refresh rate info badge
-  const { data: ri } = await currenciesApi.getRate(manualRateModalCurrency.value.id)
-  rateInfoMap.value.set(manualRateModalCurrency.value.id, ri)
+  const currency = manualRateModalCurrency.value
+  if (!currency || manualRateSaving.value) return
+
+  const validationError = validateManualRate()
+  if (validationError) {
+    manualRateError.value = validationError
+    return
+  }
+
+  manualRateSaving.value = true
+  try {
+    await currenciesApi.createManualRate(currency.id, {
+      to_code: manualRateForm.value.to_code,
+      rate: Number(manualRateForm.value.rate),
+      valid_from: manualRateForm.value.valid_from,
+      valid_to: manualRateForm.value.valid_to || null,
+    })
+  } catch {
+    manualRateError.value = 'Could not save the rate. Please check the values and try again.'
+    return
+  } finally {
+    manualRateSaving.value = false
+  }
+
+  manualRateForm.value = emptyManualRateForm(manualRateForm.value.to_code)
+  manualRateError.value = ''
+  await loadManualRates(currency.id)
+  const { data: ri } = await currenciesApi.getRate(currency.id)
+  rateInfoMap.value.set(currency.id, ri)
 }
 
 async function deleteManualRate(rateId: number) {
@@ -250,8 +312,6 @@ async function deleteManualRate(rateId: number) {
   await currenciesApi.deleteManualRate(manualRateModalCurrency.value.id, rateId)
   await loadManualRates(manualRateModalCurrency.value.id)
 }
-
-// ── Rate history (system rates) ─────────────────────────────────────────────
 
 const rateHistory = ref<RateInfo[]>([])
 const rateHistoryLoading = ref(false)
@@ -279,14 +339,23 @@ function closeManualRatesModal() {
   manualRates.value = []
   rateHistory.value = []
   showRateHistory.value = false
+  manualRateError.value = ''
+  if (route.query.openRates !== undefined) {
+    const query = { ...route.query }
+    delete query.openRates
+    router.replace({ query })
+  }
 }
 
-// ── Storage Location ────────────────────────────────────────────────────────
-
 const newLocation = ref('')
+const canAddLocation = computed(() => Boolean(newLocation.value.trim()))
+
 async function addLocation() {
-  if (!newLocation.value) return
-  await locationCrud.add({ name: newLocation.value })
+  if (!canAddLocation.value) {
+    warnIncomplete('Enter a location name first.')
+    return
+  }
+  await locationCrud.add({ name: newLocation.value.trim() })
   newLocation.value = ''
 }
 const deleteLocation = (id: number) => locationCrud.remove(id)
@@ -303,35 +372,35 @@ async function saveEditLocation() {
   await refs.fetchAll()
 }
 
-// ── Storage Account ─────────────────────────────────────────────────────────
-
 const newAccount = ref({ storage_location_id: 0, currency_id: 0 })
+const canAddAccount = computed(
+  () => Boolean(newAccount.value.storage_location_id && newAccount.value.currency_id)
+)
+
 async function addAccount() {
-  if (!newAccount.value.storage_location_id || !newAccount.value.currency_id) return
+  if (!canAddAccount.value) {
+    warnIncomplete('Pick both a storage location and a currency first.')
+    return
+  }
   await accountCrud.add(newAccount.value)
   newAccount.value = { storage_location_id: 0, currency_id: 0 }
 }
 const deleteAccount = (id: number) => accountCrud.remove(id)
 
-// ── Income Source ───────────────────────────────────────────────────────────
-
 const newSource = ref('')
+const canAddSource = computed(() => Boolean(newSource.value.trim()))
+
 async function addSource() {
-  if (!newSource.value) return
-  await sourceCrud.add({ name: newSource.value })
+  if (!canAddSource.value) {
+    warnIncomplete('Enter an income source name first.')
+    return
+  }
+  await sourceCrud.add({ name: newSource.value.trim() })
   newSource.value = ''
 }
 const deleteSource = (id: number) => sourceCrud.remove(id)
-const editingSource = ref<IncomeSource | null>(null)
-type ReferencesTab = 'currencies' | 'locations' | 'accounts' | 'income'
-const activeTab = ref<ReferencesTab>('currencies')
-const REF_TABS: { id: ReferencesTab; label: string }[] = [
-  { id: 'currencies', label: 'Currencies' },
-  { id: 'locations',  label: 'Storage Locations' },
-  { id: 'accounts',   label: 'Storage Accounts' },
-  { id: 'income',     label: 'Income sources' },
-]
 
+const editingSource = ref<IncomeSource | null>(null)
 const editSourceForm = ref({ name: '' })
 function openEditSource(s: IncomeSource) {
   editingSource.value = s
@@ -348,11 +417,13 @@ async function saveEditSource() {
 <template>
   <div class="sections">
   <BaseCard class="ref-tabs-card">
-    <div class="segmented ref-tabs">
+    <div class="segmented ref-tabs" role="group" aria-label="Reference sections">
       <button
         v-for="t in REF_TABS"
         :key="t.id"
+        type="button"
         :class="{ on: activeTab === t.id }"
+        :aria-current="activeTab === t.id ? 'page' : undefined"
         @click="activeTab = t.id"
       >{{ t.label }}</button>
     </div>
@@ -360,23 +431,17 @@ async function saveEditSource() {
 
   <div class="ref-pane">
 
-    <!-- Currencies -->
     <BaseCard v-if="activeTab === 'currencies'" data-onboarding="currencies-section" title="Currencies">
-      <!-- Base currency picker -->
       <div class="base-currency-row">
         <span class="base-currency-label">Base currency</span>
-        <select
-          class="form-input-sm base-currency-select"
-          :value="baseCurrencyCode"
-          @change="updateBaseCurrency(($event.target as HTMLSelectElement).value)"
-        >
-          <option v-for="c in refs.currencies" :key="c.code" :value="c.code">
-            {{ c.code }}<template v-if="c.name"> — {{ c.name }}</template>
-          </option>
-        </select>
+        <span class="base-currency-value">
+          {{ baseCurrencyCode }}<template v-if="baseCurrency?.name"> — {{ baseCurrency.name }}</template>
+        </span>
+        <RouterLink class="base-currency-link" :to="{ path: '/settings', query: { tab: 'general' } }">
+          Change in Settings
+        </RouterLink>
       </div>
 
-      <!-- Add form -->
       <div class="settings-item-row">
         <template v-if="addMode === 'catalog'">
           <div class="catalog-autocomplete">
@@ -406,13 +471,13 @@ async function saveEditSource() {
               </button>
             </div>
           </div>
-          <BaseButton variant="primary" size="sm" :disabled="!selectedCatalog" @click="addCurrency">Add</BaseButton>
+          <BaseButton variant="primary" size="sm" :disabled="!canAddCurrency" @click="addCurrency">Add</BaseButton>
         </template>
         <template v-else>
-          <input v-model="newCustom.code" placeholder="Code (USD)" class="form-input-sm" style="flex: 1; min-width: 0" />
-          <input v-model="newCustom.symbol" placeholder="Symbol ($)" class="form-input-sm" style="width: 64px" />
-          <input v-model="newCustom.name" placeholder="Name (optional)" class="form-input-sm" style="flex: 1; min-width: 0" />
-          <BaseButton variant="primary" size="sm" :disabled="!newCustom.code || !newCustom.symbol" @click="addCurrency">Add</BaseButton>
+          <input v-model="newCustom.code" placeholder="Code (USD)" class="form-input-sm input-grow" />
+          <input v-model="newCustom.symbol" placeholder="Symbol ($)" class="form-input-sm input-symbol" />
+          <input v-model="newCustom.name" placeholder="Name (optional)" class="form-input-sm input-grow" />
+          <BaseButton variant="primary" size="sm" :disabled="!canAddCurrency" @click="addCurrency">Add</BaseButton>
         </template>
       </div>
 
@@ -425,16 +490,15 @@ async function saveEditSource() {
         </button>
       </div>
 
-      <!-- Currency list -->
       <TransitionGroup tag="div" name="settings-item">
         <div v-for="c in refs.currencies" :key="c.id" class="settings-item">
           <template v-if="editingCurrency?.id === c.id">
-            <div style="display: flex; gap: 8px; flex-wrap: wrap">
-              <input v-model="editCurrencyForm.code" class="form-input-sm" style="width: 80px" />
-              <input v-model="editCurrencyForm.symbol" class="form-input-sm" style="width: 60px" />
-              <input v-if="c.is_custom" v-model="editCurrencyForm.name" placeholder="Name (optional)" class="form-input-sm" style="flex: 1; min-width: 80px" />
+            <div class="edit-fields">
+              <input v-model="editCurrencyForm.code" class="form-input-sm input-code" aria-label="Currency code" />
+              <input v-model="editCurrencyForm.symbol" class="form-input-sm input-symbol-sm" aria-label="Currency symbol" />
+              <input v-if="c.is_custom" v-model="editCurrencyForm.name" placeholder="Name (optional)" class="form-input-sm input-grow" aria-label="Currency name" />
             </div>
-            <div style="display: flex; gap: 8px">
+            <div class="inline-actions">
               <BaseButton variant="primary" size="sm" @click="saveEditCurrency">Save</BaseButton>
               <BaseButton variant="secondary" size="sm" @click="editingCurrency = null">Cancel</BaseButton>
             </div>
@@ -446,7 +510,7 @@ async function saveEditSource() {
                 <span class="currency-item-symbol">({{ c.symbol }})</span>
                 <span v-if="c.name" class="currency-item-name">{{ c.name }}</span>
                 <span class="currency-type-badge" :class="c.is_custom ? 'currency-type-badge--custom' : 'currency-type-badge--catalog'">
-                  {{ c.is_custom ? 'Custom' : (c.catalog_id ? 'Catalog' : 'Catalog') }}
+                  {{ c.is_custom ? 'Custom' : 'Catalog' }}
                 </span>
               </div>
               <span
@@ -477,15 +541,22 @@ async function saveEditSource() {
       </TransitionGroup>
     </BaseCard>
 
-    <!-- Storage Locations -->
-    <SettingsSection v-if="activeTab === 'locations'" data-onboarding="storage-locations-section" title="Storage Locations" :items="refs.storageLocations" @add="addLocation">
+    <SettingsSection
+      v-if="activeTab === 'locations'"
+      data-onboarding="storage-locations-section"
+      title="Storage Locations"
+      :items="refs.storageLocations"
+      :add-disabled="!canAddLocation"
+      add-hint="Enter a location name to add it."
+      @add="addLocation"
+    >
       <template #add-form>
-        <input v-model="newLocation" placeholder="Name" class="form-input-sm" style="flex: 1" />
+        <input v-model="newLocation" placeholder="Name" class="form-input-sm input-grow" aria-label="Storage location name" />
       </template>
       <template #default="{ item: l }">
         <template v-if="editingLocation?.id === l.id">
-          <input v-model="editLocationForm.name" class="form-input-sm" style="flex: 1" />
-          <div style="display: flex; gap: 8px">
+          <input v-model="editLocationForm.name" class="form-input-sm input-grow" aria-label="Storage location name" />
+          <div class="inline-actions">
             <BaseButton variant="primary" size="sm" @click="saveEditLocation">Save</BaseButton>
             <BaseButton variant="secondary" size="sm" @click="editingLocation = null">Cancel</BaseButton>
           </div>
@@ -497,14 +568,21 @@ async function saveEditSource() {
       </template>
     </SettingsSection>
 
-    <!-- Storage Accounts -->
-    <SettingsSection v-if="activeTab === 'accounts'" data-onboarding="storage-accounts-section" title="Storage Accounts" :items="refs.storageAccounts" @add="addAccount">
+    <SettingsSection
+      v-if="activeTab === 'accounts'"
+      data-onboarding="storage-accounts-section"
+      title="Storage Accounts"
+      :items="refs.storageAccounts"
+      :add-disabled="!canAddAccount"
+      add-hint="Pick both a location and a currency to add an account."
+      @add="addAccount"
+    >
       <template #add-form>
-        <select v-model.number="newAccount.storage_location_id" class="form-input-sm" style="flex: 1">
+        <select v-model.number="newAccount.storage_location_id" class="form-input-sm input-grow" aria-label="Storage location">
           <option :value="0" disabled>Location</option>
           <option v-for="l in refs.storageLocations" :key="l.id" :value="l.id">{{ l.name }}</option>
         </select>
-        <select v-model.number="newAccount.currency_id" class="form-input-sm" style="flex: 1">
+        <select v-model.number="newAccount.currency_id" class="form-input-sm input-grow" aria-label="Currency">
           <option :value="0" disabled>Currency</option>
           <option v-for="c in refs.currencies" :key="c.id" :value="c.id">{{ c.code }}</option>
         </select>
@@ -515,15 +593,22 @@ async function saveEditSource() {
       </template>
     </SettingsSection>
 
-    <!-- Income Sources -->
-    <SettingsSection v-if="activeTab === 'income'" data-onboarding="income-sources-section" title="Income Sources" :items="refs.incomeSources" @add="addSource">
+    <SettingsSection
+      v-if="activeTab === 'income'"
+      data-onboarding="income-sources-section"
+      title="Income Sources"
+      :items="refs.incomeSources"
+      :add-disabled="!canAddSource"
+      add-hint="Enter an income source name to add it."
+      @add="addSource"
+    >
       <template #add-form>
-        <input v-model="newSource" placeholder="Name" class="form-input-sm" style="flex: 1" />
+        <input v-model="newSource" placeholder="Name" class="form-input-sm input-grow" aria-label="Income source name" />
       </template>
       <template #default="{ item: s }">
         <template v-if="editingSource?.id === s.id">
-          <input v-model="editSourceForm.name" class="form-input-sm" style="flex: 1" />
-          <div style="display: flex; gap: 8px">
+          <input v-model="editSourceForm.name" class="form-input-sm input-grow" aria-label="Income source name" />
+          <div class="inline-actions">
             <BaseButton variant="primary" size="sm" @click="saveEditSource">Save</BaseButton>
             <BaseButton variant="secondary" size="sm" @click="editingSource = null">Cancel</BaseButton>
           </div>
@@ -538,35 +623,38 @@ async function saveEditSource() {
   </div>
   </div>
 
-  <!-- Manual Rates Modal -->
-  <!-- (existing modal below) -->
   <BaseModal
     :show="!!manualRateModalCurrency"
     :title="`Manual Exchange Rates — ${manualRateModalCurrency?.code ?? ''}`"
+    :submitting="manualRateSaving"
+    submit-label="Add rate"
+    cancel-label="Close"
     @close="closeManualRatesModal"
     @submit="saveManualRate"
   >
     <div class="manual-rate-form">
       <div class="form-row">
         <div class="form-field">
-          <label class="form-label">From</label>
+          <label class="form-label" for="manual-rate-from">From</label>
           <input
+            id="manual-rate-from"
             :value="manualRateModalCurrency?.code"
             class="form-input-sm"
             readonly
           />
         </div>
         <div class="form-field">
-          <label class="form-label">To</label>
-          <select v-model="manualRateForm.to_code" class="form-input-sm">
-            <option v-for="c in refs.currencies.filter(c => c.id !== manualRateModalCurrency?.id)" :key="c.code" :value="c.code">
+          <label class="form-label" for="manual-rate-to">To</label>
+          <select id="manual-rate-to" v-model="manualRateForm.to_code" class="form-input-sm">
+            <option v-for="c in manualRateTargets" :key="c.code" :value="c.code">
               {{ c.code }}<template v-if="c.name"> — {{ c.name }}</template>
             </option>
           </select>
         </div>
         <div class="form-field">
-          <label class="form-label">Rate</label>
+          <label class="form-label" for="manual-rate-value">Rate</label>
           <input
+            id="manual-rate-value"
             v-model="manualRateForm.rate"
             type="number"
             step="any"
@@ -578,17 +666,17 @@ async function saveEditSource() {
       </div>
       <div class="form-row">
         <div class="form-field">
-          <label class="form-label">Valid From</label>
-          <input v-model="manualRateForm.valid_from" type="date" class="form-input-sm" />
+          <label class="form-label" for="manual-rate-valid-from">Valid From</label>
+          <input id="manual-rate-valid-from" v-model="manualRateForm.valid_from" type="date" class="form-input-sm" />
         </div>
         <div class="form-field">
-          <label class="form-label">Valid To (optional)</label>
-          <input v-model="manualRateForm.valid_to" type="date" class="form-input-sm" />
+          <label class="form-label" for="manual-rate-valid-to">Valid To (optional)</label>
+          <input id="manual-rate-valid-to" v-model="manualRateForm.valid_to" type="date" class="form-input-sm" />
         </div>
       </div>
+      <p v-if="manualRateError" class="error-msg" role="alert">{{ manualRateError }}</p>
     </div>
 
-    <!-- Existing manual rates list -->
     <div v-if="manualRatesLoading" class="manual-rates-loading">Loading rates...</div>
     <div v-else-if="manualRates.length" class="manual-rates-list">
       <div class="manual-rates-list-title">Existing rates</div>
@@ -605,7 +693,6 @@ async function saveEditSource() {
     </div>
     <div v-else class="manual-rates-empty">No manual rates yet.</div>
 
-    <!-- Rate History (system rates) -->
     <div class="rate-history-section">
       <button type="button" class="rate-history-toggle" @click="toggleRateHistory">
         {{ showRateHistory ? 'Hide' : 'Show' }} system rate history (last 30 days)
@@ -628,6 +715,25 @@ async function saveEditSource() {
 .ref-tabs-card { padding: 14px 16px; }
 .ref-tabs { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; }
 .ref-pane { display: flex; flex-direction: column; gap: var(--gap-section); }
+
+.input-grow { flex: 1; min-width: 0; }
+.input-symbol { width: 64px; flex-shrink: 0; }
+.input-code { width: 80px; flex-shrink: 0; }
+.input-symbol-sm { width: 60px; flex-shrink: 0; }
+
+.edit-fields {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.inline-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
 
 /* ── Catalog autocomplete ── */
 
@@ -755,6 +861,7 @@ async function saveEditSource() {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex-wrap: wrap;
   padding-bottom: 0.75rem;
   margin-bottom: 0.25rem;
   border-bottom: 1px solid var(--card-border);
@@ -767,8 +874,22 @@ async function saveEditSource() {
   white-space: nowrap;
 }
 
-.base-currency-select {
-  min-width: 120px;
+.base-currency-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.base-currency-link {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.base-currency-link:hover {
+  color: var(--color-accent-light);
 }
 
 /* ── Inline rate display ── */

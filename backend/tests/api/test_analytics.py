@@ -324,95 +324,88 @@ async def test_expense_template(auth_client, test_user, ref_data, db_session):
     assert len(data["items"]) == 2
 
 
-async def test_expense_vs_budget_with_transactions(
+async def test_balance_uses_latest_date_not_latest_insert(
     auth_client, test_user, ref_data, db_session
 ):
+    """A back-filled older snapshot must not become the current balance.
+
+    Snapshots can be entered in any order, so the row inserted last is not the
+    row with the latest date. Ranking by id alone made one forgotten month
+    override the true balance for every period after it.
+    """
+    account = ref_data["account"]
+
+    db_session.add(
+        BalanceSnapshot(
+            user_id=test_user.id,
+            storage_account_id=account.id,
+            date=date(2025, 6, 30),
+            amount=Decimal("5000.00"),
+        )
+    )
+    await db_session.flush()
+
+    # Back-fill an earlier month afterwards, so it gets the higher id.
+    db_session.add(
+        BalanceSnapshot(
+            user_id=test_user.id,
+            storage_account_id=account.id,
+            date=date(2025, 1, 31),
+            amount=Decimal("100.00"),
+        )
+    )
+    await db_session.flush()
+
+    resp = await auth_client.get("/api/analytics/balance-breakdown")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 1
+    assert rows[0]["latest_snapshot_date"] == "2025-06-30"
+    assert float(rows[0]["latest_snapshot_amount"]) == 5000.0
+
+
+async def test_summary_keeps_income_in_bootstrap_period(
+    auth_client, test_user, ref_data, db_session
+):
+    """Opening-balance periods must still report the income received in them."""
+    account = ref_data["account"]
+
     db_session.add(
         Transaction(
             user_id=test_user.id,
-            type=TransactionType.expense,
-            date=date(2025, 1, 15),
-            amount=Decimal("300.00"),
+            type=TransactionType.income,
+            date=date(2025, 1, 10),
+            amount=Decimal("2500.00"),
             currency_id=ref_data["currency"].id,
-            storage_account_id=ref_data["account"].id,
-            expense_category_id=ref_data["expense_category"].id,
+            storage_account_id=account.id,
+            income_source_id=ref_data["income_source"].id,
+        )
+    )
+    db_session.add(
+        BalanceSnapshot(
+            user_id=test_user.id,
+            storage_account_id=account.id,
+            date=date(2025, 1, 31),
+            amount=Decimal("9000.00"),
         )
     )
     await db_session.flush()
 
     resp = await auth_client.get(
-        "/api/analytics/expense-vs-budget",
-        params={"year": 2025, "month": 1},
+        "/api/analytics/summary",
+        params={
+            "date_from": "2025-01-01",
+            "date_to": "2025-01-31",
+            "group_by": "month",
+        },
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) == 1
-    item = data[0]
-    assert item["name"] == "Food"
-    assert float(item["budgeted"]) == 500.0
-    assert float(item["actual"]) == 300.0
-    assert float(item["remaining"]) == 200.0
 
-
-async def test_expense_vs_budget_no_transactions(auth_client, test_user, ref_data):
-    resp = await auth_client.get(
-        "/api/analytics/expense-vs-budget",
-        params={"year": 2099, "month": 1},
-    )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert len(data) == 1
-    assert float(data[0]["actual"]) == 0
-    assert float(data[0]["remaining"]) == 500.0
-
-
-async def test_expense_vs_budget_multi_category(
-    auth_client, test_user, ref_data, db_session
-):
-    from app.models import ExpenseCategory
-
-    transport_cat = ExpenseCategory(
-        name="Transport",
-        budgeted_amount=Decimal("300.00"),
-        user_id=test_user.id,
-    )
-    db_session.add(transport_cat)
-    await db_session.flush()
-
-    db_session.add_all(
-        [
-            Transaction(
-                user_id=test_user.id,
-                type=TransactionType.expense,
-                date=date(2025, 2, 10),
-                amount=Decimal("450.00"),
-                currency_id=ref_data["currency"].id,
-                storage_account_id=ref_data["account"].id,
-                expense_category_id=ref_data["expense_category"].id,
-            ),
-            Transaction(
-                user_id=test_user.id,
-                type=TransactionType.expense,
-                date=date(2025, 2, 15),
-                amount=Decimal("100.00"),
-                currency_id=ref_data["currency"].id,
-                storage_account_id=ref_data["account"].id,
-                expense_category_id=transport_cat.id,
-            ),
-        ]
-    )
-    await db_session.flush()
-
-    resp = await auth_client.get(
-        "/api/analytics/expense-vs-budget",
-        params={"year": 2025, "month": 2},
-    )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert len(data) == 2
-
-    by_name = {item["name"]: item for item in data}
-    assert float(by_name["Food"]["actual"]) == 450.0
-    assert float(by_name["Food"]["remaining"]) == 50.0
-    assert float(by_name["Transport"]["actual"]) == 100.0
-    assert float(by_name["Transport"]["remaining"]) == 200.0
+    row = data["periods"][0]
+    assert row["is_bootstrap"] is True
+    # Income is real money received and is reported...
+    assert float(row["income"]) == 2500.0
+    # ...while the opening balance is not booked as profit.
+    assert float(data["stats"]["total_income"]) == 2500.0
+    assert float(data["stats"]["total_profit"]) == 0.0

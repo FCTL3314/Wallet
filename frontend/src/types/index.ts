@@ -8,7 +8,6 @@ export type {
   BalanceGrowth,
   BalanceGrowthConverted,
   BalanceByStorageEntry,
-  ExpenseVsBudgetItem,
   ExpenseTemplateItem,
   ExpenseTemplate,
   RateCoverage,
@@ -24,4 +23,3 @@ export type {
 } from '../api/references'
 
 export type Preset = 'All' | 'YTD' | '3M' | '6M' | '12M' | 'custom'
-export const PRESET_OPTIONS: Preset[] = ['All', 'YTD', '3M', '6M', '12M']

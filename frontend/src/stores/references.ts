@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import {
-  currenciesApi, storageLocationsApi, storageAccountsApi, incomeSourcesApi, expenseCategoriesApi,
-  type Currency, type StorageLocation, type StorageAccount, type IncomeSource, type ExpenseCategory,
+  currenciesApi, storageLocationsApi, storageAccountsApi, incomeSourcesApi,
+  type Currency, type StorageLocation, type StorageAccount, type IncomeSource,
 } from '../api/references'
 import { getErrorMessage } from '../api/errors'
 
@@ -11,7 +11,6 @@ export const useReferencesStore = defineStore('references', () => {
   const storageLocations = ref<StorageLocation[]>([])
   const storageAccounts = ref<StorageAccount[]>([])
   const incomeSources = ref<IncomeSource[]>([])
-  const expenseCategories = ref<ExpenseCategory[]>([])
   const loaded = ref(false)
   const error = ref<string | null>(null)
 
@@ -21,23 +20,20 @@ export const useReferencesStore = defineStore('references', () => {
   const _locationById = computed(() => new Map(storageLocations.value.map((l) => [l.id, l])))
   const _accountById = computed(() => new Map(storageAccounts.value.map((a) => [a.id, a])))
   const _incomeSourceById = computed(() => new Map(incomeSources.value.map((s) => [s.id, s])))
-  const _expenseCategoryById = computed(() => new Map(expenseCategories.value.map((c) => [c.id, c])))
 
   async function fetchAll() {
     error.value = null
     try {
-      const [c, sl, sa, is_, ec] = await Promise.all([
+      const [c, sl, sa, is_] = await Promise.all([
         currenciesApi.list(),
         storageLocationsApi.list(),
         storageAccountsApi.list(),
         incomeSourcesApi.list(),
-        expenseCategoriesApi.list(),
       ])
       currencies.value = c.data
       storageLocations.value = sl.data
       storageAccounts.value = sa.data
       incomeSources.value = is_.data
-      expenseCategories.value = ec.data
       loaded.value = true
     } catch (e) {
       error.value = getErrorMessage(e)
@@ -67,13 +63,9 @@ export const useReferencesStore = defineStore('references', () => {
     return _incomeSourceById.value.get(id)
   }
 
-  function expenseCategoryById(id: number) {
-    return _expenseCategoryById.value.get(id)
-  }
-
   return {
-    currencies, storageLocations, storageAccounts, incomeSources, expenseCategories,
+    currencies, storageLocations, storageAccounts, incomeSources,
     loaded, error, fetchAll, currencyById, currencyByCode, storageAccountLabel, storageAccountLabelById,
-    incomeSourceById, expenseCategoryById,
+    incomeSourceById,
   }
 })

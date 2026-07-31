@@ -1,7 +1,10 @@
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.db_helpers import get_or_404
 from app.core.dependencies import get_current_user
@@ -37,11 +40,25 @@ async def list_catalog_currencies(
     result = await db.execute(q)
     catalog_entries = result.scalars().all()
 
-    # Collect all codes that have at least one exchange rate row
-    codes_with_rates_result = await db.execute(
-        select(ExchangeRate.from_code).distinct()
-    )
-    codes_with_rates: set[str] = {row for row in codes_with_rates_result.scalars()}
+    # Which of the returned codes have a *usable* rate. Scoping to the codes on
+    # this page and to the staleness window keeps this off a full scan of a table
+    # that grows by hundreds of rows a day, and stops a currency last priced two
+    # years ago from being advertised as convertible.
+    catalog_codes = [entry.code for entry in catalog_entries]
+    codes_with_rates: set[str] = set()
+    if catalog_codes:
+        fresh_since = date.today() - timedelta(
+            days=settings.EXCHANGE_RATE_STALENESS_DAYS
+        )
+        codes_with_rates_result = await db.execute(
+            select(ExchangeRate.from_code)
+            .where(
+                ExchangeRate.from_code.in_(catalog_codes),
+                ExchangeRate.valid_date >= fresh_since,
+            )
+            .distinct()
+        )
+        codes_with_rates = set(codes_with_rates_result.scalars())
 
     return [
         CatalogCurrencyResponse(

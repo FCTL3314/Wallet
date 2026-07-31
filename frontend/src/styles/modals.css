@@ -46,11 +46,41 @@
     color: var(--ink);
 }
 
+.modal:focus { outline: none; }
+
 .modal-actions {
     display: flex;
     gap: 10px;
     justify-content: flex-end;
     margin-top: 24px;
+}
+
+/* ── Unsaved-changes guard ─────────────────────────────── */
+
+.modal-discard {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 20px;
+    padding: 12px 14px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-inner);
+    background: var(--warning-soft);
+}
+
+.modal-discard-text {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--warning-ink);
+}
+
+.modal-discard-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
 }
 
 /* ── Autocomplete suggestions panel ────────────────────── */

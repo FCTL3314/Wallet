@@ -6,6 +6,7 @@ import { authApi } from '../api/auth'
 export const useOnboardingStore = defineStore('onboarding', () => {
   const auth = useAuthStore()
   const active = ref(false)
+  const stepIndex = ref(0)
 
   const completed = computed(() => auth.user?.onboarding_completed ?? false)
 
@@ -13,20 +14,26 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     active.value = true
   }
 
-  async function finish() {
+  function goToStep(index: number) {
+    stepIndex.value = Math.max(0, index)
+  }
+
+  function pause() {
     active.value = false
-    try {
-      const { data } = await authApi.completeOnboarding()
-      auth.user = data
-    } catch {
-      // best-effort: guide is hidden, backend state update is non-blocking
-    }
   }
 
   function reset() {
-    // Allows re-running the guide from Settings without uncompleting on backend
     active.value = false
+    stepIndex.value = 0
   }
 
-  return { completed, active, start, finish, reset }
+  async function finish() {
+    active.value = false
+    stepIndex.value = 0
+    if (completed.value) return
+    const response = await authApi.completeOnboarding().catch(() => null)
+    if (response) auth.user = response.data
+  }
+
+  return { active, stepIndex, completed, start, goToStep, pause, reset, finish }
 })

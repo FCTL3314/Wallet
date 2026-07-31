@@ -96,10 +96,44 @@ async def test_github_callback_returns_error_when_code_exchange_fails(
         resp = await client.get(
             "/api/auth/github/callback",
             params={"code": "bad-code", "state": "xyz"},
+            follow_redirects=False,
         )
 
-    assert resp.status_code in (400, 401)
-    assert resp.json().get("code") == "auth/oauth_failed"
+    # The callback is reached by top-level browser navigation, so failures go
+    # back to the frontend with an error to render, not a raw JSON body.
+    assert resp.status_code == 302
+    location = resp.headers.get("location", "")
+    assert "/oauth/callback" in location
+    assert "error=profile" in location
+
+
+async def test_github_callback_refuses_to_link_existing_email(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """A GitHub identity must not attach itself to an account it does not own."""
+    existing = User(email="victim@example.com", password_hash="hashed")
+    db_session.add(existing)
+    await db_session.flush()
+
+    github_profile = {"id": 99999, "email": "victim@example.com", "login": "attacker"}
+
+    client.cookies.set("oauth_state", "xyz")
+    with patch(
+        "app.api.oauth.exchange_github_code",
+        new=AsyncMock(return_value=github_profile),
+    ):
+        resp = await client.get(
+            "/api/auth/github/callback",
+            params={"code": "valid-code", "state": "xyz"},
+            follow_redirects=False,
+        )
+
+    assert resp.status_code == 302
+    assert "error=email_taken" in resp.headers.get("location", "")
+    assert "access_token" not in resp.cookies
+
+    await db_session.refresh(existing)
+    assert existing.github_id is None
 
 
 async def test_google_login_redirects(client: AsyncClient):
@@ -187,7 +221,39 @@ async def test_google_callback_returns_error_when_code_exchange_fails(
         resp = await client.get(
             "/api/auth/google/callback",
             params={"code": "bad-code", "state": "xyz"},
+            follow_redirects=False,
         )
 
-    assert resp.status_code in (400, 401)
-    assert resp.json().get("code") == "auth/oauth_failed"
+    assert resp.status_code == 302
+    location = resp.headers.get("location", "")
+    assert "/oauth/callback" in location
+    assert "error=profile" in location
+
+
+async def test_google_callback_refuses_to_link_existing_email(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """A Google identity must not attach itself to an account it does not own."""
+    existing = User(email="victim-goo@example.com", password_hash="hashed")
+    db_session.add(existing)
+    await db_session.flush()
+
+    google_profile = {"sub": "g-sub-attacker", "email": "victim-goo@example.com"}
+
+    client.cookies.set("oauth_state", "xyz")
+    with patch(
+        "app.api.oauth.exchange_google_code",
+        new=AsyncMock(return_value=google_profile),
+    ):
+        resp = await client.get(
+            "/api/auth/google/callback",
+            params={"code": "valid-code", "state": "xyz"},
+            follow_redirects=False,
+        )
+
+    assert resp.status_code == 302
+    assert "error=email_taken" in resp.headers.get("location", "")
+    assert "access_token" not in resp.cookies
+
+    await db_session.refresh(existing)
+    assert existing.google_sub is None

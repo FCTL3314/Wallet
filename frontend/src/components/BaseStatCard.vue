@@ -1,23 +1,21 @@
 <script setup lang="ts">
 import { ref, useTemplateRef } from 'vue'
 import { PhInfo } from '@phosphor-icons/vue'
-import type { Component } from 'vue'
 
 const props = defineProps<{
   label: string
   variant?: 'income' | 'expense' | 'profit'
   hint?: string
-  icon?: Component
   flat?: boolean
 }>()
 
-const iconRef = useTemplateRef<HTMLElement>('iconRef')
+const hintRef = useTemplateRef<HTMLElement>('hintRef')
 const tooltipVisible = ref(false)
 const tooltipStyle = ref<Record<string, string>>({})
 
 function showTooltip() {
-  if (!iconRef.value) return
-  const rect = iconRef.value.getBoundingClientRect()
+  if (!hintRef.value) return
+  const rect = hintRef.value.getBoundingClientRect()
   tooltipStyle.value = {
     left: `${rect.left + rect.width / 2 + window.scrollX}px`,
     top: `${rect.top + window.scrollY - 10}px`,
@@ -28,27 +26,37 @@ function showTooltip() {
 function hideTooltip() {
   tooltipVisible.value = false
 }
+
+function toggleTooltip() {
+  if (tooltipVisible.value) hideTooltip()
+  else showTooltip()
+}
 </script>
 
 <template>
   <div :class="[!props.flat && 'card', 'stat-card', variant ? `stat-card--${variant}` : '']">
     <div class="stat-label">
-      <component :is="icon" v-if="icon" :size="14" weight="duotone" class="stat-label-icon" />
       {{ label }}
-      <span
+      <button
         v-if="hint"
-        ref="iconRef"
+        ref="hintRef"
+        type="button"
         class="stat-hint"
+        :aria-label="`About ${label}`"
+        :aria-expanded="tooltipVisible"
         @mouseenter="showTooltip"
         @mouseleave="hideTooltip"
+        @focus="showTooltip"
+        @blur="hideTooltip"
+        @click="toggleTooltip"
       >
         <PhInfo :size="13" weight="bold" />
-      </span>
+      </button>
     </div>
     <slot />
   </div>
   <Teleport to="body">
-    <div v-if="tooltipVisible && hint" class="stat-hint-popup" :style="tooltipStyle">
+    <div v-if="tooltipVisible && hint" class="stat-hint-popup" :style="tooltipStyle" role="tooltip">
       <p class="stat-hint-text">{{ hint }}</p>
     </div>
   </Teleport>
@@ -64,12 +72,16 @@ function hideTooltip() {
 .stat-hint {
   display: inline-flex;
   align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--text-placeholder);
-  cursor: default;
+  cursor: pointer;
   transition: color 0.15s;
 }
 
-.stat-hint:hover {
+.stat-hint:hover,
+.stat-hint:focus-visible {
   color: var(--text-secondary);
 }
 </style>

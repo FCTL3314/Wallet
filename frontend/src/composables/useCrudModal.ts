@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 
 export interface CrudModalOptions<T extends { id: number }, TCreate> {
   defaultForm: () => TCreate
@@ -10,15 +10,21 @@ export interface CrudModalOptions<T extends { id: number }, TCreate> {
   afterDelete?: () => void
 }
 
+const REMOVE_ANIMATION_MS = 280
+const NEW_HIGHLIGHT_MS = 1500
+
 export function useCrudModal<T extends { id: number }, TCreate>(
   options: CrudModalOptions<T, TCreate>,
 ) {
   const showModal = ref(false)
-  const editing = ref<T | null>(null)
+  const editing = ref<T | null>(null) as Ref<T | null>
   const removingId = ref<number | null>(null)
   const newId = ref<number | null>(null)
   const touchedFields = ref(new Set<string>())
-  const form = ref<TCreate>(options.defaultForm()) as import('vue').Ref<TCreate>
+  const form = ref<TCreate>(options.defaultForm()) as Ref<TCreate>
+  const saving = ref(false)
+  const deleting = ref(false)
+  const busy = computed(() => saving.value || deleting.value)
 
   watch(showModal, (val) => {
     if (!val) touchedFields.value = new Set()
@@ -37,28 +43,39 @@ export function useCrudModal<T extends { id: number }, TCreate>(
   }
 
   async function save() {
-    const isCreate = !editing.value
+    if (saving.value) return
+    const current = editing.value
+    const isCreate = !current
+    saving.value = true
     let result: T
-    if (editing.value) {
-      result = await options.onUpdate(editing.value.id, form.value)
-    } else {
-      result = await options.onCreate(form.value)
-      newId.value = result.id
+    try {
+      result = current
+        ? await options.onUpdate(current.id, form.value)
+        : await options.onCreate(form.value)
+    } finally {
+      saving.value = false
     }
+    if (isCreate) newId.value = result.id
     showModal.value = false
     options.afterSave?.(isCreate, result)
     if (isCreate) {
       setTimeout(() => {
         newId.value = null
-      }, 1500)
+      }, NEW_HIGHLIGHT_MS)
     }
   }
 
   async function remove(id: number) {
+    if (deleting.value) return
     removingId.value = id
-    await new Promise<void>((resolve) => setTimeout(resolve, 280))
-    await options.onDelete(id)
-    removingId.value = null
+    deleting.value = true
+    try {
+      await new Promise<void>((resolve) => setTimeout(resolve, REMOVE_ANIMATION_MS))
+      await options.onDelete(id)
+    } finally {
+      removingId.value = null
+      deleting.value = false
+    }
     options.afterDelete?.()
   }
 
@@ -69,6 +86,9 @@ export function useCrudModal<T extends { id: number }, TCreate>(
     newId,
     touchedFields,
     form,
+    saving,
+    deleting,
+    busy,
     openCreate,
     openEdit,
     save,

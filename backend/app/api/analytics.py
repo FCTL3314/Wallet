@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -15,7 +15,6 @@ from app.services.analytics import (
     get_income_by_source,
     get_balance_by_storage,
     get_expense_template,
-    get_expense_vs_budget,
     get_balance_breakdown,
     get_date_range,
 )
@@ -89,22 +88,6 @@ async def expense_template(
     db: AsyncSession = Depends(get_db),
 ):
     return await get_expense_template(db, user.id)
-
-
-@router.get("/expense-vs-budget")
-async def expense_vs_budget(
-    year: int | None = Query(default=None),
-    month: int | None = Query(default=None),
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    now = datetime.now(timezone.utc)
-    return await get_expense_vs_budget(
-        db,
-        user.id,
-        year if year is not None else now.year,
-        month if month is not None else now.month,
-    )
 
 
 @router.get("/balance-breakdown", response_model=list[BalanceBreakdownItem])

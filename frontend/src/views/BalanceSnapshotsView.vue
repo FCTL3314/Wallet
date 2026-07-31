@@ -3,7 +3,7 @@ import { ref, computed, useTemplateRef, onMounted, watch } from 'vue'
 import { balanceSnapshotsApi, type BalanceSnapshot, type BalanceSnapshotCreate } from '../api/balanceSnapshots'
 import { analyticsApi, type BalanceByStorageEntry, type BalanceByStorageAccount, type GroupBy } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
-import { fmtAmount, fmtPeriod } from '../utils/format'
+import { fmtAmount, fmtPeriod, localDateStr } from '../utils/format'
 import { useCrudModal } from '../composables/useCrudModal'
 import { useDateRange } from '../composables/useDateRange'
 import BaseModal from '../components/BaseModal.vue'
@@ -15,17 +15,23 @@ import BaseButton from '../components/BaseButton.vue'
 import EditDeleteActions from '../components/EditDeleteActions.vue'
 import PeriodFilterBar from '../components/PeriodFilterBar.vue'
 import { useSuccessAnimation } from '../composables/useSuccessAnimation'
-import { PhWallet, PhCaretDown, PhPencilSimple, PhPlus } from '@phosphor-icons/vue'
-import { storageLocationsApi } from '../api/references'
+import { PhWallet, PhCaretDown, PhPlus, PhWarning } from '@phosphor-icons/vue'
+import { storageLocationsApi, storageAccountsApi } from '../api/references'
+
+const SNAPSHOT_PAGE_SIZE = 1000
+const SNAPSHOT_MAX_PAGES = 25
+
+const HINT_TOTAL_BALANCE =
+  'The most recent snapshot of every account, summed per currency. Accounts you have not re-snapshotted keep their last recorded amount, so this is your latest known position rather than a live balance.'
 
 const refs = useReferencesStore()
 const { spawn } = useSuccessAnimation()
 const addBtnRef = useTemplateRef<HTMLElement>('addBtn')
 const allSnapshots = ref<BalanceSnapshot[]>([])
+const historyTruncated = ref(false)
 const storageData = ref<BalanceByStorageEntry[]>([])
 const loading = ref(false)
 
-// All currencies and accounts across ALL periods (not just the first row)
 const allCurrencies = computed(() => {
   const seen = new Set<string>()
   for (const row of storageData.value) {
@@ -48,30 +54,6 @@ function accountCell(row: BalanceByStorageEntry, name: string): string {
   const acc = row.accounts.find(a => a.name === name)
   if (!acc) return '—'
   return `${refs.currencyByCode(acc.currency)?.symbol ?? acc.currency}${fmtAmount(acc.amount)}`
-}
-
-// Expandable rows
-const expandedPeriods = ref<Set<string>>(new Set())
-
-function togglePeriod(period: string) {
-  const s = new Set(expandedPeriods.value)
-  s.has(period) ? s.delete(period) : s.add(period)
-  expandedPeriods.value = s
-}
-
-function snapshotsForPeriod(period: string): BalanceSnapshot[] {
-  if (period.includes('-Q')) {
-    const [year, q] = period.split('-Q') as [string, string]
-    const startM = (parseInt(q) - 1) * 3 + 1
-    return snapshots.value.filter(s => {
-      const parts = s.date.split('-').map(Number)
-      const [y, m] = parts as [number, number]
-      return String(y) === year && m >= startM && m <= startM + 2
-    })
-  }
-  // period is "YYYY-MM-01" for month, "YYYY-01-01" for year — use appropriate prefix
-  const prefix = groupBy.value === 'year' ? period.slice(0, 4) : period.slice(0, 7)
-  return snapshots.value.filter(s => s.date.startsWith(prefix))
 }
 
 const groupBy = ref<GroupBy>('month')
@@ -98,7 +80,7 @@ const {
 } = useCrudModal<BalanceSnapshot, BalanceSnapshotCreate>({
   defaultForm: () => ({
     storage_account_id: refs.storageAccounts[0]?.id || 0,
-    date: new Date().toISOString().slice(0, 10),
+    date: localDateStr(),
     amount: 0,
   }),
   toForm: (snap) => ({
@@ -127,7 +109,6 @@ const {
   afterDelete: () => load(),
 })
 
-// ── Snapshot timeline (group all individual snapshots by date) ────────────
 interface TimelineRow {
   accountId: number
   ccy: string
@@ -248,7 +229,6 @@ function locationNameForAccount(accountId: number): string {
   return loc?.name ?? '—'
 }
 
-// ── Locations grid (per design) ────────────────────────────────────────────
 interface LocationCard {
   id: number
   name: string
@@ -291,6 +271,38 @@ async function createLocation() {
   await refs.fetchAll()
 }
 
+const showNewAccountDialog = ref(false)
+const newAccountLocationId = ref<number | null>(null)
+const newAccountCurrencyId = ref<number | null>(null)
+
+const newAccountLocationName = computed(
+  () => refs.storageLocations.find((l) => l.id === newAccountLocationId.value)?.name ?? '',
+)
+
+const availableCurrenciesForNewAccount = computed(() => {
+  const taken = new Set(
+    refs.storageAccounts
+      .filter((a) => a.storage_location_id === newAccountLocationId.value)
+      .map((a) => a.currency_id),
+  )
+  return refs.currencies.filter((c) => !taken.has(c.id))
+})
+
+function openNewAccount(locationId: number) {
+  newAccountLocationId.value = locationId
+  newAccountCurrencyId.value = null
+  showNewAccountDialog.value = true
+}
+
+async function createAccount() {
+  const locationId = newAccountLocationId.value
+  const currencyId = newAccountCurrencyId.value
+  if (!locationId || !currencyId) return
+  await storageAccountsApi.create({ storage_location_id: locationId, currency_id: currencyId })
+  showNewAccountDialog.value = false
+  await refs.fetchAll()
+}
+
 const totalKpiCount = computed(() => snapshots.value.length)
 const distinctSnapshotDates = computed(() => new Set(snapshots.value.map((s) => s.date)).size)
 const totalsByCcy = computed(() => {
@@ -314,7 +326,6 @@ function openCreate() {
   form.value.amount = latestAmountForAccount(form.value.storage_account_id)
 }
 
-// When account changes in create mode, auto-fill amount from last snapshot
 watch(() => form.value.storage_account_id, (accountId) => {
   if (!editing.value) {
     form.value.amount = latestAmountForAccount(accountId)
@@ -329,16 +340,40 @@ async function save() {
   await crudSave()
 }
 
+async function fetchSnapshotHistory(): Promise<{ items: BalanceSnapshot[]; truncated: boolean }> {
+  const byId = new Map<number, BalanceSnapshot>()
+  let cursor: string | undefined
+
+  for (let page = 0; page < SNAPSHOT_MAX_PAGES; page++) {
+    const { data } = await balanceSnapshotsApi.list({
+      limit: SNAPSHOT_PAGE_SIZE,
+      date_to: cursor,
+    })
+    const knownBefore = byId.size
+    let oldest: string | null = null
+    for (const snap of data) {
+      byId.set(snap.id, snap)
+      if (oldest === null || snap.date < oldest) oldest = snap.date
+    }
+    if (data.length < SNAPSHOT_PAGE_SIZE) return { items: [...byId.values()], truncated: false }
+    if (oldest === null || oldest === cursor || byId.size === knownBefore) break
+    cursor = oldest
+  }
+
+  return { items: [...byId.values()], truncated: true }
+}
+
 async function load() {
   loading.value = true
   try {
-    const [snaps, analytics] = await Promise.all([
-      balanceSnapshotsApi.list({ limit: 1000 }),
+    const [history, analytics] = await Promise.all([
+      fetchSnapshotHistory(),
       analyticsApi.balanceByStorage({
         date_from: dateFrom.value, date_to: dateTo.value, group_by: groupBy.value,
       }),
     ])
-    allSnapshots.value = snaps.data
+    allSnapshots.value = history.items
+    historyTruncated.value = history.truncated
     storageData.value = analytics.data
   } finally {
     loading.value = false
@@ -366,9 +401,19 @@ watch([dateFrom, dateTo, groupBy], load)
     </PeriodFilterBar>
   </BaseCard>
 
+  <BaseCard v-if="historyTruncated" class="warning-card">
+    <div class="row warning-row">
+      <PhWarning :size="18" weight="fill" class="warning-icon" />
+      <span>
+        Your history is longer than Wallet can load in one go. The totals, the location cards and the
+        timeline on this page cover only the {{ allSnapshots.length }} most recent snapshots — anything
+        older is not reflected here.
+      </span>
+    </div>
+  </BaseCard>
+
   <div class="kpis">
-    <div class="card stat-card stat-card--profit">
-      <div class="stat-label">Total balance</div>
+    <BaseStatCard label="Total balance" variant="profit" :hint="HINT_TOTAL_BALANCE">
       <template v-if="!totalEntries.length">
         <div class="stat-value">—</div>
       </template>
@@ -385,7 +430,7 @@ watch([dateFrom, dateTo, groupBy], load)
           </div>
         </div>
       </template>
-    </div>
+    </BaseStatCard>
     <BaseStatCard label="Locations">
       <div class="stat-value">{{ refs.storageLocations.length }}</div>
       <div class="stat-foot"><span class="muted">{{ refs.storageAccounts.length }} accounts</span></div>
@@ -411,6 +456,15 @@ watch([dateFrom, dateTo, groupBy], load)
           <span class="num location-acc-val">{{ acc.symbol }}{{ fmtAmount(acc.latest) }}</span>
         </div>
       </div>
+      <button
+        type="button"
+        class="location-add-acc"
+        :aria-label="`Add an account to ${loc.name}`"
+        @click="openNewAccount(loc.id)"
+      >
+        <PhPlus :size="13" weight="bold" />
+        <span>Add account</span>
+      </button>
     </div>
     <button
       class="card location-add"
@@ -425,57 +479,25 @@ watch([dateFrom, dateTo, groupBy], load)
   <BaseDataTable title="Balances by Storage" :loading="loading" :empty="!storageData.length" empty-message="No balance data for selected period.">
     <template #head>
       <tr>
-        <th style="width: 36px;"></th>
         <th>Period</th>
         <th v-for="cur in allCurrencies" :key="cur" class="col-num">{{ cur }} Total</th>
         <th v-for="acc in allAccounts" :key="acc.name" class="col-num">{{ acc.name }}</th>
       </tr>
     </template>
     <template #body>
-      <template v-for="(row, index) in storageData" :key="row.period">
-        <tr
-          class="table-row period-row"
-          :style="{ '--i': String(Math.min(index, 15)) }"
-          @click="togglePeriod(row.period)"
-        >
-          <td>
-            <button class="expand-btn" :class="{ expanded: expandedPeriods.has(row.period) }">▶</button>
-          </td>
-          <td>{{ fmtPeriod(row.period) }}</td>
-          <td v-for="cur in allCurrencies" :key="cur" class="col-num">
-            <template v-if="row.totals[cur] != null">{{ refs.currencyByCode(cur)?.symbol ?? cur }}{{ fmtAmount(row.totals[cur]) }}</template>
-            <template v-else>—</template>
-          </td>
-          <td v-for="col in allAccounts" :key="col.name" class="col-num">{{ accountCell(row, col.name) }}</td>
-        </tr>
-
-        <template v-if="expandedPeriods.has(row.period)">
-          <tr
-            v-for="snap in snapshotsForPeriod(row.period)"
-            :key="snap.id"
-            class="detail-row"
-            :class="{ removing: snap.id === removingId }"
-          >
-            <td></td>
-            <td :colspan="1 + allCurrencies.length + allAccounts.length" class="detail-cell">
-              <div class="detail-content">
-                <span class="detail-date">{{ snap.date }}</span>
-                <span class="detail-account">{{ refs.storageAccountLabelById(snap.storage_account_id) }}</span>
-                <span class="detail-amount">{{ fmtAmount(snap.amount) }}</span>
-                <div class="detail-actions">
-                  <EditDeleteActions @edit="openEdit(snap)" @confirm="crudRemove(snap.id)" />
-                </div>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="!snapshotsForPeriod(row.period).length" class="detail-row">
-            <td></td>
-            <td :colspan="1 + allCurrencies.length + allAccounts.length" class="detail-cell no-snapshots-msg">
-              No individual snapshots in this period
-            </td>
-          </tr>
-        </template>
-      </template>
+      <tr
+        v-for="(row, index) in storageData"
+        :key="row.period"
+        class="table-row"
+        :style="{ '--i': String(Math.min(index, 15)) }"
+      >
+        <td>{{ fmtPeriod(row.period, groupBy) }}</td>
+        <td v-for="cur in allCurrencies" :key="cur" class="col-num">
+          <template v-if="row.totals[cur] != null">{{ refs.currencyByCode(cur)?.symbol ?? cur }}{{ fmtAmount(row.totals[cur]) }}</template>
+          <template v-else>—</template>
+        </td>
+        <td v-for="col in allAccounts" :key="col.name" class="col-num">{{ accountCell(row, col.name) }}</td>
+      </tr>
     </template>
   </BaseDataTable>
 
@@ -484,7 +506,7 @@ watch([dateFrom, dateTo, groupBy], load)
       <div>
         <div class="label">History</div>
         <div class="snap-subtitle">Snapshot timeline</div>
-        <div class="muted snap-hint">Each entry is one moment in time across every account. Click to expand.</div>
+        <div class="muted snap-hint">Each entry is one moment in time across every account. Expand a date to edit or delete the snapshots taken that day.</div>
       </div>
     </div>
     <div class="snap-timeline">
@@ -532,7 +554,10 @@ watch([dateFrom, dateTo, groupBy], load)
               v-for="r in set.rows"
               :key="r.accountId"
               class="snap-cell"
-              :class="{ 'snap-cell--carried': !r.snapshot }"
+              :class="{
+                'snap-cell--carried': !r.snapshot,
+                'snap-cell--removing': r.snapshot && r.snapshot.id === removingId,
+              }"
             >
               <div class="snap-cell-head">
                 <span class="snap-cell-icon"><PhWallet :size="14" /></span>
@@ -540,20 +565,19 @@ watch([dateFrom, dateTo, groupBy], load)
                   <span class="snap-cell-name">{{ refs.storageAccountLabelById(r.accountId) }}</span>
                   <span class="muted snap-cell-ccy">{{ r.ccy }}</span>
                 </div>
-                <div class="snap-cell-actions">
-                  <button
-                    v-if="r.snapshot"
-                    class="icon-btn"
-                    title="Edit"
-                    @click="openEdit(r.snapshot)"
-                  ><PhPencilSimple :size="13" /></button>
-                </div>
               </div>
-              <div class="snap-cell-amt">
-                <span class="num">{{ fmtAmount(r.amount) }}</span>
-                <span v-if="!r.snapshot" class="muted snap-cell-since">
-                  unchanged since {{ dateParts(r.since).day }} {{ dateParts(r.since).month }}
-                </span>
+              <div class="snap-cell-foot">
+                <div class="snap-cell-amt">
+                  <span class="num">{{ fmtAmount(r.amount) }}</span>
+                  <span v-if="!r.snapshot" class="muted snap-cell-since">
+                    unchanged since {{ dateParts(r.since).day }} {{ dateParts(r.since).month }}
+                  </span>
+                </div>
+                <EditDeleteActions
+                  v-if="r.snapshot"
+                  @edit="openEdit(r.snapshot)"
+                  @confirm="crudRemove(r.snapshot.id)"
+                />
               </div>
             </div>
           </div>
@@ -565,8 +589,32 @@ watch([dateFrom, dateTo, groupBy], load)
 
   <BaseModal :show="showNewLocationDialog" title="New storage location" @close="showNewLocationDialog = false" @submit="createLocation">
     <div class="form-group">
-      <label>Name</label>
-      <input v-model="newLocationName" type="text" placeholder="e.g. Revolut" required />
+      <label for="new-location-name">Name</label>
+      <input id="new-location-name" v-model="newLocationName" type="text" placeholder="e.g. Revolut" required />
+    </div>
+  </BaseModal>
+
+  <BaseModal
+    :show="showNewAccountDialog"
+    :title="`New account in ${newAccountLocationName}`"
+    @close="showNewAccountDialog = false"
+    @submit="createAccount"
+  >
+    <div class="form-group">
+      <label for="new-account-currency">Currency</label>
+      <select id="new-account-currency" v-model.number="newAccountCurrencyId" required>
+        <option :value="null" disabled>Select a currency</option>
+        <option v-for="cur in availableCurrenciesForNewAccount" :key="cur.id" :value="cur.id">
+          {{ cur.code }}<template v-if="cur.name"> — {{ cur.name }}</template>
+        </option>
+      </select>
+      <p v-if="!availableCurrenciesForNewAccount.length" class="field-error">
+        {{
+          refs.currencies.length
+            ? 'This location already has an account in every currency you track.'
+            : 'Add a currency in References before creating an account.'
+        }}
+      </p>
     </div>
   </BaseModal>
 
@@ -634,6 +682,45 @@ watch([dateFrom, dateTo, groupBy], load)
   font-size: 12px;
   font-style: italic;
 }
+.location-add-acc {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: auto;
+  padding: 8px 12px;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--r-inner);
+  background: transparent;
+  color: var(--ink-3);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease),
+              background var(--t-fast) var(--ease);
+}
+.location-add-acc:hover,
+.location-add-acc:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+
+.warning-card {
+  background: var(--warning-soft);
+  border-color: transparent;
+}
+.warning-row {
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.warning-icon {
+  color: var(--warning-ink);
+  flex-shrink: 0;
+}
 .location-add {
   border: 1.5px dashed var(--hairline-strong);
   background: transparent;
@@ -694,94 +781,17 @@ watch([dateFrom, dateTo, groupBy], load)
   font-size: 10px;
   font-family: var(--font-mono);
 }
-.snap-cell-actions {
-  display: inline-flex;
-  gap: 2px;
-}
-.snap-cell-actions .icon-btn { width: 28px; height: 28px; }
-
-.period-row {
-  cursor: pointer;
-}
-
-.expand-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-placeholder);
-  font-size: 0.6rem;
-  padding: 4px 6px;
-  border-radius: 4px;
-  transition: color 0.15s, transform 0.2s;
-  pointer-events: none;
-}
-
-.period-row:hover .expand-btn {
-  color: var(--text-secondary);
-}
-
-.expand-btn.expanded {
-  transform: rotate(90deg);
-  color: var(--color-accent);
-}
-
-.detail-row td {
-  background: rgba(0, 0, 0, 0.03);
-  border-top: none;
-}
-
-[data-theme="dark"] .detail-row td {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.detail-cell {
-  padding: 6px 14px 6px 20px !important;
-}
-
-.detail-content {
+.snap-cell-foot {
   display: flex;
-  align-items: center;
-  gap: 1.5rem;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.detail-date {
-  font-size: 0.8rem;
-  color: var(--text-label);
-  min-width: 90px;
-}
-
-.no-snapshots-msg {
-  font-style: italic;
-  color: var(--text-placeholder);
-}
-
-.detail-account {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  flex: 1;
-}
-
-.detail-amount {
-  font-size: 0.85rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
-}
-
-.detail-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-left: auto;
-}
-
-@media (max-width: 640px) {
-  .detail-content {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.4rem;
-  }
-
-  .detail-actions {
-    margin-left: 0;
-  }
+.snap-cell--removing {
+  opacity: 0;
+  transform: scale(0.96);
+  transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease);
 }
 </style>

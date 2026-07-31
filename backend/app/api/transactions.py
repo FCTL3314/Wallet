@@ -1,19 +1,28 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy import asc, desc, select
+from sqlalchemy import Select, asc, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.db_helpers import get_or_404
 from app.core.dependencies import get_current_user
 from app.core.exceptions import AppException, ResourceNotFound
-from app.models import ExpenseCategory, IncomeSource, StorageAccount, Transaction, User
+from app.models import (
+    Currency,
+    ExpenseCategory,
+    IncomeSource,
+    StorageAccount,
+    Transaction,
+    User,
+)
 from app.models.storage import StorageLocation
 from app.models.transaction import TransactionType
 from app.schemas.transaction import (
     TransactionCreate,
+    TransactionCurrencyTotal,
     TransactionResponse,
+    TransactionSummaryResponse,
     TransactionUpdate,
 )
 
@@ -71,6 +80,31 @@ _VALID_SORT_FIELDS = {"date", "amount", "income_source", "storage_account"}
 _VALID_SORT_ORDERS = {"asc", "desc"}
 
 
+def _apply_filters(
+    stmt: Select,
+    *,
+    tx_type: TransactionType | None,
+    date_from: date | None,
+    date_to: date | None,
+    income_source_id: int | None,
+    expense_category_id: int | None,
+    storage_account_id: int | None,
+) -> Select:
+    if tx_type:
+        stmt = stmt.where(Transaction.type == tx_type)
+    if date_from:
+        stmt = stmt.where(Transaction.date >= date_from)
+    if date_to:
+        stmt = stmt.where(Transaction.date <= date_to)
+    if income_source_id:
+        stmt = stmt.where(Transaction.income_source_id == income_source_id)
+    if expense_category_id:
+        stmt = stmt.where(Transaction.expense_category_id == expense_category_id)
+    if storage_account_id:
+        stmt = stmt.where(Transaction.storage_account_id == storage_account_id)
+    return stmt
+
+
 @router.get("/", response_model=list[TransactionResponse])
 async def list_transactions(
     tx_type: TransactionType | None = Query(default=None, alias="type"),
@@ -111,21 +145,70 @@ async def list_transactions(
         # Default ordering when no valid sort_by is provided.
         q = q.order_by(Transaction.date.desc())
 
-    if tx_type:
-        q = q.where(Transaction.type == tx_type)
-    if date_from:
-        q = q.where(Transaction.date >= date_from)
-    if date_to:
-        q = q.where(Transaction.date <= date_to)
-    if income_source_id:
-        q = q.where(Transaction.income_source_id == income_source_id)
-    if expense_category_id:
-        q = q.where(Transaction.expense_category_id == expense_category_id)
-    if storage_account_id:
-        q = q.where(Transaction.storage_account_id == storage_account_id)
+    q = _apply_filters(
+        q,
+        tx_type=tx_type,
+        date_from=date_from,
+        date_to=date_to,
+        income_source_id=income_source_id,
+        expense_category_id=expense_category_id,
+        storage_account_id=storage_account_id,
+    )
     q = q.offset(offset).limit(limit)
     result = await db.execute(q)
     return result.scalars().all()
+
+
+@router.get("/summary", response_model=TransactionSummaryResponse)
+async def transactions_summary(
+    tx_type: TransactionType | None = Query(default=None, alias="type"),
+    date_from: date | None = None,
+    date_to: date | None = None,
+    income_source_id: int | None = None,
+    expense_category_id: int | None = None,
+    storage_account_id: int | None = None,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Aggregate totals for every transaction matching the filters, ignoring pagination."""
+    amount_sum = func.coalesce(func.sum(Transaction.amount), 0).label("total_amount")
+    matched_count = func.count(Transaction.id).label("matched_count")
+
+    q = (
+        select(
+            Currency.id.label("currency_id"),
+            Currency.code.label("currency_code"),
+            amount_sum,
+            matched_count,
+        )
+        .join(Currency, Transaction.currency_id == Currency.id)
+        .where(Transaction.user_id == user.id)
+    )
+    q = _apply_filters(
+        q,
+        tx_type=tx_type,
+        date_from=date_from,
+        date_to=date_to,
+        income_source_id=income_source_id,
+        expense_category_id=expense_category_id,
+        storage_account_id=storage_account_id,
+    )
+    q = q.group_by(Currency.id, Currency.code).order_by(
+        desc(amount_sum), asc(Currency.code)
+    )
+
+    rows = (await db.execute(q)).all()
+    return TransactionSummaryResponse(
+        count=sum(row.matched_count for row in rows),
+        totals=[
+            TransactionCurrencyTotal(
+                currency_id=row.currency_id,
+                currency_code=row.currency_code,
+                amount=float(row.total_amount),
+            )
+            for row in rows
+        ],
+    )
 
 
 @router.post(

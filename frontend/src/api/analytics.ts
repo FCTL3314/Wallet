@@ -101,14 +101,6 @@ export interface AnalyticsParams {
   convert_to?: string
 }
 
-export interface ExpenseVsBudgetItem {
-  id: number
-  name: string
-  budgeted: number
-  actual: number
-  remaining: number
-}
-
 export interface BalanceBreakdownItem {
   account_id: number
   account_label: string
@@ -129,8 +121,6 @@ export const analyticsApi = {
   balanceByStorage: (params: AnalyticsParams) =>
     api.get<BalanceByStorageEntry[]>('/analytics/balance-by-storage', { params }),
   expenseTemplate: () => api.get<ExpenseTemplate>('/analytics/expense-template'),
-  expenseVsBudget: (params?: { year?: number; month?: number }) =>
-    api.get<ExpenseVsBudgetItem[]>('/analytics/expense-vs-budget', { params }),
   balanceBreakdown: () => api.get<BalanceBreakdownItem[]>('/analytics/balance-breakdown'),
   dateRange: () => api.get<DateRange>('/analytics/date-range'),
 }

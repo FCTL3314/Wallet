@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { onMounted, onBeforeUnmount, computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import Toast from 'primevue/toast'
 import { useAuthStore } from './stores/auth'
 import { useReferencesStore } from './stores/references'
 import { useThemeStore } from './stores/theme'
 import { useNotificationsStore } from './stores/notifications'
 import { useOnboardingStore } from './stores/onboarding'
-import { PhSquaresFour, PhArrowDown, PhWallet, PhArrowsClockwise, PhBookBookmark, PhGear, PhSignOut } from '@phosphor-icons/vue'
+import { PhCaretDown, PhGear, PhSignOut } from '@phosphor-icons/vue'
+import { NAV_ITEMS } from './router'
 import TheBottomNav from './components/TheBottomNav.vue'
 import TheAppFooter from './components/TheAppFooter.vue'
 import OnboardingGuide from './components/OnboardingGuide.vue'
@@ -23,6 +23,15 @@ const pageEyebrow = computed(() => (route.meta.eyebrow as string | undefined) ??
 const pageTitle = computed(() => (route.meta.title as string | undefined) ?? '')
 const notifications = useNotificationsStore()
 const onboarding = useOnboardingStore()
+
+const userEmail = computed(() => auth.user?.email ?? '')
+const userInitial = computed(() => userEmail.value.charAt(0).toUpperCase())
+const userName = computed(() => userEmail.value.split('@')[0])
+
+const menuOpen = ref(false)
+const menuRoot = useTemplateRef<HTMLElement>('menuRoot')
+const menuTrigger = useTemplateRef<HTMLButtonElement>('menuTrigger')
+const menuPanel = useTemplateRef<HTMLElement>('menuPanel')
 
 // Sync Pinia store with what the anti-FOUC script already applied
 useThemeStore().init()
@@ -68,7 +77,68 @@ function checkOnboardingNotification() {
   }, 2000)
 }
 
+function menuItems(): HTMLElement[] {
+  return Array.from(menuPanel.value?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])
+}
+
+function focusMenuItem(offset: number) {
+  const items = menuItems()
+  if (!items.length) return
+  const current = items.indexOf(document.activeElement as HTMLElement)
+  const next = (current + offset + items.length) % items.length
+  items[next]?.focus()
+}
+
+function openMenu() {
+  menuOpen.value = true
+}
+
+function closeMenu(restoreFocus = false) {
+  if (!menuOpen.value) return
+  menuOpen.value = false
+  if (restoreFocus) menuTrigger.value?.focus()
+}
+
+function toggleMenu() {
+  if (menuOpen.value) closeMenu()
+  else openMenu()
+}
+
+function onDocumentPointerDown(event: PointerEvent) {
+  if (!menuRoot.value?.contains(event.target as Node)) closeMenu()
+}
+
+function onMenuFocusOut(event: FocusEvent) {
+  const next = event.relatedTarget as Node | null
+  if (next && menuRoot.value?.contains(next)) return
+  closeMenu()
+}
+
+function onDocumentKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') closeMenu(true)
+}
+
+watch(menuOpen, async (open) => {
+  if (open) {
+    document.addEventListener('pointerdown', onDocumentPointerDown)
+    document.addEventListener('keydown', onDocumentKeydown)
+    await nextTick()
+    menuItems()[0]?.focus()
+  } else {
+    document.removeEventListener('pointerdown', onDocumentPointerDown)
+    document.removeEventListener('keydown', onDocumentKeydown)
+  }
+})
+
+watch(() => route.fullPath, () => closeMenu())
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onDocumentPointerDown)
+  document.removeEventListener('keydown', onDocumentKeydown)
+})
+
 function logout() {
+  closeMenu()
   auth.logout()
   router.push('/login')
 }
@@ -76,7 +146,6 @@ function logout() {
 
 <template>
   <GlobalLoadingBar />
-  <Toast position="top-right" />
   <OnboardingGuide />
   <AppNotifications />
 
@@ -86,20 +155,66 @@ function logout() {
         <span class="brand-mark">W</span>
         <span>Wallet</span>
       </span>
-      <nav class="header-nav">
-        <RouterLink to="/"><PhSquaresFour weight="bold" />Dashboard</RouterLink>
-        <RouterLink to="/transactions"><PhArrowDown weight="bold" />Transactions</RouterLink>
-        <RouterLink to="/balance-snapshots"><PhWallet weight="bold" />Balances</RouterLink>
-        <RouterLink to="/expenses"><PhArrowsClockwise weight="bold" />Regular Expenses</RouterLink>
-        <RouterLink to="/references"><PhBookBookmark weight="bold" />References</RouterLink>
-        <RouterLink to="/settings"><PhGear weight="bold" />Settings</RouterLink>
+      <nav class="header-nav" aria-label="Main navigation">
+        <RouterLink
+          v-for="item in NAV_ITEMS"
+          :key="item.path"
+          :to="item.path"
+          :title="item.label"
+          :aria-label="item.label"
+        >
+          <component :is="item.icon" weight="bold" />
+          <span class="nav-label">{{ item.label }}</span>
+        </RouterLink>
       </nav>
-      <div class="header-user">
-        <button class="header-avatar-chip" @click="logout">
-          <span class="header-avatar">{{ auth.user?.email?.charAt(0).toUpperCase() }}</span>
-          <span class="header-username">{{ auth.user?.email?.split('@')[0] }}</span>
-          <span class="header-logout-label"><PhSignOut weight="duotone" :size="14" />Log out</span>
+      <div ref="menuRoot" class="header-user">
+        <button
+          ref="menuTrigger"
+          type="button"
+          class="header-avatar-chip"
+          aria-haspopup="menu"
+          aria-controls="profile-menu"
+          :aria-expanded="menuOpen"
+          :aria-label="`Account menu for ${userEmail}`"
+          @click="toggleMenu"
+          @keydown.down.prevent="openMenu"
+        >
+          <span class="header-avatar">{{ userInitial }}</span>
+          <span class="header-username">{{ userName }}</span>
+          <PhCaretDown class="header-chip-caret" weight="bold" :size="12" />
         </button>
+        <Transition name="profile-menu">
+          <div
+            v-if="menuOpen"
+            id="profile-menu"
+            ref="menuPanel"
+            class="profile-menu"
+            role="menu"
+            aria-label="Account"
+            tabindex="-1"
+            @focusout="onMenuFocusOut"
+            @keydown.down.prevent="focusMenuItem(1)"
+            @keydown.up.prevent="focusMenuItem(-1)"
+          >
+            <div class="profile-menu-head">
+              <span class="profile-menu-caption">Signed in as</span>
+              <span class="profile-menu-email">{{ userEmail }}</span>
+            </div>
+            <RouterLink to="/settings" class="profile-menu-item" role="menuitem" @click="closeMenu()">
+              <PhGear weight="duotone" :size="16" />
+              Settings
+            </RouterLink>
+            <button
+              type="button"
+              class="profile-menu-item profile-menu-item--danger"
+              role="menuitem"
+              @click="logout"
+            >
+              <PhSignOut weight="duotone" :size="16" />
+              Log out
+            </button>
+          </div>
+        </Transition>
       </div>
     </header>
     <main class="main-content">

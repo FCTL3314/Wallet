@@ -1,14 +1,12 @@
-import calendar
-from datetime import date, date as date_type, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Currency, Transaction, BalanceSnapshot, ExpenseCategory
-from app.models.transaction import TransactionType
 from app.services.analytics.periods import GroupBy, _generate_periods
-from app.services.analytics.balance import _get_balance_at_date
+from app.services.analytics.balance import get_balances_at_dates
 from app.services.analytics.income import (
     _get_income_per_period,
     _get_income_per_period_by_currency,
@@ -124,9 +122,12 @@ async def get_summary(
             db, user_id, date_from, date_to, group_by, currency_id
         )
 
-    # Balance at the end of the period immediately before the first period
+    # Balances at every period end, plus the day before the first period, in one query
     prev_end = periods[0][0] - timedelta(days=1)
-    prev_balances = await _get_balance_at_date(db, user_id, prev_end, currency_id)
+    balance_dates = [prev_end] + [end for _, end in periods]
+    balances_at = await get_balances_at_dates(db, user_id, balance_dates, currency_id)
+
+    prev_balances = balances_at.get(prev_end, {})
 
     # Save initial balances for balance_growth stat (before any period mutations)
     initial_balances = dict(prev_balances)
@@ -167,7 +168,7 @@ async def get_summary(
         else:
             income = income_map.get(period_key, Decimal("0"))
 
-        cur_balances = await _get_balance_at_date(db, user_id, period_end, currency_id)
+        cur_balances = balances_at.get(period_end, {})
 
         all_currencies = set(cur_balances) | set(prev_balances)
         balance_change = {
@@ -181,27 +182,30 @@ async def get_summary(
         else:
             profit = sum(balance_change.values(), Decimal("0"))
 
-        # Detect bootstrap period: no prior snapshots, so balance_change = initial capital entry.
-        is_bootstrap = (
-            not prev_balances and sum(cur_balances.values(), Decimal("0")) > 0
-        )
+        # Detect bootstrap period: no prior snapshots, so balance_change is the
+        # opening balance rather than money earned during the period. Any first
+        # snapshot qualifies, including a net-negative one — testing the summed
+        # total would both miss debt-only openings and add up unlike currencies.
+        is_bootstrap = not prev_balances and bool(cur_balances)
         derived_expense = (
             Decimal("0") if is_bootstrap else max(Decimal("0"), income - profit)
         )
 
-        if not is_bootstrap:
-            if income > 0:
-                cumulative_income += income
-                income_count += 1
-                income_active_periods.append(
-                    {"period": period_key, "income": income, "profit": profit}
-                )
-            if income > 0 or profit != 0:
-                cumulative_profit += profit
-                profit_count += 1
-                profit_active_periods.append(
-                    {"period": period_key, "income": income, "profit": profit}
-                )
+        # Income is money actually received and counts in every period. Only the
+        # balance delta is excluded for the bootstrap period, since booking opening
+        # capital as profit would distort avg_profit and the growth stats.
+        if income > 0:
+            cumulative_income += income
+            income_count += 1
+            income_active_periods.append(
+                {"period": period_key, "income": income, "profit": profit}
+            )
+        if not is_bootstrap and (income > 0 or profit != 0):
+            cumulative_profit += profit
+            profit_count += 1
+            profit_active_periods.append(
+                {"period": period_key, "income": income, "profit": profit}
+            )
 
         avg_income = (
             (cumulative_income / income_count).quantize(Decimal("0.01"))
@@ -307,51 +311,6 @@ async def get_summary(
     )
 
     return {"periods": summary, "stats": stats, "rate_coverage": rate_coverage}
-
-
-async def get_expense_vs_budget(
-    db: AsyncSession, user_id: int, year: int, month: int
-) -> list[dict]:
-    date_from = date_type(year, month, 1)
-    date_to = date_type(year, month, calendar.monthrange(year, month)[1])
-
-    cats = (
-        (
-            await db.execute(
-                select(ExpenseCategory)
-                .where(ExpenseCategory.user_id == user_id)
-                .order_by(ExpenseCategory.name)
-            )
-        )
-        .scalars()
-        .all()
-    )
-
-    actuals_rows = (
-        await db.execute(
-            select(Transaction.expense_category_id, func.sum(Transaction.amount))
-            .where(
-                Transaction.user_id == user_id,
-                Transaction.type == TransactionType.expense,
-                Transaction.date.between(date_from, date_to),
-                Transaction.expense_category_id.isnot(None),
-            )
-            .group_by(Transaction.expense_category_id)
-        )
-    ).all()
-    actuals = {cat_id: amt for cat_id, amt in actuals_rows}
-
-    return [
-        {
-            "id": row.id,
-            "name": row.name,
-            "budgeted": Decimal(str(row.budgeted_amount)),
-            "actual": Decimal(str(actuals.get(row.id, 0))),
-            "remaining": Decimal(str(row.budgeted_amount))
-            - Decimal(str(actuals.get(row.id, 0))),
-        }
-        for row in cats
-    ]
 
 
 async def get_date_range(db: AsyncSession, user_id: int) -> dict:

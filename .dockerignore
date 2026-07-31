@@ -7,6 +7,10 @@
 **/.pytest_cache
 **/.ruff_cache
 **/.mypy_cache
+# setuptools reuses build/lib, so a stale copy would be baked into the image
+# and shadow the real package — this is how wallet_sdk.kafka outlived its deletion.
+**/build/
+**/*.egg-info/
 **/node_modules
 frontend/dist
 .git

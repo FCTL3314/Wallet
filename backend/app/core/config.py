@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     COINGECKO_API_KEY: str | None = None
     CRYPTO_CATALOG_SIZE: int = 500
     EXCHANGE_RATE_STALENESS_DAYS: int = 3
+    # Rates older than this are downsampled to one row per calendar month.
+    EXCHANGE_RATE_RETENTION_DAYS: int = 90
 
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "change-me-admin-password"

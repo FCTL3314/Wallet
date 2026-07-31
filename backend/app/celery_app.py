@@ -28,6 +28,10 @@ if not settings.DEV_MODE:
             "task": "app.tasks.rate_sync.refresh_crypto_rates",
             "schedule": crontab(hour=18, minute=0),
         },
+        "prune-exchange-rates": {
+            "task": "app.tasks.rate_sync.prune_exchange_rates",
+            "schedule": crontab(hour=4, minute=0, day_of_week=0),
+        },
     }
 
 celery_app.conf.task_routes = {

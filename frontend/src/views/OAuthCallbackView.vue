@@ -1,23 +1,46 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useReferencesStore } from '../stores/references'
 
+const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const refs = useReferencesStore()
 
 const error = ref('')
 
+const ERROR_MESSAGES: Record<string, string> = {
+  state:
+    'Sign-in request expired or could not be verified. Please start again from the login page.',
+  profile:
+    'The provider did not return your account details. Please try again in a moment.',
+  email_taken:
+    'An account with this email already exists. Log in with your password first, then link this provider from Settings.',
+}
+
+const FALLBACK_ERROR =
+  'Authentication failed: could not complete sign-in. Please try again.'
+
 onMounted(async () => {
-  try {
-    await auth.fetchUser()
-    await refs.fetchAll()
-    router.replace('/')
-  } catch {
-    error.value = 'Authentication failed: could not complete sign-in. Please try again.'
+  const reason = route.query.error
+  if (typeof reason === 'string') {
+    error.value = ERROR_MESSAGES[reason] ?? FALLBACK_ERROR
+    return
   }
+
+  // fetchUser swallows its own errors, so the outcome has to be read from the
+  // store rather than caught — relying on a throw here left the failure state
+  // permanently unreachable.
+  await auth.fetchUser()
+  if (!auth.isAuthenticated) {
+    error.value = FALLBACK_ERROR
+    return
+  }
+
+  await refs.fetchAll()
+  router.replace('/')
 })
 </script>
 

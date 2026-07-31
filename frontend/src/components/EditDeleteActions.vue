@@ -3,6 +3,18 @@ import { ref } from 'vue'
 import BaseButton from './BaseButton.vue'
 import BaseConfirmButton from './BaseConfirmButton.vue'
 
+withDefaults(defineProps<{
+  itemName?: string
+  warning?: string
+  deleting?: boolean
+  editDisabled?: boolean
+}>(), {
+  itemName: '',
+  warning: '',
+  deleting: false,
+  editDisabled: false,
+})
+
 const emit = defineEmits<{ edit: []; confirm: [] }>()
 const pending = ref(false)
 </script>
@@ -10,9 +22,24 @@ const pending = ref(false)
 <template>
   <div class="edit-delete-actions">
     <Transition name="btn-slide">
-      <BaseButton v-if="!pending" variant="secondary" size="sm" @click="emit('edit')">Edit</BaseButton>
+      <BaseButton
+        v-if="!pending"
+        variant="secondary"
+        size="sm"
+        :disabled="editDisabled || deleting"
+        :aria-label="itemName ? `Edit ${itemName}` : undefined"
+        @click="emit('edit')"
+      >
+        Edit
+      </BaseButton>
     </Transition>
-    <BaseConfirmButton @confirm="emit('confirm')" @pending-change="pending = $event" />
+    <BaseConfirmButton
+      :item-name="itemName"
+      :warning="warning"
+      :loading="deleting"
+      @confirm="emit('confirm')"
+      @pending-change="pending = $event"
+    />
   </div>
 </template>
 

@@ -2,10 +2,12 @@ import asyncio
 import json
 import logging
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 
 import httpx
 from celery import shared_task
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +19,9 @@ from app.tasks._http import NonRetryableHTTPError, RateLimitError, check_respons
 logger = logging.getLogger(__name__)
 
 _COINGECKO_MAX_PER_PAGE = 250
+
+# Matches the scale of ExchangeRate.rate — Numeric(28, 12).
+_RATE_QUANTUM = Decimal("1E-12")
 
 
 @shared_task(
@@ -81,11 +86,28 @@ async def _async_refresh_fiat_rates() -> None:
         if not isinstance(rate_value, (int, float)) or rate_value <= 0:
             logger.debug("Skipping invalid rate for %s: %r", code, rate_value)
             continue
+        # Invert with Decimal: the API gives USD->code and we store code->USD.
+        # A binary float reciprocal would bake in rounding error that then
+        # compounds when two stored rates are divided to form a cross-rate.
+        try:
+            inverted = Decimal("1") / Decimal(str(rate_value))
+        except (InvalidOperation, ZeroDivisionError):
+            logger.debug("Skipping uninvertible rate for %s: %r", code, rate_value)
+            continue
+        # The rate column is Numeric(28, 12); anything smaller would be stored
+        # as 0 and later divided by when building cross-rates.
+        if inverted.quantize(_RATE_QUANTUM) == 0:
+            logger.warning(
+                "Skipping rate for %s: 1/%r underflows the stored precision",
+                code,
+                rate_value,
+            )
+            continue
         rows.append(
             {
                 "from_code": code,
                 "to_code": "USD",
-                "rate": str(1.0 / rate_value),
+                "rate": str(inverted),
                 "valid_date": today,
                 "source": source,
                 "fetched_at": datetime.now(timezone.utc),
@@ -200,12 +222,23 @@ async def _async_refresh_crypto_rates() -> None:
         price_usd = coin.get("current_price")
         if not isinstance(price_usd, (int, float)) or price_usd <= 0:
             continue
+        # Sub-picodollar tokens would be stored as 0 by Numeric(28, 12) and then
+        # divided by when building cross-rates.
+        try:
+            price = Decimal(str(price_usd))
+        except InvalidOperation:
+            continue
+        if price.quantize(_RATE_QUANTUM) == 0:
+            logger.debug(
+                "Skipping %s: price %r underflows the stored precision", code, price_usd
+            )
+            continue
         seen.add(code)
         rows.append(
             {
                 "from_code": code,
                 "to_code": "USD",
-                "rate": str(price_usd),
+                "rate": str(price),
                 "valid_date": today,
                 "source": source,
                 "fetched_at": datetime.now(timezone.utc),
@@ -234,4 +267,63 @@ async def _async_refresh_crypto_rates() -> None:
         except Exception:
             await db.rollback()
             logger.exception("Crypto rate sync: DB write failed")
+            raise
+
+
+@shared_task(
+    queue="rates",
+    name="app.tasks.rate_sync.prune_exchange_rates",
+)
+def prune_exchange_rates():
+    """Downsample exchange rates older than the retention window."""
+    return asyncio.run(_async_prune_exchange_rates())
+
+
+async def _async_prune_exchange_rates() -> int:
+    """Keep one row per (from_code, to_code) per month beyond the retention window.
+
+    The table grows by ~160 fiat + up to CRYPTO_CATALOG_SIZE crypto rows every day
+    and nothing ever removed them. Rates cannot simply be deleted by age, because
+    historical conversion looks up the newest rate at or before each period end.
+    Keeping the last row of each calendar month preserves that lookup exactly —
+    every period end is a month end — while bounding the table's growth.
+    """
+    cutoff = datetime.now(timezone.utc).date() - timedelta(
+        days=settings.EXCHANGE_RATE_RETENTION_DAYS
+    )
+
+    ranked = (
+        select(
+            ExchangeRate.id.label("id"),
+            func.row_number()
+            .over(
+                partition_by=(
+                    ExchangeRate.from_code,
+                    ExchangeRate.to_code,
+                    func.date_trunc("month", ExchangeRate.valid_date),
+                ),
+                order_by=(ExchangeRate.valid_date.desc(), ExchangeRate.id.desc()),
+            )
+            .label("rn"),
+        )
+        .where(ExchangeRate.valid_date < cutoff)
+        .subquery()
+    )
+    doomed = select(ranked.c.id).where(ranked.c.rn > 1)
+
+    engine = get_engine()
+    async with AsyncSession(engine) as db:
+        try:
+            result = await db.execute(
+                delete(ExchangeRate).where(ExchangeRate.id.in_(doomed))
+            )
+            await db.commit()
+            deleted = result.rowcount or 0
+            logger.info(
+                "Exchange rate pruning: deleted %d rows older than %s", deleted, cutoff
+            )
+            return deleted
+        except Exception:
+            await db.rollback()
+            logger.exception("Exchange rate pruning: DB write failed")
             raise

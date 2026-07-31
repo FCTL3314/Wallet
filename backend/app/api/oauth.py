@@ -1,4 +1,5 @@
 import secrets
+from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Cookie, Depends
@@ -9,10 +10,51 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.auth import _issue_tokens, _set_auth_cookies
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.exceptions import AuthOAuthFailed
 from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["oauth"])
+
+
+def _oauth_error_redirect(reason: str) -> RedirectResponse:
+    """Send the browser back to the frontend callback with an error to render.
+
+    These endpoints are reached by top-level navigation, not XHR, so raising here
+    would drop the user on a raw JSON error page with no way back.
+    """
+    redirect = RedirectResponse(
+        url=f"{settings.FRONTEND_URL}/oauth/callback?error={quote(reason)}",
+        status_code=302,
+    )
+    redirect.delete_cookie("oauth_state", path="/")
+    return redirect
+
+
+async def _resolve_oauth_user(
+    db: AsyncSession, provider_field, provider_value, email: str
+) -> User | None:
+    """Find or create the user behind an OAuth identity.
+
+    Returns None when the email already belongs to a different local account.
+    Attaching the identity to that account on sight would be an account takeover:
+    neither /register nor the OAuth providers guarantee that whoever holds an
+    address also controls it, so an attacker can pre-register a victim's address
+    and inherit their session the first time they use social sign-in. Linking an
+    existing account has to be an explicit, authenticated action instead.
+    """
+    result = await db.execute(select(User).where(provider_field == provider_value))
+    user = result.scalar_one_or_none()
+    if user:
+        return user
+
+    result = await db.execute(select(User).where(User.email == email))
+    if result.scalar_one_or_none():
+        return None
+
+    user = User(email=email, password_hash=None)
+    setattr(user, provider_field.key, provider_value)
+    db.add(user)
+    await db.flush()
+    return user
 
 
 async def exchange_github_code(code: str) -> dict | None:
@@ -97,7 +139,8 @@ async def exchange_google_code(code: str) -> dict | None:
         sub = info.get("sub")
         email = info.get("email")
 
-        if not sub or not email:
+        # An unverified Google address proves nothing about who owns the mailbox.
+        if not sub or not email or info.get("email_verified") is not True:
             return None
 
         return {"sub": sub, "email": email}
@@ -133,27 +176,18 @@ async def github_callback(
     db: AsyncSession = Depends(get_db),
 ):
     if not state_cookie or state != state_cookie:
-        raise AuthOAuthFailed("Invalid OAuth state parameter")
+        return _oauth_error_redirect("state")
 
     profile = await exchange_github_code(code)
     if not profile:
-        raise AuthOAuthFailed("GitHub did not return a valid profile")
+        return _oauth_error_redirect("profile")
 
     github_id: int = profile["id"]
     email: str = profile["email"]
 
-    result = await db.execute(select(User).where(User.github_id == github_id))
-    user = result.scalar_one_or_none()
-
-    if not user:
-        result = await db.execute(select(User).where(User.email == email))
-        user = result.scalar_one_or_none()
-        if user:
-            user.github_id = github_id
-        else:
-            user = User(email=email, password_hash=None, github_id=github_id)
-            db.add(user)
-            await db.flush()
+    user = await _resolve_oauth_user(db, User.github_id, github_id, email)
+    if user is None:
+        return _oauth_error_redirect("email_taken")
 
     access_token, refresh_token = await _issue_tokens(user.id, db)
     redirect = RedirectResponse(
@@ -195,27 +229,18 @@ async def google_callback(
     db: AsyncSession = Depends(get_db),
 ):
     if not state_cookie or state != state_cookie:
-        raise AuthOAuthFailed("Invalid OAuth state parameter")
+        return _oauth_error_redirect("state")
 
     profile = await exchange_google_code(code)
     if not profile:
-        raise AuthOAuthFailed("Google did not return a valid profile")
+        return _oauth_error_redirect("profile")
 
     google_sub: str = profile["sub"]
     email: str = profile["email"]
 
-    result = await db.execute(select(User).where(User.google_sub == google_sub))
-    user = result.scalar_one_or_none()
-
-    if not user:
-        result = await db.execute(select(User).where(User.email == email))
-        user = result.scalar_one_or_none()
-        if user:
-            user.google_sub = google_sub
-        else:
-            user = User(email=email, password_hash=None, google_sub=google_sub)
-            db.add(user)
-            await db.flush()
+    user = await _resolve_oauth_user(db, User.google_sub, google_sub, email)
+    if user is None:
+        return _oauth_error_redirect("email_taken")
 
     access_token, refresh_token = await _issue_tokens(user.id, db)
     redirect = RedirectResponse(
