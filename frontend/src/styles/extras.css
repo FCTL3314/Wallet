@@ -6,7 +6,7 @@
 
 .donut-wrap {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
     gap: 22px;
     align-items: center;
 }
@@ -15,6 +15,19 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+    min-width: 0;
+}
+
+@media (max-width: 640px) {
+    .donut-wrap {
+        grid-template-columns: minmax(0, 1fr);
+        justify-items: center;
+        gap: 16px;
+    }
+
+    .donut-wrap .donut-legend {
+        width: 100%;
+    }
 }
 
 /* ── Bars (horizontal category) ────────────────────────── */
@@ -61,7 +74,11 @@
     transition: background var(--t-fast) var(--ease);
 }
 
-.snap-head:hover { background: var(--surface-2); }
+@media (hover: hover) {
+    .snap-head:hover { background: var(--surface-2); }
+}
+
+.snap-head:focus-visible { background: var(--surface-2); }
 
 .snap-rail {
     position: relative;
@@ -139,18 +156,23 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
+    min-width: 0;
 }
 
 .snap-loc-chip {
-    display: inline-flex;
-    align-items: center;
+    display: inline-block;
+    max-width: 100%;
     padding: 3px 9px;
     border-radius: 7px;
     background: var(--surface-2);
     border: 1px solid var(--hairline);
     font-size: 11px;
     font-weight: 500;
+    line-height: 1.45;
     color: var(--ink-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .snap-total {
@@ -210,7 +232,7 @@
 
 .snap-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
     gap: 10px;
     padding-top: 18px;
 }
@@ -260,12 +282,59 @@
 
 @media (max-width: 640px) {
     .snap-head {
-        grid-template-columns: 24px 56px 1fr auto;
-        gap: 12px;
+        grid-template-columns: 20px minmax(0, 1fr) 22px;
+        grid-template-areas:
+            "rail date  chev"
+            "rail total total"
+            "rail meta  meta";
+        align-items: center;
+        gap: 6px 10px;
         padding: 14px;
     }
-    .snap-actions .snap-chevron { display: none; }
+
+    .snap-rail  { grid-area: rail; width: 20px; }
+    .snap-date  { grid-area: date; }
+    .snap-total { grid-area: total; }
+    .snap-meta  { grid-area: meta; }
+    .snap-actions { grid-area: chev; justify-self: end; }
+
+    .snap-line { bottom: -14px; }
+
+    .snap-date {
+        flex-direction: row;
+        align-items: baseline;
+        gap: 5px;
+    }
+    .snap-date .snap-day { font-size: 19px; }
+    .snap-date .snap-month { margin-top: 0; font-size: 11px; }
+    .snap-date .snap-year { margin-top: 0; }
+
+    .snap-total {
+        align-items: stretch;
+        gap: 2px;
+    }
+    .snap-ccy-line {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        row-gap: 2px;
+    }
+    .snap-total-num { font-size: 15px; }
+
+    .snap-meta {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px 8px;
+    }
+    .snap-loc-chip { max-width: 14ch; }
+
+    .snap-actions .snap-chevron { width: 22px; height: 22px; }
+
     .snap-body { padding: 4px 14px 14px 14px; }
+    .snap-grid {
+        grid-template-columns: minmax(0, 1fr);
+        padding-top: 14px;
+    }
 }
 
 /* ── Export cards (Settings → Data) ────────────────────── */
@@ -285,11 +354,18 @@
     width: 100%;
 }
 
-.export-card:hover {
+.export-card:focus-visible {
     border-color: var(--accent);
     background: var(--surface);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
+}
+
+@media (hover: hover) {
+    .export-card:hover {
+        border-color: var(--accent);
+        background: var(--surface);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-sm);
+    }
 }
 
 .export-card .ico {

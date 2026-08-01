@@ -185,12 +185,39 @@ onMounted(load)
     :empty="!template?.items.length"
     empty-message="No expense categories yet."
     searchable
+    mobile-cards
   >
     <template #actions>
       <div data-onboarding="add-expense-btn" class="actions-slot">
         <BaseButton variant="primary" size="sm" @click="openCreate">+ Add Category</BaseButton>
       </div>
     </template>
+
+    <template #card="{ rows }">
+      <li
+        v-for="(row, index) in rows"
+        :key="row.original.id"
+        class="row-card table-row"
+        :style="{ '--i': String(Math.min(index, 15)) }"
+        :class="{ removing: row.original.id === removingId, 'row-new': row.original.id === newId }"
+      >
+        <div class="row-card-body">
+          <div class="row-card-top">
+            <span class="row-card-title">{{ row.original.name }}</span>
+            <span class="row-card-amount row-card-amount--expense num">
+              {{ fmtAmount(row.original.budgeted_amount) }}
+            </span>
+          </div>
+          <span v-if="row.original.tags.length" class="tag-chips">
+            <span v-for="tag in row.original.tags" :key="tag" class="tag-chip">{{ tag }}</span>
+          </span>
+        </div>
+        <div class="row-card-actions">
+          <EditDeleteActions @edit="openEdit(row.original)" @confirm="remove(row.original.id)" />
+        </div>
+      </li>
+    </template>
+
     <template #body="{ rows }">
       <tr
         v-for="(row, index) in rows"
@@ -199,9 +226,9 @@ onMounted(load)
         :style="{ '--i': String(Math.min(index, 15)) }"
         :class="{ removing: row.original.id === removingId, 'row-new': row.original.id === newId }"
       >
-        <td>{{ row.original.name }}</td>
+        <td class="col-name">{{ row.original.name }}</td>
         <td class="col-num">{{ fmtAmount(row.original.budgeted_amount) }}</td>
-        <td>
+        <td class="col-tags">
           <span class="tag-chips">
             <span v-for="tag in row.original.tags" :key="tag" class="tag-chip">{{ tag }}</span>
           </span>
@@ -252,6 +279,14 @@ onMounted(load)
   text-align: right;
 }
 
+.col-name {
+  overflow-wrap: anywhere;
+}
+
+.col-tags {
+  max-width: 260px;
+}
+
 .tag-remove {
   background: none;
   border: none;
@@ -263,7 +298,9 @@ onMounted(load)
   margin-left: 2px;
 }
 
-.tag-remove:hover { color: var(--ink-2); }
+@media (hover: hover) {
+  .tag-remove:hover { color: var(--ink-2); }
+}
 
 .tag-input-wrap {
   display: flex;

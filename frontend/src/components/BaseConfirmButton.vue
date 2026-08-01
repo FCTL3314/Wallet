@@ -125,7 +125,25 @@ function onAfterEnter() {
 .confirm-slide-leave-to     { opacity: 0; transform: translateX(8px); }
 
 @media (max-width: 640px) {
-  .confirm-actions { flex-wrap: wrap; }
+  .confirm-actions {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .confirm-prompt {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+
   .confirm-prompt-text { white-space: normal; }
+
+  .confirm-warning { max-width: none; }
+
+  .confirm-actions .btn {
+    min-width: 96px;
+    justify-content: center;
+  }
 }
 </style>

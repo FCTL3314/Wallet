@@ -650,7 +650,7 @@ watch([dateFrom, dateTo, groupBy], load)
 <style scoped>
 .locations-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   gap: var(--gap-section);
 }
 .location-card {
@@ -701,7 +701,6 @@ watch([dateFrom, dateTo, groupBy], load)
               border-color var(--t-fast) var(--ease),
               background var(--t-fast) var(--ease);
 }
-.location-add-acc:hover,
 .location-add-acc:focus-visible {
   border-color: var(--accent);
   color: var(--accent-ink);
@@ -737,10 +736,19 @@ watch([dateFrom, dateTo, groupBy], load)
   font-weight: 500;
   font-family: var(--font-sans);
 }
-.location-add:hover {
+.location-add:focus-visible {
   border-color: var(--accent);
   color: var(--accent-ink);
   background: var(--accent-soft);
+}
+
+@media (hover: hover) {
+  .location-add-acc:hover,
+  .location-add:hover {
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+  }
 }
 
 .snap-header {

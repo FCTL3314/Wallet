@@ -41,7 +41,9 @@ const { mode, hue } = storeToRefs(themeStore)
   position: relative;
   transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
-.accent-swatch:hover { transform: scale(1.08); }
+@media (hover: hover) {
+  .accent-swatch:hover { transform: scale(1.08); }
+}
 .accent-swatch--active {
   box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
 }

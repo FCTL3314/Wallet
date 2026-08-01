@@ -776,8 +776,10 @@ async function saveEditSource() {
   transition: background 0.1s;
 }
 
-.catalog-dropdown-item:hover {
-  background: rgba(var(--color-accent-rgb), 0.07);
+@media (hover: hover) {
+  .catalog-dropdown-item:hover {
+    background: rgba(var(--color-accent-rgb), 0.07);
+  }
 }
 
 .catalog-item-code {
@@ -888,8 +890,10 @@ async function saveEditSource() {
   text-underline-offset: 2px;
 }
 
-.base-currency-link:hover {
-  color: var(--color-accent-light);
+@media (hover: hover) {
+  .base-currency-link:hover {
+    color: var(--color-accent-light);
+  }
 }
 
 /* ── Inline rate display ── */
@@ -967,9 +971,11 @@ async function saveEditSource() {
   transition: background 0.15s, border-color 0.15s;
 }
 
-.rates-btn:hover {
-  background: rgba(var(--color-accent-rgb), 0.15);
-  border-color: rgba(var(--color-accent-rgb), 0.40);
+@media (hover: hover) {
+  .rates-btn:hover {
+    background: rgba(var(--color-accent-rgb), 0.15);
+    border-color: rgba(var(--color-accent-rgb), 0.40);
+  }
 }
 
 /* ── Add mode toggle ── */
@@ -990,8 +996,10 @@ async function saveEditSource() {
   text-underline-offset: 2px;
 }
 
-.mode-link:hover {
-  color: var(--color-accent-light);
+@media (hover: hover) {
+  .mode-link:hover {
+    color: var(--color-accent-light);
+  }
 }
 
 /* ── Manual rate modal form ── */
@@ -1097,8 +1105,10 @@ async function saveEditSource() {
   text-underline-offset: 2px;
 }
 
-.rate-history-toggle:hover {
-  color: var(--color-accent-light);
+@media (hover: hover) {
+  .rate-history-toggle:hover {
+    color: var(--color-accent-light);
+  }
 }
 
 .rate-history-list {

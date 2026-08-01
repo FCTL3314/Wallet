@@ -34,7 +34,7 @@
 .stats-grid,
 .kpis {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
     gap: var(--gap-section);
 }
 
@@ -175,6 +175,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-width: 0;
     border-right: 1px solid var(--hairline);
 }
 .hero-main > .hero-actions { margin-top: auto; padding-top: 8px; }
@@ -190,6 +191,7 @@
     font-family: var(--font-display);
     font-weight: 600;
     font-size: clamp(52px, 6.5vw, 88px);
+    min-width: 0;
     letter-spacing: -0.035em;
     line-height: 1;
     color: var(--ink);
@@ -230,13 +232,16 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    min-width: 0;
     background: var(--surface-2);
 }
 .hero-side .stat-value { font-size: 26px; }
 
-@media (max-width: 720px) {
+@media (max-width: 900px) {
     .hero { grid-template-columns: 1fr; }
     .hero-main { border-right: 0; border-bottom: 1px solid var(--hairline); }
+    .hero-number { font-size: clamp(28px, 11.5vw, 72px); }
+    .hero-number .ccy { margin-right: 2px; }
 }
 
 /* ============================================================
@@ -245,6 +250,9 @@
 
 @media (max-width: 640px) {
     .card { border-radius: 18px; padding: 16px; }
-    .hero-main { padding: 20px; }
-    .hero-side { padding: 16px 20px; }
+    .hero-main { padding: 20px 16px; }
+    .hero-side { padding: 16px; }
+    .hero-number { gap: 6px; }
+    .stat-value { font-size: 28px; }
+    .totals-amount { font-size: 20px; }
 }

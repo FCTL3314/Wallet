@@ -47,8 +47,13 @@ table.data-table td:last-child,
 table.data-table tbody tr,
 .table tbody tr { transition: background var(--t-fast) var(--ease); }
 
-table.data-table tbody tr:hover td,
-.table tbody tr:hover { background: var(--surface-2); }
+@media (hover: hover) {
+    table.data-table tbody tr:hover,
+    .table tbody tr:hover { --row-bg: var(--surface-2); }
+
+    table.data-table tbody tr:hover td,
+    .table tbody tr:hover { background: var(--surface-2); }
+}
 
 table.data-table tbody tr:last-child td,
 .table tbody tr:last-child td { border-bottom: 0; }
@@ -76,18 +81,31 @@ table.data-table td.col-num,
 
 /* ── Row state animations ──────────────────────────────── */
 
-tr.table-row {
+tr.table-row,
+li.row-card.table-row {
     animation: row-enter 0.25s ease both;
     animation-delay: calc(var(--i, 0) * 30ms);
 }
 
-tr.removing {
+tr.removing,
+li.row-card.removing {
     pointer-events: none;
     animation: row-remove 0.28s ease forwards;
 }
 
 tr.row-new {
     animation: row-new 1.4s var(--ease-spring) both;
+}
+
+/* The tr variant fades its own background out, which would erase a card surface */
+li.row-card.row-new {
+    animation: row-card-new 1.4s var(--ease-spring) both;
+}
+
+@keyframes row-card-new {
+    0%   { opacity: 0; transform: translateY(-8px); box-shadow: 0 0 0 2px rgba(var(--color-accent-rgb), 0.45); }
+    35%  { opacity: 1; transform: translateY(0);    box-shadow: 0 0 0 2px rgba(var(--color-accent-rgb), 0.30); }
+    100% { box-shadow: 0 0 0 2px rgba(var(--color-accent-rgb), 0); }
 }
 
 /* ── Skeleton rows ─────────────────────────────────────── */
@@ -155,9 +173,11 @@ td.table-empty-cell {
     transition: all var(--t-fast) var(--ease);
 }
 
-.expand-btn:hover {
-    background: var(--surface-hover);
-    color: var(--ink);
+@media (hover: hover) {
+    .expand-btn:hover {
+        background: var(--surface-hover);
+        color: var(--ink);
+    }
 }
 
 .expanded .expand-btn { color: var(--accent-ink); }
@@ -169,7 +189,174 @@ table.data-table th.th-sortable {
     user-select: none;
 }
 
-table.data-table th.th-sortable:hover { background: var(--surface-2); }
+@media (hover: hover) {
+    table.data-table th.th-sortable:hover { background: var(--surface-2); }
+}
+
+/* ── Horizontal scroll affordance ──────────────────────── */
+
+.table-scroll-wrap { position: relative; }
+
+.table-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+.table-scroll:focus-visible { box-shadow: var(--focus-ring); }
+
+.table-scroll-fade {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 36px;
+    z-index: 4;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--t-fast) var(--ease);
+}
+
+.table-scroll-fade--start {
+    left: 0;
+    background: linear-gradient(to right, var(--surface), transparent);
+}
+
+.table-scroll-fade--end {
+    right: 0;
+    background: linear-gradient(to left, var(--surface), transparent);
+}
+
+.table-scroll-wrap.can-scroll-start .table-scroll-fade--start,
+.table-scroll-wrap.can-scroll-end   .table-scroll-fade--end { opacity: 1; }
+
+/* ── Mobile row cards ──────────────────────────────────── */
+
+.table-cards { padding: 14px 14px 16px; }
+
+.cards-sortbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 12px;
+}
+
+.cards-sort-label {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.cards-sort-select {
+    flex: 1;
+    min-width: 0;
+}
+
+.cards-sort-dir {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-chip);
+    background: var(--surface);
+    color: var(--ink-2);
+    font-size: 14px;
+    line-height: 1;
+    transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.cards-sort-dir:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.row-card-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.row-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--surface-2);
+    border-radius: var(--r-inner);
+}
+
+.row-card-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.row-card-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.row-card-title {
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+}
+
+.row-card-amount {
+    flex-shrink: 0;
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+}
+
+.row-card-amount--income  { color: var(--income-ink); }
+.row-card-amount--expense { color: var(--expense-ink); }
+
+.row-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    font-size: 12px;
+    color: var(--ink-3);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.row-card-note {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--ink-3);
+    overflow-wrap: anywhere;
+}
+
+.row-card-actions {
+    flex-shrink: 0;
+    align-self: center;
+}
+
+.row-card--skeleton .skeleton-cell + .skeleton-cell { margin-top: 8px; }
+
+.table-empty--cards { padding: 32px 12px; }
+
+/* ── Responsive ────────────────────────────────────────── */
 
 @media (max-width: 640px) {
     .toolbar { gap: 8px; }
@@ -187,4 +374,36 @@ table.data-table th.th-sortable:hover { background: var(--surface-2); }
     table.data-table td:last-child,
     .table th:last-child,
     .table td:last-child { padding-right: 16px; }
+
+    /* Search drops onto its own full-width line under the card title */
+    .table-card .card-header { flex-wrap: wrap; }
+    .table-card .card-header-left { flex-wrap: wrap; flex: 1 1 auto; }
+
+    /* The pinned first column replaces the start-edge gradient */
+    .table-scroll-wrap--sticky .table-scroll-fade--start { display: none; }
+
+    .table-scroll-wrap--sticky table.data-table th:first-child,
+    .table-scroll-wrap--sticky table.data-table td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: var(--row-bg, var(--surface));
+    }
+
+    .table-scroll-wrap--sticky table.data-table thead th:first-child { z-index: 3; }
+
+    .table-scroll-wrap--sticky table.data-table tfoot td:first-child {
+        background: var(--row-bg, var(--surface-2));
+    }
+
+    .table-scroll-wrap--sticky.can-scroll-start table.data-table th:first-child,
+    .table-scroll-wrap--sticky.can-scroll-start table.data-table td:first-child {
+        box-shadow: 6px 0 8px -7px rgba(0, 0, 0, 0.30);
+    }
+}
+
+@media (max-width: 640px) and (hover: hover) {
+    .table-scroll-wrap--sticky table.data-table tbody tr:hover td:first-child {
+        background: var(--surface-2);
+    }
 }

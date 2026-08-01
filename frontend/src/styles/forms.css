@@ -195,8 +195,40 @@
 .success-msg { color: var(--income-ink); font-size: 13px; }
 
 @media (max-width: 640px) {
-    .checkbox-group { flex-direction: column; gap: 12px; }
-    .form-group input,
+    input,
+    select,
+    textarea { font-size: 16px; }
+
+    .input,
+    .select,
+    .form-group input:not([type="checkbox"]),
     .form-group select,
-    .form-group textarea { padding: 10px 12px; }
+    .form-group textarea {
+        font-size: 16px;
+        min-height: 44px;
+        padding: 10px 12px;
+    }
+
+    .form-input-sm {
+        font-size: 16px;
+        min-height: 44px;
+        padding: 10px 12px;
+    }
+
+    .toolbar select,
+    .toolbar input[type="date"],
+    .toolbar input[type="number"] {
+        font-size: 16px;
+        min-height: 44px;
+        padding: 9px 12px;
+    }
+
+    .checkbox-group { flex-direction: column; gap: 12px; }
+
+    .checkbox-group label { min-height: 44px; }
+
+    .checkbox-group input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+    }
 }

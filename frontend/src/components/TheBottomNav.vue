@@ -118,13 +118,15 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKeydown)
     bottom: 0;
     left: 0;
     right: 0;
-    height: 60px;
+    height: calc(var(--bottom-nav-height) + var(--safe-bottom));
     background: var(--surface);
     border-top: 1px solid var(--hairline);
     border-radius: 20px 20px 0 0;
     box-shadow: 0 -2px 12px rgba(24, 20, 10, 0.08);
     z-index: 100;
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: var(--safe-bottom);
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
   }
 }
 
@@ -163,16 +165,16 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKeydown)
   position: fixed;
   inset: 0;
   z-index: 200;
-  display: flex;
+  display: none;
   align-items: flex-end;
   background: rgba(24, 20, 10, 0.38);
   backdrop-filter: var(--blur-overlay);
   -webkit-backdrop-filter: var(--blur-overlay);
 }
 
-@media (min-width: 641px) {
+@media (max-width: 640px) {
   .sheet-overlay {
-    display: none;
+    display: flex;
   }
 }
 
@@ -183,7 +185,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKeydown)
   border-bottom: 0;
   border-radius: var(--r-card) var(--r-card) 0 0;
   box-shadow: var(--shadow-lg);
-  padding: 10px 14px calc(18px + env(safe-area-inset-bottom, 0));
+  padding: 10px calc(14px + var(--safe-right)) calc(18px + var(--safe-bottom)) calc(14px + var(--safe-left));
   display: flex;
   flex-direction: column;
   gap: 4px;

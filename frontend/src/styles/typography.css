@@ -125,11 +125,15 @@
     transition: all var(--t-fast) var(--ease);
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     white-space: nowrap;
+    touch-action: manipulation;
 }
 
-.segmented button:hover { color: var(--ink); }
+@media (hover: hover) {
+    .segmented button:hover { color: var(--ink); }
+}
 
 .segmented button.on,
 .segmented button.tab-pill--active {
@@ -145,6 +149,14 @@
 
 .segmented--mini { padding: 2px; }
 .segmented--mini button { padding: 3px 9px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; }
+
+@media (max-width: 640px) {
+    .segmented button,
+    .segmented--mini button {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
 
 /* ── Tag chips (small inline pills) ────────────────────── */
 
@@ -171,9 +183,11 @@
     color: var(--ink-4);
 }
 
-.tag-chip--add:hover {
-    color: var(--accent-ink);
-    border-color: var(--accent);
+@media (hover: hover) {
+    .tag-chip--add:hover {
+        color: var(--accent-ink);
+        border-color: var(--accent);
+    }
 }
 
 /* ── Category badge ────────────────────────────────────── */

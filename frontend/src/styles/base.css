@@ -18,7 +18,7 @@ body {
     background: var(--bg-base);
     color: var(--ink);
     min-height: 100vh;
-    overflow-x: hidden;
+    min-height: 100dvh;
     position: relative;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -65,6 +65,8 @@ a { color: inherit; }
     border-radius: 10px;
     border: 2px solid var(--bg-base);
 }
-::-webkit-scrollbar-thumb:hover {
-    background: var(--ink-4);
+@media (hover: hover) {
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--ink-4);
+    }
 }

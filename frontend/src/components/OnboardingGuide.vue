@@ -750,13 +750,17 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.ob-close:hover {
-  background: rgba(0, 0, 0, 0.07);
-  color: var(--text-primary);
+@media (hover: hover) {
+  .ob-close:hover {
+    background: rgba(0, 0, 0, 0.07);
+    color: var(--text-primary);
+  }
 }
 
-[data-theme="dark"] .ob-close:hover {
-  background: rgba(255, 255, 255, 0.09);
+@media (hover: hover) {
+  [data-theme="dark"] .ob-close:hover {
+    background: rgba(255, 255, 255, 0.09);
+  }
 }
 
 .ob-close--inline {
@@ -912,9 +916,11 @@ onUnmounted(() => {
   border-radius: 4px;
 }
 
-.ob-dot:hover:not(.ob-dot--active) {
-  background: rgba(var(--color-accent-rgb), 0.40);
-  transform: scale(1.2);
+@media (hover: hover) {
+  .ob-dot:hover:not(.ob-dot--active) {
+    background: rgba(var(--color-accent-rgb), 0.40);
+    transform: scale(1.2);
+  }
 }
 
 .ob-actions {

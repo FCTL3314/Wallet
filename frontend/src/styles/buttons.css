@@ -18,11 +18,14 @@
     transition: all var(--t-fast) var(--ease);
     text-decoration: none;
     white-space: nowrap;
+    touch-action: manipulation;
 }
 
-.btn:hover {
-    background: var(--surface-hover);
-    border-color: var(--hairline-strong);
+@media (hover: hover) {
+    .btn:hover {
+        background: var(--surface-hover);
+        border-color: var(--hairline-strong);
+    }
 }
 
 .btn:active { transform: scale(0.97); }
@@ -41,11 +44,13 @@
     border-color: var(--accent);
 }
 
-.btn--primary:hover,
-.btn-primary:hover {
-    filter: brightness(0.94);
-    background: var(--accent);
-    border-color: var(--accent);
+@media (hover: hover) {
+    .btn--primary:hover,
+    .btn-primary:hover {
+        filter: brightness(0.94);
+        background: var(--accent);
+        border-color: var(--accent);
+    }
 }
 
 [data-theme="dark"] .btn--primary,
@@ -57,9 +62,11 @@
     border-color: transparent;
 }
 
-.btn--ghost:hover {
-    background: var(--surface-hover);
-    border-color: transparent;
+@media (hover: hover) {
+    .btn--ghost:hover {
+        background: var(--surface-hover);
+        border-color: transparent;
+    }
 }
 
 /* Danger */
@@ -70,11 +77,13 @@
     border-color: transparent;
 }
 
-.btn--danger:hover,
-.btn-danger:hover {
-    background: var(--expense-soft);
-    border-color: transparent;
-    color: var(--expense-ink);
+@media (hover: hover) {
+    .btn--danger:hover,
+    .btn-danger:hover {
+        background: var(--expense-soft);
+        border-color: transparent;
+        color: var(--expense-ink);
+    }
 }
 
 /* Solid danger (legacy) */
@@ -91,9 +100,11 @@
     border-color: var(--hairline);
 }
 
-.btn-secondary:hover {
-    background: var(--surface-hover);
-    border-color: var(--hairline-strong);
+@media (hover: hover) {
+    .btn-secondary:hover {
+        background: var(--surface-hover);
+        border-color: var(--hairline-strong);
+    }
 }
 
 /* Sizes */
@@ -165,10 +176,18 @@
     background: transparent;
     border: 0;
     cursor: pointer;
+    touch-action: manipulation;
     transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 
-.icon-btn:hover {
+@media (hover: hover) {
+    .icon-btn:hover {
+        background: var(--surface-hover);
+        color: var(--ink);
+    }
+}
+
+.icon-btn:active {
     background: var(--surface-hover);
     color: var(--ink);
 }
@@ -189,10 +208,13 @@
     background: transparent;
     border: 1px solid transparent;
     cursor: pointer;
+    touch-action: manipulation;
     transition: all var(--t-fast) var(--ease);
 }
 
-.confirm-btn:hover { background: var(--expense-soft); }
+@media (hover: hover) {
+    .confirm-btn:hover { background: var(--expense-soft); }
+}
 
 .confirm-btn.armed {
     background: var(--expense);
@@ -248,3 +270,24 @@
 
 .switch input:checked + span { background: var(--accent); }
 .switch input:checked + span::before { transform: translateX(18px); }
+
+/* ── Touch targets ─────────────────────────────────────── */
+
+@media (max-width: 640px) {
+    .btn,
+    .btn-sm,
+    .btn--sm { min-height: 44px; }
+
+    .icon-btn {
+        width: 44px;
+        height: 44px;
+    }
+
+    .confirm-btn {
+        min-height: 44px;
+        padding: 8px 14px;
+        font-size: 13px;
+    }
+
+    .ed-actions { gap: 8px; }
+}

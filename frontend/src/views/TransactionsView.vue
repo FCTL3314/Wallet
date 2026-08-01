@@ -413,7 +413,41 @@ const totalCount = computed(() => summary.value?.count ?? 0)
       :loading="loading && !items.length"
       :empty="!loading && !items.length"
       :empty-message="tableEmptyMessage"
+      mobile-cards
     >
+      <template #card="{ rows }">
+        <li
+          v-for="(row, index) in rows"
+          :key="row.original.id"
+          class="row-card table-row"
+          :style="{ '--i': String(Math.min(index, 15)) }"
+          :class="{ removing: row.original.id === removingId, 'row-new': row.original.id === newId }"
+        >
+          <div class="row-card-body">
+            <div class="row-card-top">
+              <span class="row-card-title">{{ row.original.date }}</span>
+              <span class="row-card-amount row-card-amount--income num">
+                {{ fmtAmount(row.original.amount) }}
+              </span>
+            </div>
+            <div class="row-card-meta">
+              <span>{{ refs.storageAccountLabelById(row.original.storage_account_id) }}</span>
+              <span aria-hidden="true">·</span>
+              <span>{{ sourceName(row.original.income_source_id) }}</span>
+            </div>
+            <p v-if="row.original.description" class="row-card-note">
+              {{ row.original.description }}
+            </p>
+          </div>
+          <div class="row-card-actions">
+            <EditDeleteActions
+              @edit="openEdit(row.original)"
+              @confirm="crudRemove(row.original.id)"
+            />
+          </div>
+        </li>
+      </template>
+
       <template #body="{ rows }">
         <tr
           v-for="(row, index) in rows"
@@ -422,11 +456,11 @@ const totalCount = computed(() => summary.value?.count ?? 0)
           :style="{ '--i': String(Math.min(index, 15)) }"
           :class="{ removing: row.original.id === removingId, 'row-new': row.original.id === newId }"
         >
-          <td>{{ row.original.date }}</td>
+          <td class="col-date">{{ row.original.date }}</td>
           <td class="col-num amount-positive">{{ fmtAmount(row.original.amount) }}</td>
           <td>{{ refs.storageAccountLabelById(row.original.storage_account_id) }}</td>
           <td>{{ sourceName(row.original.income_source_id) }}</td>
-          <td>{{ row.original.description || '' }}</td>
+          <td class="col-desc">{{ row.original.description || '' }}</td>
           <td class="col-actions">
             <EditDeleteActions
               @edit="openEdit(row.original)"
@@ -513,6 +547,15 @@ const totalCount = computed(() => summary.value?.count ?? 0)
   text-align: right;
 }
 
+.col-date {
+  white-space: nowrap;
+}
+
+.col-desc {
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+
 .scroll-sentinel {
   height: 1px;
 }
@@ -520,5 +563,18 @@ const totalCount = computed(() => summary.value?.count ?? 0)
 .load-more {
   text-align: center;
   padding: 1rem;
+}
+
+@media (max-width: 640px) {
+  .filter-field {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .filter-select {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+  }
 }
 </style>

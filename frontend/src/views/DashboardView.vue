@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, onMounted, ref, watch} from 'vue'
+import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {RouterLink} from 'vue-router'
 import {useThemeStore} from '../stores/theme'
 import {
@@ -49,6 +49,11 @@ const HINT_COL_PROFIT =
     'Change in your total balance over the period, taken from balance snapshots — not income minus recorded expenses. A period with no new snapshot carries the previous balance forward, so its profit is zero.'
 const HINT_COL_EXPENSE =
     'Income minus profit for the period: the money that came in but did not end up in your balances. It is derived from the two columns to the left, never entered by hand, and never goes below zero.'
+
+const NARROW_QUERY = '(max-width: 640px)'
+const NARROW_X_LABEL_LIMIT = 5
+const TREND_HEIGHT = '260px'
+const TREND_HEIGHT_NARROW = '220px'
 
 const refs = useReferencesStore()
 const {currencies} = storeToRefs(refs)
@@ -117,11 +122,27 @@ async function load() {
   }
 }
 
+const isNarrow = ref(false)
+let narrowQuery: MediaQueryList | null = null
+
+function syncNarrow(event: MediaQueryList | MediaQueryListEvent) {
+  isNarrow.value = event.matches
+}
+
 onMounted(() => {
   load()
   loadBreakdown()
   initRange()
+  narrowQuery = window.matchMedia(NARROW_QUERY)
+  syncNarrow(narrowQuery)
+  narrowQuery.addEventListener('change', syncNarrow)
 })
+
+onBeforeUnmount(() => {
+  narrowQuery?.removeEventListener('change', syncNarrow)
+  narrowQuery = null
+})
+
 watch([dateFrom, dateTo, groupBy, selectedCurrencyId, convertToCurrency], load)
 
 const lastEntry = computed(() => periods.value[periods.value.length - 1] ?? null)
@@ -283,7 +304,7 @@ const trendBreakdown = computed<(TooltipBreakdownRow[] | null)[]>(() => {
   })
 })
 
-const lineOption = computed(() => {
+const baseLineOption = computed(() => {
   const t = TREND_OPTIONS.find((o) => o.key === selectedTrend.value)!
   if (selectedTrend.value === 'balance') {
     const code = displayCurrencyCode.value
@@ -321,6 +342,43 @@ const lineOption = computed(() => {
       isDark.value,
       trendBreakdown.value,
   )
+})
+
+const trendChartHeight = computed(() => (isNarrow.value ? TREND_HEIGHT_NARROW : TREND_HEIGHT))
+
+const xLabelInterval = computed(() => {
+  const count = chartEntries.value.length
+  if (count <= NARROW_X_LABEL_LIMIT) return 0
+  return Math.ceil(count / NARROW_X_LABEL_LIMIT) - 1
+})
+
+const lineOption = computed(() => {
+  const base = baseLineOption.value
+  if (!isNarrow.value) return base
+  return {
+    ...base,
+    grid: {...base.grid, left: 2, right: 10, bottom: 2, top: 28},
+    tooltip: {
+      ...base.tooltip,
+      triggerOn: 'mousemove|click',
+      axisPointer: {...base.tooltip.axisPointer, type: 'line'},
+    },
+    xAxis: {
+      ...base.xAxis,
+      axisLabel: {
+        ...base.xAxis.axisLabel,
+        fontSize: 10,
+        rotate: 40,
+        interval: xLabelInterval.value,
+        hideOverlap: true,
+        margin: 10,
+      },
+    },
+    yAxis: {
+      ...base.yAxis,
+      axisLabel: {...base.yAxis.axisLabel, fontSize: 10},
+    },
+  }
 })
 
 const donutTotals = computed(() => {
@@ -538,7 +596,7 @@ const showRateDetails = ref(false)
           </button>
         </div>
       </div>
-      <v-chart :option="lineOption" :style="{ height: '260px' }" autoresize @globalout="hoveredPeriod = null"/>
+      <v-chart :option="lineOption" :style="{ height: trendChartHeight }" autoresize @globalout="hoveredPeriod = null"/>
     </BaseCard>
 
     <BaseCard v-if="Object.keys(donutTotals).length"
@@ -761,7 +819,7 @@ const showRateDetails = ref(false)
   text-decoration: none;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .gs-step {
     flex-wrap: wrap;
   }
@@ -838,8 +896,10 @@ const showRateDetails = ref(false)
   text-decoration: none;
 }
 
-.warning-link:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .warning-link:hover {
+    text-decoration: underline;
+  }
 }
 
 .hero-actions {

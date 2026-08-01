@@ -25,8 +25,9 @@
     border: 1px solid var(--hairline);
     border-radius: var(--r-card);
     padding: 24px;
-    width: min(560px, calc(100vw - 48px));
+    width: min(560px, calc(100vw - 48px - var(--safe-left) - var(--safe-right)));
     max-height: 90vh;
+    max-height: 90dvh;
     overflow-y: auto;
     box-shadow: var(--shadow-lg);
     animation: modal-rise var(--t-med) var(--ease-out);
@@ -115,7 +116,9 @@
     transition: background var(--t-fast) var(--ease);
 }
 
-.autocomplete-item:hover { background: var(--surface-2); }
+@media (hover: hover) {
+    .autocomplete-item:hover { background: var(--surface-2); }
+}
 
 /* ── Mobile bottom-sheet ───────────────────────────────── */
 
@@ -131,8 +134,12 @@
         max-width: none;
         width: auto;
         border-radius: 24px 24px 0 0;
-        padding: 24px 20px;
+        padding-top: 24px;
+        padding-right: calc(20px + var(--safe-right));
+        padding-bottom: calc(24px + var(--safe-bottom));
+        padding-left: calc(20px + var(--safe-left));
         max-height: 90vh;
+        max-height: 90dvh;
     }
 
     .modal::before {

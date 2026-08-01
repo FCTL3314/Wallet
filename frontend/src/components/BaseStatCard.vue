@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { ref, useTemplateRef } from 'vue'
+import { nextTick, onBeforeUnmount, ref, useId, useTemplateRef, watch } from 'vue'
 import { PhInfo } from '@phosphor-icons/vue'
+
+const VIEWPORT_MARGIN = 12
+const ANCHOR_GAP = 10
+const ARROW_INSET = 16
 
 const props = defineProps<{
   label: string
@@ -9,28 +13,96 @@ const props = defineProps<{
   flat?: boolean
 }>()
 
+const tooltipId = useId()
 const hintRef = useTemplateRef<HTMLElement>('hintRef')
+const popupRef = useTemplateRef<HTMLElement>('popupRef')
+
 const tooltipVisible = ref(false)
+const tooltipPlaced = ref(false)
+const tooltipBelow = ref(false)
 const tooltipStyle = ref<Record<string, string>>({})
 
-function showTooltip() {
-  if (!hintRef.value) return
-  const rect = hintRef.value.getBoundingClientRect()
+let focusFromPointer = false
+
+function placeTooltip() {
+  const anchor = hintRef.value
+  const popup = popupRef.value
+  if (!anchor || !popup) return
+
+  const rect = anchor.getBoundingClientRect()
+  const viewportWidth = document.documentElement.clientWidth
+  const width = popup.offsetWidth
+  const height = popup.offsetHeight
+  const half = width / 2
+
+  const anchorCenter = rect.left + rect.width / 2
+  const minCenter = VIEWPORT_MARGIN + half
+  const maxCenter = viewportWidth - VIEWPORT_MARGIN - half
+  const center =
+    maxCenter < minCenter ? viewportWidth / 2 : Math.min(Math.max(anchorCenter, minCenter), maxCenter)
+
+  const below = rect.top - height - ANCHOR_GAP < VIEWPORT_MARGIN
+  const arrowX = Math.min(Math.max(anchorCenter - (center - half), ARROW_INSET), width - ARROW_INSET)
+
+  tooltipBelow.value = below
   tooltipStyle.value = {
-    left: `${rect.left + rect.width / 2 + window.scrollX}px`,
-    top: `${rect.top + window.scrollY - 10}px`,
+    left: `${center + window.scrollX}px`,
+    top: below
+      ? `${rect.bottom + window.scrollY + ANCHOR_GAP}px`
+      : `${rect.top + window.scrollY - ANCHOR_GAP}px`,
+    '--arrow-x': `${arrowX}px`,
   }
+  tooltipPlaced.value = true
+}
+
+async function showTooltip() {
+  if (!props.hint || tooltipVisible.value) return
+  tooltipPlaced.value = false
   tooltipVisible.value = true
+  await nextTick()
+  placeTooltip()
 }
 
 function hideTooltip() {
   tooltipVisible.value = false
+  tooltipPlaced.value = false
 }
 
 function toggleTooltip() {
   if (tooltipVisible.value) hideTooltip()
   else showTooltip()
 }
+
+function onPointerEnter(event: PointerEvent) {
+  if (event.pointerType !== 'mouse') return
+  showTooltip()
+}
+
+function onPointerLeave(event: PointerEvent) {
+  if (event.pointerType !== 'mouse') return
+  hideTooltip()
+}
+
+function onPointerDown() {
+  focusFromPointer = true
+}
+
+function onFocus() {
+  if (focusFromPointer) return
+  showTooltip()
+}
+
+function onBlur() {
+  focusFromPointer = false
+  hideTooltip()
+}
+
+watch(tooltipVisible, (visible) => {
+  if (visible) window.addEventListener('resize', placeTooltip)
+  else window.removeEventListener('resize', placeTooltip)
+})
+
+onBeforeUnmount(() => window.removeEventListener('resize', placeTooltip))
 </script>
 
 <template>
@@ -44,11 +116,14 @@ function toggleTooltip() {
         class="stat-hint"
         :aria-label="`About ${label}`"
         :aria-expanded="tooltipVisible"
-        @mouseenter="showTooltip"
-        @mouseleave="hideTooltip"
-        @focus="showTooltip"
-        @blur="hideTooltip"
+        :aria-describedby="tooltipVisible ? tooltipId : undefined"
+        @pointerenter="onPointerEnter"
+        @pointerleave="onPointerLeave"
+        @pointerdown="onPointerDown"
+        @focus="onFocus"
+        @blur="onBlur"
         @click="toggleTooltip"
+        @keydown.esc="hideTooltip"
       >
         <PhInfo :size="13" weight="bold" />
       </button>
@@ -56,7 +131,15 @@ function toggleTooltip() {
     <slot />
   </div>
   <Teleport to="body">
-    <div v-if="tooltipVisible && hint" class="stat-hint-popup" :style="tooltipStyle" role="tooltip">
+    <div
+      v-if="tooltipVisible && hint"
+      :id="tooltipId"
+      ref="popupRef"
+      class="stat-hint-popup"
+      :class="{ 'stat-hint-popup--below': tooltipBelow, 'stat-hint-popup--placed': tooltipPlaced }"
+      :style="tooltipStyle"
+      role="tooltip"
+    >
       <p class="stat-hint-text">{{ hint }}</p>
     </div>
   </Teleport>
@@ -80,33 +163,54 @@ function toggleTooltip() {
   transition: color 0.15s;
 }
 
-.stat-hint:hover,
 .stat-hint:focus-visible {
   color: var(--text-secondary);
+}
+
+@media (hover: hover) {
+  .stat-hint:hover {
+    color: var(--text-secondary);
+  }
 }
 </style>
 
 <style>
 .stat-hint-popup {
   position: absolute;
-  width: 260px;
+  width: min(260px, calc(100vw - 24px));
   transform: translate(-50%, -100%);
   background: rgba(15, 18, 28, 0.92);
   backdrop-filter: blur(10px);
   border-radius: 10px;
   padding: 12px 14px;
   pointer-events: none;
+  opacity: 0;
   z-index: 9999;
+}
+
+.stat-hint-popup--placed {
+  opacity: 1;
+}
+
+.stat-hint-popup--below {
+  transform: translate(-50%, 0);
 }
 
 .stat-hint-popup::after {
   content: '';
   position: absolute;
   top: 100%;
-  left: 50%;
+  left: var(--arrow-x, 50%);
   transform: translateX(-50%);
   border: 5px solid transparent;
   border-top-color: rgba(15, 18, 28, 0.92);
+}
+
+.stat-hint-popup--below::after {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: rgba(15, 18, 28, 0.92);
 }
 
 .stat-hint-text {

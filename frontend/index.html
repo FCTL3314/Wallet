@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7f6f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14150f" media="(prefers-color-scheme: dark)" />
     <title>Wallet</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -32,6 +34,22 @@
         }
         r.style.setProperty('--color-accent', 'var(--accent)');
         r.style.setProperty('--color-accent-light', 'var(--accent-soft-2)');
+
+        var themeColors = { light: '#f7f6f2', dark: '#14150f' };
+        var themeMetas = document.querySelectorAll('meta[name="theme-color"]');
+        var syncThemeColor = function () {
+          var color = themeColors[r.dataset.theme] || themeColors.light;
+          for (var i = 0; i < themeMetas.length; i++) {
+            themeMetas[i].setAttribute('content', color);
+          }
+        };
+        syncThemeColor();
+        if (window.MutationObserver) {
+          new MutationObserver(syncThemeColor).observe(r, {
+            attributes: true,
+            attributeFilter: ['data-theme'],
+          });
+        }
       })();
     </script>
     <style>
