@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.db_helpers import get_or_404
 from app.core.dependencies import get_current_user
-from app.models import User, StorageLocation, StorageAccount
+from app.models import Currency, User, StorageLocation, StorageAccount
 from app.schemas.storage import (
     StorageLocationCreate,
     StorageLocationUpdate,
@@ -111,6 +111,7 @@ async def create_account(
     await get_or_404(
         db, StorageLocation, body.storage_location_id, user.id, "storage_location"
     )
+    await get_or_404(db, Currency, body.currency_id, user.id, "currency")
     obj = StorageAccount(**body.model_dump(), user_id=user.id)
     db.add(obj)
     await db.flush()

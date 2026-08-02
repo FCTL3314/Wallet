@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.db_helpers import get_or_404
 from app.core.dependencies import get_current_user
-from app.models import User, BalanceSnapshot
+from app.models import User, BalanceSnapshot, StorageAccount
 from app.schemas.balance_snapshot import (
     BalanceSnapshotCreate,
     BalanceSnapshotUpdate,
@@ -51,6 +51,9 @@ async def create_snapshot(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await get_or_404(
+        db, StorageAccount, body.storage_account_id, user.id, "storage_account"
+    )
     obj = BalanceSnapshot(**body.model_dump(), user_id=user.id)
     db.add(obj)
     await db.flush()
@@ -68,7 +71,12 @@ async def update_snapshot(
     obj = await get_or_404(
         db, BalanceSnapshot, snapshot_id, user.id, "balance_snapshot"
     )
-    for k, v in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    if data.get("storage_account_id") is not None:
+        await get_or_404(
+            db, StorageAccount, data["storage_account_id"], user.id, "storage_account"
+        )
+    for k, v in data.items():
         setattr(obj, k, v)
     await db.flush()
     await db.refresh(obj)
