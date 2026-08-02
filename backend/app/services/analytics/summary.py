@@ -6,7 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Currency, Transaction, BalanceSnapshot, ExpenseCategory
 from app.services.analytics.periods import GroupBy, _generate_periods
-from app.services.analytics.balance import get_balances_at_dates
+from app.services.analytics.balance import (
+    AccountBalance,
+    get_balance_timeline,
+    totals_by_currency,
+)
 from app.services.analytics.income import (
     _get_income_per_period,
     _get_income_per_period_by_currency,
@@ -14,6 +18,7 @@ from app.services.analytics.income import (
 from app.services.exchange_rates import (
     RateResult,
     convert_amount as _convert_amount,
+    convert_amount_detailed,
     get_rates_batch,
     get_rates_for_periods,
 )
@@ -24,6 +29,42 @@ def _pct(new: Decimal, old: Decimal) -> Decimal | None:
     if old == 0:
         return None
     return ((new - old) / old * 100).quantize(Decimal("0.01"))
+
+
+def _avg(total: Decimal, count: int) -> Decimal:
+    if count == 0:
+        return Decimal("0")
+    return (total / count).quantize(Decimal("0.01"))
+
+
+def _split_balance_movement(
+    prev_accounts: dict[int, AccountBalance],
+    cur_accounts: dict[int, AccountBalance],
+) -> tuple[dict[str, Decimal], dict[str, Decimal]]:
+    """Split a period's balance movement into earned change and opening capital.
+
+    An account seen for the first time in this period brings its whole balance
+    with it. That money was not earned during the period — it is capital that
+    existed before Wallet started tracking the account — so it is reported
+    separately instead of inflating profit. This applies to the very first
+    account as much as to a wallet connected years later.
+    """
+    balance_change: dict[str, Decimal] = {}
+    opening_capital: dict[str, Decimal] = {}
+
+    for account_id, balance in cur_accounts.items():
+        previous = prev_accounts.get(account_id)
+        if previous is None:
+            opening_capital[balance.currency] = (
+                opening_capital.get(balance.currency, Decimal("0")) + balance.amount
+            )
+        else:
+            delta = balance.amount - previous.amount
+            balance_change[balance.currency] = (
+                balance_change.get(balance.currency, Decimal("0")) + delta
+            )
+
+    return balance_change, opening_capital
 
 
 async def _build_rate_coverage(
@@ -90,6 +131,13 @@ async def get_summary(
     Excel-model summary: profit = balance_change, derived_expense = income - profit.
     Generates one row per calendar period in the requested range.
 
+    Profit is only reported for periods where it can actually be measured: an
+    already-tracked account has to have been re-counted inside the period. A
+    period that merely carries the previous balance forward is marked
+    ``is_measured: false`` and contributes to no average, because "the balance
+    did not move" and "nobody wrote the balance down" are indistinguishable
+    from the snapshots alone.
+
     When ``convert_to`` is set (e.g. "USD"), all monetary values are converted
     to that currency using exchange rates. Each period entry gets an extra
     ``converted_balance`` field with the total converted balance.
@@ -99,6 +147,12 @@ async def get_summary(
     periods = _generate_periods(date_from, date_to, group_by)
     if not periods:
         return {"periods": [], "stats": None, "rate_coverage": None}
+
+    # Periods are whole calendar units, so the income window has to span the
+    # generated periods rather than the raw request. Asking for "15 Mar - 2 Aug"
+    # renders a full March row whose balance delta covers the whole month;
+    # counting income only from the 15th would understate that row's expense.
+    range_start, range_end = periods[0][0], periods[-1][1]
 
     converting = convert_to is not None and currency_id is None
 
@@ -113,24 +167,24 @@ async def get_summary(
     # Get income data
     if converting:
         income_map_by_cur = await _get_income_per_period_by_currency(
-            db, user_id, date_from, date_to, group_by
+            db, user_id, range_start, range_end, group_by
         )
         income_map: dict[str, Decimal] = {}
     else:
         income_map_by_cur = None
         income_map = await _get_income_per_period(
-            db, user_id, date_from, date_to, group_by, currency_id
+            db, user_id, range_start, range_end, group_by, currency_id
         )
 
     # Balances at every period end, plus the day before the first period, in one query
-    prev_end = periods[0][0] - timedelta(days=1)
+    prev_end = range_start - timedelta(days=1)
     balance_dates = [prev_end] + [end for _, end in periods]
-    balances_at = await get_balances_at_dates(db, user_id, balance_dates, currency_id)
+    timeline = await get_balance_timeline(db, user_id, balance_dates, currency_id)
 
-    prev_balances = balances_at.get(prev_end, {})
+    prev_accounts = timeline.balances_at(prev_end)
 
     # Save initial balances for balance_growth stat (before any period mutations)
-    initial_balances = dict(prev_balances)
+    initial_balances = totals_by_currency(prev_accounts)
 
     # Pre-fetch rates for all period-ends in 2 queries (avoid N+1)
     rate_cache: dict[date, dict[str, RateResult]] = {}
@@ -141,16 +195,21 @@ async def get_summary(
         )
 
     summary = []
-    cumulative_income = Decimal("0")
-    cumulative_profit = Decimal("0")
+    total_income = Decimal("0")
     income_count = 0
-    profit_count = 0
+
+    # Averages share one denominator: the periods where income, profit and the
+    # expense derived from them are all meaningful at once. Mixing denominators
+    # (income averaged over earning periods, profit over active ones) produces
+    # three cards that cannot be reconciled with each other.
+    accountable_income = Decimal("0")
+    accountable_profit = Decimal("0")
+    accountable_expense = Decimal("0")
+    accountable_count = 0
 
     # Data collected for growth stats
-    income_active_periods: list[dict] = []  # periods where income > 0 and not bootstrap
-    profit_active_periods: list[
-        dict
-    ] = []  # periods where (income > 0 or profit != 0) and not bootstrap
+    income_active_periods: list[dict] = []  # periods where income > 0
+    profit_active_periods: list[dict] = []  # measured periods with any activity
     last_cur_balances: dict[str, Decimal] = {}
 
     for period_start, period_end in periods:
@@ -168,76 +227,77 @@ async def get_summary(
         else:
             income = income_map.get(period_key, Decimal("0"))
 
-        cur_balances = balances_at.get(period_end, {})
+        cur_accounts = timeline.balances_at(period_end)
+        cur_balances = totals_by_currency(cur_accounts)
 
-        all_currencies = set(cur_balances) | set(prev_balances)
-        balance_change = {
-            cur: cur_balances.get(cur, Decimal("0"))
-            - prev_balances.get(cur, Decimal("0"))
-            for cur in all_currencies
-        }
+        balance_change, opening_capital = _split_balance_movement(
+            prev_accounts, cur_accounts
+        )
 
         if converting:
             profit = _convert_amount(balance_change, rate_map, convert_to)
         else:
             profit = sum(balance_change.values(), Decimal("0"))
 
-        # Detect bootstrap period: no prior snapshots, so balance_change is the
-        # opening balance rather than money earned during the period. Any first
-        # snapshot qualifies, including a net-negative one — testing the summed
-        # total would both miss debt-only openings and add up unlike currencies.
-        is_bootstrap = not prev_balances and bool(cur_balances)
+        # A bootstrap period is one that opens the very first tracked balance.
+        # Any first snapshot qualifies, including a net-negative one — testing the
+        # summed total would both miss debt-only openings and add up unlike currencies.
+        is_bootstrap = not prev_accounts and bool(cur_accounts)
+
+        # Profit is only measurable when an already-tracked account was re-counted
+        # inside the period. Without that the balance is merely carried forward, and
+        # reading its flat line as "earned nothing, so spent it all" is what made an
+        # unfinished month look like a month of pure expense.
+        is_measured = bool(
+            timeline.remeasured_accounts(period_start, period_end) & set(prev_accounts)
+        )
         derived_expense = (
-            Decimal("0") if is_bootstrap else max(Decimal("0"), income - profit)
+            max(Decimal("0"), income - profit) if is_measured else Decimal("0")
         )
 
-        # Income is money actually received and counts in every period. Only the
-        # balance delta is excluded for the bootstrap period, since booking opening
-        # capital as profit would distort avg_profit and the growth stats.
+        # Income is money actually received and is reported in every period, but
+        # only measured periods feed the averages and growth stats.
+        total_income += income
         if income > 0:
-            cumulative_income += income
             income_count += 1
             income_active_periods.append(
                 {"period": period_key, "income": income, "profit": profit}
             )
-        if not is_bootstrap and (income > 0 or profit != 0):
-            cumulative_profit += profit
-            profit_count += 1
-            profit_active_periods.append(
-                {"period": period_key, "income": income, "profit": profit}
-            )
-
-        avg_income = (
-            (cumulative_income / income_count).quantize(Decimal("0.01"))
-            if income_count > 0
-            else Decimal("0")
-        )
-        avg_profit = (
-            (cumulative_profit / profit_count).quantize(Decimal("0.01"))
-            if profit_count > 0
-            else Decimal("0")
-        )
+        if is_measured:
+            accountable_income += income
+            accountable_profit += profit
+            accountable_expense += derived_expense
+            accountable_count += 1
+            if income > 0 or profit != 0:
+                profit_active_periods.append(
+                    {"period": period_key, "income": income, "profit": profit}
+                )
 
         entry = {
             "period": period_key,
             "income": income,
             "profit": profit,
             "derived_expense": derived_expense,
-            "avg_income": avg_income,
-            "avg_profit": avg_profit,
+            "avg_income": _avg(accountable_income, accountable_count),
+            "avg_profit": _avg(accountable_profit, accountable_count),
+            "avg_expense": _avg(accountable_expense, accountable_count),
             "balances": cur_balances,
             "balance_change": balance_change,
+            "opening_capital": opening_capital,
             "is_bootstrap": is_bootstrap,
+            "is_measured": is_measured,
         }
 
         if converting:
-            entry["converted_balance"] = _convert_amount(
+            converted_balance, missing = convert_amount_detailed(
                 cur_balances, rate_map, convert_to
             )
+            entry["converted_balance"] = converted_balance
+            entry["conversion_missing"] = missing
 
         summary.append(entry)
 
-        prev_balances = cur_balances
+        prev_accounts = cur_accounts
         last_cur_balances = cur_balances
 
     # --- Compute stats ---
@@ -297,9 +357,13 @@ async def get_summary(
             "pct": balance_growth_pct,
         },
         "balance_growth_converted": balance_growth_converted,
-        "total_income": cumulative_income,
-        "total_profit": cumulative_profit,
-        "active_period_count": profit_count,
+        "total_income": total_income,
+        "total_profit": accountable_profit,
+        "total_expense": accountable_expense,
+        "avg_income": _avg(accountable_income, accountable_count),
+        "avg_profit": _avg(accountable_profit, accountable_count),
+        "avg_expense": _avg(accountable_expense, accountable_count),
+        "accountable_period_count": accountable_count,
         "income_period_count": income_count,
     }
 

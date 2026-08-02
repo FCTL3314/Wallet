@@ -19,16 +19,19 @@ const MONEY_KEYS = new Set([
   'derived_expense',
   'avg_income',
   'avg_profit',
+  'avg_expense',
   'converted_balance',
   'delta',
   'pct',
   'total_income',
   'total_profit',
+  'total_expense',
 ])
 
 const RECORD_OF_MONEY_KEYS = new Set([
   'balances',
   'balance_change',
+  'opening_capital',
   'totals',
   'sources',
 ])

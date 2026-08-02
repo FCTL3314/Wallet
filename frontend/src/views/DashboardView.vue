@@ -11,6 +11,7 @@ import {
   type SummaryStats
 } from '../api/analytics'
 import {useReferencesStore} from '../stores/references'
+import {useAuthStore} from '../stores/auth'
 import {storeToRefs} from 'pinia'
 import {fmtAmount, fmtPeriod} from '../utils/format'
 import {buildDonutChartOption, buildLineChartOption, DONUT_COLORS, type TooltipBreakdownRow} from '../utils/charts'
@@ -40,15 +41,19 @@ import {
 use([CanvasRenderer, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent])
 
 const HINT_AVG_INCOME =
-    'Average income per period, across the periods that actually had income. Income is the sum of the income transactions you recorded.'
+    'Average income per period, across the periods where profit could be measured. Income is the sum of the income transactions you recorded.'
 const HINT_AVG_EXPENSE =
-    'Derived, not recorded: average income minus average profit. It is what your balances imply you spent — Wallet never sums up expense entries for this number.'
+    'Derived, not recorded: the average of income minus profit per period. It is what your balances imply you spent — Wallet never sums up expense entries for this number.'
 const HINT_AVG_PROFIT =
-    'Average profit per period, across the periods with any activity. Profit is how much your total balance grew, measured from balance snapshots.'
+    'Average profit per period. Profit is how much your total balance grew, measured from balance snapshots. All three averages share one denominator, so they reconcile with each other.'
 const HINT_COL_PROFIT =
-    'Change in your total balance over the period, taken from balance snapshots — not income minus recorded expenses. A period with no new snapshot carries the previous balance forward, so its profit is zero.'
+    'Change in your total balance over the period, taken from balance snapshots — not income minus recorded expenses. Money in an account you started tracking this period counts as opening capital, not profit.'
 const HINT_COL_EXPENSE =
     'Income minus profit for the period: the money that came in but did not end up in your balances. It is derived from the two columns to the left, never entered by hand, and never goes below zero.'
+const HINT_UNMEASURED =
+    'No new snapshot in this period, so the balance was only carried forward. Profit is unknown rather than zero, and this period is left out of the averages.'
+const HINT_OPENING =
+    'Opening balance of an account tracked for the first time in this period. It is money you already had, so it is not counted as profit.'
 
 const NARROW_QUERY = '(max-width: 640px)'
 const NARROW_X_LABEL_LIMIT = 5
@@ -56,7 +61,8 @@ const TREND_HEIGHT = '260px'
 const TREND_HEIGHT_NARROW = '220px'
 
 const refs = useReferencesStore()
-const {currencies} = storeToRefs(refs)
+const {currencies, loaded: refsLoaded} = storeToRefs(refs)
+const {user} = storeToRefs(useAuthStore())
 const themeStore = useThemeStore()
 const isDark = computed(() => themeStore.mode === 'dark')
 
@@ -67,19 +73,28 @@ const rateCoverage = ref<RateCoverage | null>(null)
 const sourceData = ref<IncomeBySourceEntry[]>([])
 const loading = ref(false)
 const selectedCurrencyId = ref<number | 'all'>('all')
-const convertToCurrency = ref<string>('USD')
+// Empty until the currency list loads. Sending a guessed code on the first paint
+// used to 422 for anyone whose currencies do not include it; omitting the param
+// lets the backend fall back to the user's base currency instead.
+const convertToCurrency = ref<string>('')
 
 const isAllMode = computed(() => selectedCurrencyId.value === 'all')
 
 watch(
     currencies,
     () => {
-      const usd = refs.currencyByCode('USD')
-      if (usd) convertToCurrency.value = 'USD'
-      else if (currencies.value.length) {
-        const first = currencies.value[0]
-        if (first) convertToCurrency.value = first.code
+      if (!currencies.value.length) return
+      const preferred = user.value?.base_currency_code
+      if (preferred && refs.currencyByCode(preferred)) {
+        convertToCurrency.value = preferred
+        return
       }
+      if (refs.currencyByCode('USD')) {
+        convertToCurrency.value = 'USD'
+        return
+      }
+      const first = currencies.value[0]
+      if (first) convertToCurrency.value = first.code
     },
     {immediate: true},
 )
@@ -107,7 +122,7 @@ async function load() {
       date_to: dateTo.value,
       group_by: groupBy.value,
       currency_id: isAllMode.value ? undefined : (selectedCurrencyId.value as number),
-      convert_to: isAllMode.value ? convertToCurrency.value : undefined,
+      convert_to: isAllMode.value && convertToCurrency.value ? convertToCurrency.value : undefined,
     }
     const [summaryRes, sourceRes] = await Promise.all([
       analyticsApi.summary(params),
@@ -129,8 +144,13 @@ function syncNarrow(event: MediaQueryList | MediaQueryListEvent) {
   isNarrow.value = event.matches
 }
 
+// The summary needs to know which currencies exist before it can name a conversion
+// target, so the first request waits for the reference data rather than guessing.
+watch(refsLoaded, (isLoaded) => {
+  if (isLoaded) load()
+}, {immediate: true})
+
 onMounted(() => {
-  load()
   loadBreakdown()
   initRange()
   narrowQuery = window.matchMedia(NARROW_QUERY)
@@ -147,9 +167,13 @@ watch([dateFrom, dateTo, groupBy, selectedCurrencyId, convertToCurrency], load)
 
 const lastEntry = computed(() => periods.value[periods.value.length - 1] ?? null)
 const chartEntries = computed(() => periods.value.filter((e) => !e.is_bootstrap))
-const avgIncome = computed(() => lastEntry.value?.avg_income ?? 0)
-const avgProfit = computed(() => lastEntry.value?.avg_profit ?? 0)
-const avgExpense = computed(() => Math.max(0, avgIncome.value - avgProfit.value))
+
+// All three averages come from the backend over one shared set of periods. Deriving
+// expense here as avgIncome - avgProfit would subtract two different denominators.
+const hasAverages = computed(() => (stats.value?.accountable_period_count ?? 0) > 0)
+const avgIncome = computed(() => stats.value?.avg_income ?? 0)
+const avgProfit = computed(() => stats.value?.avg_profit ?? 0)
+const avgExpense = computed(() => stats.value?.avg_expense ?? 0)
 
 const balanceGrowth = computed(() => stats.value?.balance_growth ?? null)
 const balanceGrowthConverted = computed(() => stats.value?.balance_growth_converted ?? null)
@@ -185,15 +209,22 @@ const displayCurrencyCode = computed(() => {
 })
 
 const displayedBalances = computed(() => lastEntry.value?.balances ?? {})
-const hasMultipleCurrencies = computed(() => Object.keys(displayedBalances.value).length > 1)
+// Whether conversion is in play at all. Derived from the currencies the user owns,
+// not from the last period's balances: a period holding only one of two currencies
+// used to make the hero print that raw amount under the other currency's code.
+const hasMultipleCurrencies = computed(() => currencies.value.length > 1)
+const showBalanceSplit = computed(() => Object.keys(displayedBalances.value).length > 1)
 
 const heroTotalRaw = computed(() => {
-  if (isAllMode.value && lastEntry.value?.converted_balance != null && hasMultipleCurrencies.value) {
-    return lastEntry.value.converted_balance
-  }
+  if (isAllMode.value) return lastEntry.value?.converted_balance ?? 0
+  const code = displayCurrencyCode.value
+  if (code) return displayedBalances.value[code] ?? 0
   const vals = Object.values(displayedBalances.value)
   return vals.length ? Number(vals[0]) : 0
 })
+
+// Currencies dropped from the hero total because no rate covered them.
+const heroMissingRates = computed<string[]>(() => lastEntry.value?.conversion_missing ?? [])
 
 const heroTotalCents = computed(() => Math.round(Math.abs(heroTotalRaw.value) * 100))
 const heroSign = computed(() => (heroTotalRaw.value < 0 && heroTotalCents.value > 0 ? '−' : ''))
@@ -202,7 +233,7 @@ const heroCents = computed(() => String(heroTotalCents.value % 100).padStart(2, 
 const heroCcy = computed(() => displayCurrencyCode.value || '')
 
 const heroGrowth = computed(() => {
-  if (isAllMode.value && hasMultipleCurrencies.value && balanceGrowthConverted.value) {
+  if (isAllMode.value && balanceGrowthConverted.value) {
     return {
       delta: balanceGrowthConverted.value.delta,
       pct: balanceGrowthConverted.value.pct,
@@ -294,7 +325,7 @@ const trendBreakdown = computed<(TooltipBreakdownRow[] | null)[]>(() => {
       return rows.length ? rows : null
     }
     if (key === 'expense') {
-      if (e.income === 0 && e.profit === 0) return null
+      if (!e.is_measured) return null
       return [
         {label: 'Income', value: e.income},
         {label: '− Profit', value: e.profit},
@@ -514,13 +545,17 @@ const showRateDetails = ref(false)
           <span>{{ heroSign }}{{ heroWhole.toLocaleString('en-US') }}</span>
           <span class="cents">.{{ heroCents }}</span>
         </div>
-        <div v-if="hasMultipleCurrencies" class="hero-foot">
+        <div v-if="showBalanceSplit" class="hero-foot">
           <span
               v-for="(val, cur) in displayedBalances"
               :key="cur"
               class="num"
           >{{ cur }} {{ fmtAmount(val) }}</span>
         </div>
+        <p v-if="heroMissingRates.length" class="muted hero-incomplete">
+          Excludes {{ heroMissingRates.join(', ') }} — no exchange rate available, so this total is
+          lower than what you actually hold.
+        </p>
         <div class="hero-actions row">
           <RouterLink to="/transactions" class="btn btn--primary">+ Add transaction</RouterLink>
           <RouterLink to="/balance-snapshots" class="btn">+ New snapshot</RouterLink>
@@ -549,7 +584,10 @@ const showRateDetails = ref(false)
       <div class="hero-side">
         <BaseStatCard flat variant="income" label="Avg income / period" :hint="HINT_AVG_INCOME">
           <div class="stat-value">
-            <span class="stat-currency">{{ heroCcy }}</span>{{ fmtAmount(avgIncome) }}
+            <template v-if="hasAverages">
+              <span class="stat-currency">{{ heroCcy }}</span>{{ fmtAmount(avgIncome) }}
+            </template>
+            <span v-else class="muted">—</span>
           </div>
           <div v-if="incomeGrowth" class="stat-foot">
             <GrowthBadge :delta="incomeGrowth.delta">
@@ -560,13 +598,19 @@ const showRateDetails = ref(false)
         <hr class="divider"/>
         <BaseStatCard flat variant="expense" label="Avg expense / period" :hint="HINT_AVG_EXPENSE">
           <div class="stat-value">
-            <span class="stat-currency">{{ heroCcy }}</span>{{ fmtAmount(avgExpense) }}
+            <template v-if="hasAverages">
+              <span class="stat-currency">{{ heroCcy }}</span>{{ fmtAmount(avgExpense) }}
+            </template>
+            <span v-else class="muted">—</span>
           </div>
         </BaseStatCard>
         <hr class="divider"/>
         <BaseStatCard flat variant="profit" label="Avg profit / period" :hint="HINT_AVG_PROFIT">
           <div class="stat-value">
-            <span class="stat-currency">{{ heroCcy }}</span>{{ fmtAmount(avgProfit) }}
+            <template v-if="hasAverages">
+              <span class="stat-currency">{{ heroCcy }}</span>{{ fmtAmount(avgProfit) }}
+            </template>
+            <span v-else class="muted">—</span>
           </div>
           <div v-if="profitGrowth" class="stat-foot">
             <GrowthBadge :delta="profitGrowth.delta">
@@ -660,6 +704,16 @@ const showRateDetails = ref(false)
               class="badge-initial"
               title="Starting balance snapshot — reflects initial capital, not earned income."
             >Initial</span>
+            <span
+              v-else-if="Object.keys(row.opening_capital ?? {}).length"
+              class="badge-initial"
+              :title="HINT_OPENING"
+            >Opening</span>
+            <span
+              v-if="!row.is_measured && !row.is_bootstrap"
+              class="badge-unmeasured"
+              :title="HINT_UNMEASURED"
+            >No snapshot</span>
           </td>
           <td class="col-num">
             <template v-if="Object.keys(row.balances).length">
@@ -672,11 +726,11 @@ const showRateDetails = ref(false)
             <span v-else class="muted">—</span>
           </td>
           <td class="col-num up">{{ fmtAmount(row.income) }}</td>
-          <td class="col-num" :class="row.profit >= 0 ? 'up' : 'down'">
-            {{ fmtAmount(row.profit) }}
+          <td class="col-num" :class="row.is_measured ? (row.profit >= 0 ? 'up' : 'down') : 'muted'">
+            {{ row.is_measured ? fmtAmount(row.profit) : '—' }}
           </td>
-          <td class="col-num" :class="row.derived_expense > 0 ? 'down' : 'muted'">
-            {{ row.income === 0 && row.profit === 0 ? '—' : fmtAmount(row.derived_expense) }}
+          <td class="col-num" :class="row.is_measured && row.derived_expense > 0 ? 'down' : 'muted'">
+            {{ row.is_measured ? fmtAmount(row.derived_expense) : '—' }}
           </td>
           <td class="col-num">{{ fmtAmount(row.avg_income) }}</td>
           <td class="col-num">{{ fmtAmount(row.avg_profit) }}</td>
@@ -866,6 +920,29 @@ const showRateDetails = ref(false)
   background: var(--accent-soft);
   border-radius: var(--r-pill);
   vertical-align: middle;
+}
+
+.badge-unmeasured {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  vertical-align: middle;
+  cursor: help;
+}
+
+.hero-incomplete {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  max-width: 52ch;
 }
 
 .ccy-arrow {

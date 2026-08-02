@@ -115,21 +115,31 @@ async def test_summary_with_transactions(auth_client, test_user, ref_data, db_se
 
     jan = periods[0]
     assert float(jan["income"]) == 3000.0
-    assert float(jan["profit"]) == 2500.0
+    # The opening snapshot is capital brought in, not profit earned in January.
+    assert float(jan["profit"]) == 0.0
+    assert float(jan["opening_capital"]["USD"]) == 2500.0
     assert jan["is_bootstrap"] is True
+    assert jan["is_measured"] is False
     assert float(jan["derived_expense"]) == 0.0
 
     feb = periods[1]
     assert float(feb["income"]) == 3200.0
     assert float(feb["profit"]) == 2600.0
     assert feb["is_bootstrap"] is False
+    assert feb["is_measured"] is True
     assert float(feb["derived_expense"]) == 600.0
+
+    # February is the only accountable period, so every average is its own figure.
+    assert float(feb["avg_income"]) == 3200.0
+    assert float(feb["avg_profit"]) == 2600.0
+    assert float(feb["avg_expense"]) == 600.0
+    assert data["stats"]["accountable_period_count"] == 1
 
 
 async def test_summary_income_only_no_snapshots(
     auth_client, test_user, ref_data, db_session
 ):
-    """Income with no snapshots: profit=0, derived_expense=income."""
+    """Income with no snapshots: profit is unmeasured, so no expense is derived."""
     account = ref_data["account"]
     currency = ref_data["currency"]
     income_source = ref_data["income_source"]
@@ -163,7 +173,10 @@ async def test_summary_income_only_no_snapshots(
     assert float(row["income"]) == 4000.0
     assert float(row["profit"]) == 0.0
     assert row["is_bootstrap"] is False
-    assert float(row["derived_expense"]) == 4000.0
+    # Nothing was ever counted, so "spent it all" is not a conclusion to draw.
+    assert row["is_measured"] is False
+    assert float(row["derived_expense"]) == 0.0
+    assert data["stats"]["accountable_period_count"] == 0
 
 
 async def test_summary_with_balance_snapshots(
@@ -409,3 +422,258 @@ async def test_summary_keeps_income_in_bootstrap_period(
     # ...while the opening balance is not booked as profit.
     assert float(data["stats"]["total_income"]) == 2500.0
     assert float(data["stats"]["total_profit"]) == 0.0
+
+
+async def _account_at_new_location(
+    db_session, user, currency_id: int, location_name: str
+):
+    """Create another storage account for an existing currency, at a new location."""
+    from app.models import StorageAccount, StorageLocation
+
+    location = StorageLocation(name=location_name, user_id=user.id)
+    db_session.add(location)
+    await db_session.flush()
+    account = StorageAccount(
+        storage_location_id=location.id, currency_id=currency_id, user_id=user.id
+    )
+    db_session.add(account)
+    await db_session.flush()
+    return account
+
+
+async def _new_currency_account(db_session, user, code: str, location_name: str):
+    """Create a storage account in a brand new currency and location."""
+    from app.models import Currency
+
+    currency = Currency(code=code, symbol=code[0], user_id=user.id)
+    db_session.add(currency)
+    await db_session.flush()
+    account = await _account_at_new_location(
+        db_session, user, currency.id, location_name
+    )
+    return account, currency
+
+
+async def test_summary_new_account_opening_balance_is_not_profit(
+    auth_client, test_user, ref_data, db_session
+):
+    """Connecting an account that already held money must not book it as profit."""
+    account = ref_data["account"]
+    db_session.add_all(
+        [
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 1, 31),
+                amount=Decimal("1000.00"),
+            ),
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 2, 28),
+                amount=Decimal("1200.00"),
+            ),
+        ]
+    )
+    # A second account joins in February carrying a balance it has held for years.
+    second = await _account_at_new_location(
+        db_session, test_user, ref_data["currency"].id, "Broker"
+    )
+    db_session.add(
+        BalanceSnapshot(
+            user_id=test_user.id,
+            storage_account_id=second.id,
+            date=date(2025, 2, 28),
+            amount=Decimal("500000.00"),
+        )
+    )
+    await db_session.flush()
+
+    resp = await auth_client.get(
+        "/api/analytics/summary",
+        params={
+            "date_from": "2025-01-01",
+            "date_to": "2025-02-28",
+            "group_by": "month",
+        },
+    )
+    assert resp.status_code == 200
+    feb = resp.json()["periods"][1]
+
+    # Only the account that already existed contributes to profit.
+    assert float(feb["profit"]) == 200.0
+    assert float(feb["balance_change"]["USD"]) == 200.0
+    assert float(feb["opening_capital"]["USD"]) == 500000.0
+    # The money is still part of what the user holds, just not part of what they earned.
+    assert float(feb["balances"]["USD"]) == 501200.0
+
+
+async def test_summary_unmeasured_period_excluded_from_averages(
+    auth_client, test_user, ref_data, db_session
+):
+    """A month with no fresh snapshot must not drag the averages toward zero."""
+    account = ref_data["account"]
+    db_session.add_all(
+        [
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 1, 31),
+                amount=Decimal("1000.00"),
+            ),
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 2, 28),
+                amount=Decimal("3000.00"),
+            ),
+        ]
+    )
+    # March has income but was never snapshotted — the balance only carries forward.
+    db_session.add(
+        Transaction(
+            user_id=test_user.id,
+            type=TransactionType.income,
+            date=date(2025, 3, 10),
+            amount=Decimal("9999.00"),
+            currency_id=ref_data["currency"].id,
+            storage_account_id=account.id,
+            income_source_id=ref_data["income_source"].id,
+        )
+    )
+    await db_session.flush()
+
+    resp = await auth_client.get(
+        "/api/analytics/summary",
+        params={
+            "date_from": "2025-01-01",
+            "date_to": "2025-03-31",
+            "group_by": "month",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    march = data["periods"][2]
+
+    assert march["is_measured"] is False
+    assert float(march["derived_expense"]) == 0.0
+    # Only February is accountable, so its profit is the average, undiluted by March.
+    assert data["stats"]["accountable_period_count"] == 1
+    assert float(march["avg_profit"]) == 2000.0
+    # Income received in March is still reported and still counted in the total.
+    assert float(march["income"]) == 9999.0
+    assert float(data["stats"]["total_income"]) == 9999.0
+
+
+async def test_summary_averages_share_one_denominator(
+    auth_client, test_user, ref_data, db_session
+):
+    """avg_income - avg_profit must reconcile with avg_expense."""
+    account = ref_data["account"]
+    amounts = [
+        ("2025-01-31", "1000.00"),
+        ("2025-02-28", "1500.00"),
+        ("2025-03-31", "1800.00"),
+    ]
+    for snap_date, amount in amounts:
+        db_session.add(
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date.fromisoformat(snap_date),
+                amount=Decimal(amount),
+            )
+        )
+    # Income lands in February only; March is snapshotted but earns nothing.
+    db_session.add(
+        Transaction(
+            user_id=test_user.id,
+            type=TransactionType.income,
+            date=date(2025, 2, 15),
+            amount=Decimal("2000.00"),
+            currency_id=ref_data["currency"].id,
+            storage_account_id=account.id,
+            income_source_id=ref_data["income_source"].id,
+        )
+    )
+    await db_session.flush()
+
+    resp = await auth_client.get(
+        "/api/analytics/summary",
+        params={
+            "date_from": "2025-01-01",
+            "date_to": "2025-03-31",
+            "group_by": "month",
+        },
+    )
+    assert resp.status_code == 200
+    stats = resp.json()["stats"]
+
+    # February and March are accountable: income 2000/0, profit 500/300.
+    assert stats["accountable_period_count"] == 2
+    assert float(stats["avg_income"]) == 1000.0
+    assert float(stats["avg_profit"]) == 400.0
+    # Expense is averaged from the per-period figures, not from the two averages.
+    assert float(stats["avg_expense"]) == 750.0
+
+
+async def test_summary_income_window_covers_whole_first_period(
+    auth_client, test_user, ref_data, db_session
+):
+    """A mid-month date_from still renders a whole month, so it must count the whole month."""
+    db_session.add(
+        Transaction(
+            user_id=test_user.id,
+            type=TransactionType.income,
+            date=date(2025, 3, 5),
+            amount=Decimal("700.00"),
+            currency_id=ref_data["currency"].id,
+            storage_account_id=ref_data["account"].id,
+            income_source_id=ref_data["income_source"].id,
+        )
+    )
+    await db_session.flush()
+
+    resp = await auth_client.get(
+        "/api/analytics/summary",
+        params={
+            "date_from": "2025-03-20",
+            "date_to": "2025-03-31",
+            "group_by": "month",
+        },
+    )
+    assert resp.status_code == 200
+    periods = resp.json()["periods"]
+    assert len(periods) == 1
+    assert periods[0]["period"] == "2025-03-01"
+    assert float(periods[0]["income"]) == 700.0
+
+
+async def test_summary_requires_target_currency_when_multi_currency(
+    auth_client, test_user, ref_data, db_session
+):
+    """Balances in different currencies must never be summed into one number."""
+    await _new_currency_account(db_session, test_user, "EUR", "Broker")
+
+    resp = await auth_client.get(
+        "/api/analytics/summary",
+        params={"date_from": "2025-01-01", "date_to": "2025-01-31"},
+    )
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "analytics/currency_required"
+
+
+async def test_summary_falls_back_to_base_currency(
+    auth_client, test_user, ref_data, db_session
+):
+    """The base currency preference is what resolves an ambiguous multi-currency request."""
+    await _new_currency_account(db_session, test_user, "EUR", "Broker")
+    test_user.base_currency_code = "USD"
+    await db_session.flush()
+
+    resp = await auth_client.get(
+        "/api/analytics/summary",
+        params={"date_from": "2025-01-01", "date_to": "2025-01-31"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["rate_coverage"]["base_currency"] == "USD"

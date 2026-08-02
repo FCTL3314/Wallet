@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
@@ -41,40 +42,51 @@ def _latest_snapshot_subquery(user_id: int, before_date: date | None = None):
     )
 
 
-async def _get_balance_at_date(
-    db: AsyncSession, user_id: int, at_date: date, currency_id: int | None = None
-) -> dict:
-    """Get the latest balance snapshot per currency up to at_date."""
-    subq = _latest_snapshot_subquery(user_id, before_date=at_date)
-
-    q = (
-        select(Currency.code, func.sum(BalanceSnapshot.amount).label("total"))
-        .join(subq, BalanceSnapshot.id == subq.c.latest_id)
-        .join(StorageAccount, BalanceSnapshot.storage_account_id == StorageAccount.id)
-        .join(Currency, StorageAccount.currency_id == Currency.id)
-        .where(BalanceSnapshot.user_id == user_id)
-        .group_by(Currency.code)
-    )
-    if currency_id is not None:
-        q = q.where(Currency.id == currency_id)
-    result = await db.execute(q)
-    return {row.code: Decimal(str(row.total)) for row in result.all()}
+@dataclass(frozen=True)
+class AccountBalance:
+    currency: str
+    amount: Decimal
 
 
-async def get_balances_at_dates(
+@dataclass
+class BalanceTimeline:
+    """Per-account balances at a set of cut-off dates, plus the raw snapshot dates.
+
+    ``per_date`` carries a balance forward: an account keeps its most recent
+    snapshot until a newer one appears. ``dates_by_account`` keeps the dates the
+    balance was actually re-measured on, which is what tells a period where the
+    balance genuinely did not move apart from one where it was simply never
+    re-counted.
+    """
+
+    per_date: dict[date, dict[int, AccountBalance]] = field(default_factory=dict)
+    dates_by_account: dict[int, list[date]] = field(default_factory=dict)
+
+    def balances_at(self, at_date: date) -> dict[int, AccountBalance]:
+        return self.per_date.get(at_date, {})
+
+    def remeasured_accounts(self, start: date, end: date) -> set[int]:
+        """Accounts with at least one snapshot dated inside [start, end]."""
+        return {
+            account_id
+            for account_id, dates in self.dates_by_account.items()
+            if any(start <= d <= end for d in dates)
+        }
+
+
+async def get_balance_timeline(
     db: AsyncSession,
     user_id: int,
     at_dates: list[date],
     currency_id: int | None = None,
-) -> dict[date, dict[str, Decimal]]:
-    """Get the per-currency balance at each of ``at_dates``, in a single query.
+) -> BalanceTimeline:
+    """Build a BalanceTimeline covering every date in ``at_dates``, in one query.
 
-    Equivalent to calling ``_get_balance_at_date`` once per date, but loads the
-    snapshot history once and walks it forward instead of issuing one grouped
-    scan per date. Callers that need many period ends should use this.
+    Loads the snapshot history once and walks it forward instead of issuing one
+    grouped scan per date.
     """
     if not at_dates:
-        return {}
+        return BalanceTimeline()
 
     q = (
         select(
@@ -100,13 +112,15 @@ async def get_balances_at_dates(
     result = await db.execute(q)
 
     history: dict[int, list] = {}
+    dates_by_account: dict[int, list[date]] = {}
     for row in result.all():
         history.setdefault(row.storage_account_id, []).append(row)
+        dates_by_account.setdefault(row.storage_account_id, []).append(row.date)
 
     # Walk each account's history once, advancing a cursor as the dates increase.
     cursors = dict.fromkeys(history, 0)
     latest: dict[int, object] = {}
-    out: dict[date, dict[str, Decimal]] = {}
+    per_date: dict[date, dict[int, AccountBalance]] = {}
 
     for at_date in sorted(set(at_dates)):
         for account_id, rows in history.items():
@@ -116,14 +130,24 @@ async def get_balances_at_dates(
                 i += 1
             cursors[account_id] = i
 
-        totals: dict[str, Decimal] = {}
-        for row in latest.values():
-            totals[row.currency] = totals.get(row.currency, Decimal("0")) + Decimal(
-                str(row.amount)
+        per_date[at_date] = {
+            account_id: AccountBalance(
+                currency=row.currency, amount=Decimal(str(row.amount))
             )
-        out[at_date] = totals
+            for account_id, row in latest.items()
+        }
 
-    return out
+    return BalanceTimeline(per_date=per_date, dates_by_account=dates_by_account)
+
+
+def totals_by_currency(accounts: dict[int, AccountBalance]) -> dict[str, Decimal]:
+    """Collapse per-account balances into per-currency totals."""
+    totals: dict[str, Decimal] = {}
+    for balance in accounts.values():
+        totals[balance.currency] = (
+            totals.get(balance.currency, Decimal("0")) + balance.amount
+        )
+    return totals
 
 
 async def get_balance_by_storage(

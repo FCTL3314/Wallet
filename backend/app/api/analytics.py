@@ -22,6 +22,48 @@ from app.services.analytics import (
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
+async def _resolve_convert_to(
+    db: AsyncSession, user: User, convert_to: str | None, currency_id: int | None
+) -> str | None:
+    """Validate ``convert_to``, falling back to the user's base currency.
+
+    Without a target currency a multi-currency user would get balances in
+    different currencies added together into one meaningless number, so that
+    combination is rejected rather than answered.
+    """
+    if currency_id is not None:
+        return None
+
+    codes_result = await db.execute(
+        select(Currency.code).where(Currency.user_id == user.id)
+    )
+    valid_codes = set(codes_result.scalars())
+
+    if convert_to is not None:
+        if convert_to not in valid_codes:
+            raise AppException(
+                code="validation/invalid_input",
+                message=f"Currency '{convert_to}' is not in your currencies",
+                status_code=422,
+            )
+        return convert_to
+
+    if user.base_currency_code in valid_codes:
+        return user.base_currency_code
+
+    if len(valid_codes) > 1:
+        raise AppException(
+            code="analytics/currency_required",
+            message=(
+                "Amounts are held in several currencies. Pass convert_to or "
+                "currency_id, or set a base currency in your preferences."
+            ),
+            status_code=422,
+        )
+
+    return next(iter(valid_codes), None)
+
+
 class BalanceBreakdownItem(BaseModel):
     account_id: int
     account_label: str
@@ -40,17 +82,7 @@ async def summary(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if convert_to:
-        codes_result = await db.execute(
-            select(Currency.code).where(Currency.user_id == user.id)
-        )
-        valid_codes = set(codes_result.scalars())
-        if convert_to not in valid_codes:
-            raise AppException(
-                code="validation/invalid_input",
-                message=f"Currency '{convert_to}' is not in your currencies",
-                status_code=422,
-            )
+    convert_to = await _resolve_convert_to(db, user, convert_to, currency_id)
     return await get_summary(
         db, user.id, date_from, date_to, group_by, currency_id, convert_to
     )
@@ -66,6 +98,7 @@ async def income_by_source(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    convert_to = await _resolve_convert_to(db, user, convert_to, currency_id)
     return await get_income_by_source(
         db, user.id, date_from, date_to, group_by, currency_id, convert_to
     )

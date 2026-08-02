@@ -9,10 +9,17 @@ export interface SummaryEntry {
   derived_expense: number
   avg_income: number
   avg_profit: number
+  avg_expense: number
   balances: Record<string, number>
   balance_change: Record<string, number>
+  /** Balance brought in by accounts tracked for the first time in this period. */
+  opening_capital: Record<string, number>
   is_bootstrap?: boolean
+  /** False when the balance was only carried forward, so profit is unknown rather than zero. */
+  is_measured: boolean
   converted_balance?: number
+  /** Currencies left out of converted_balance because no rate was available. */
+  conversion_missing?: string[]
 }
 
 export interface GrowthStat {
@@ -40,7 +47,12 @@ export interface SummaryStats {
   balance_growth_converted: BalanceGrowthConverted | null
   total_income: number
   total_profit: number
-  active_period_count: number
+  total_expense: number
+  avg_income: number
+  avg_profit: number
+  avg_expense: number
+  /** Periods where profit could actually be measured — the denominator of every average. */
+  accountable_period_count: number
   income_period_count: number
 }
 

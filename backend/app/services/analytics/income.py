@@ -87,6 +87,15 @@ async def get_income_by_source(
 ) -> list[dict]:
     converting = convert_to is not None and currency_id is None
 
+    all_periods = _generate_periods(date_from, date_to, group_by)
+    if not all_periods:
+        return []
+
+    # Match get_summary: rows are whole calendar periods, so the income window
+    # spans them rather than the raw request, or a mid-month date_from would make
+    # this endpoint disagree with the summary it sits next to.
+    date_from, date_to = all_periods[0][0], all_periods[-1][1]
+
     period = _period_label(group_by).label("period")
 
     if converting:
@@ -156,7 +165,6 @@ async def get_income_by_source(
     temp_data: dict[str, dict[str, dict[str, Decimal]]] = {}
     periods_with_data: set[date] = set()
 
-    all_periods = _generate_periods(date_from, date_to, group_by)
     period_end_map: dict[str, date] = {
         start.isoformat(): end for start, end in all_periods
     }
