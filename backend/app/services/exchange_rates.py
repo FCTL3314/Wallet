@@ -486,11 +486,13 @@ async def get_rates_for_periods(
                     )
                     resolved = True
 
-            # Final fallback: no period-specific rate found — use most recent available
-            # rate regardless of date, marked stale. Better than silently dropping the
-            # currency from conversion (which produces misleading totals).
+            # Final fallback: the period predates the rate history, so use the
+            # oldest rate on record, marked stale. Reaching for the newest rate
+            # instead would price a 2024 balance with a 2026 quote and silently
+            # rewrite past periods every time the sync task runs.
             if not resolved:
-                best_sr = next(iter(sys_rate_map.get(code, [])), None)
+                rows_desc = sys_rate_map.get(code, [])
+                best_sr = rows_desc[-1] if rows_desc else None
                 if best_sr is not None:
                     period_result[code] = RateResult(
                         rate=best_sr["rate"],
@@ -506,18 +508,36 @@ async def get_rates_for_periods(
     return output
 
 
+def convert_amount_detailed(
+    per_currency: dict[str, Decimal],
+    rate_map: dict[str, RateResult],
+    to_code: str,
+) -> tuple[Decimal, list[str]]:
+    """Convert per-currency amounts to ``to_code``, reporting what could not be converted.
+
+    A currency with no usable rate is left out of the total. Callers must surface
+    the returned codes: without them the caller cannot tell a genuinely small
+    total from one that silently dropped a whole position.
+    """
+    total = Decimal("0")
+    missing: list[str] = []
+    for code, amount in per_currency.items():
+        if code == to_code:
+            total += amount
+            continue
+        rr = rate_map.get(code)
+        if rr and rr.rate:
+            total += amount * rr.rate
+        elif amount != 0:
+            missing.append(code)
+    return total, sorted(missing)
+
+
 def convert_amount(
     per_currency: dict[str, Decimal],
     rate_map: dict[str, RateResult],
     to_code: str,
 ) -> Decimal:
     """Convert per-currency amounts to a single target currency using rate_map."""
-    total = Decimal("0")
-    for code, amount in per_currency.items():
-        if code == to_code:
-            total += amount
-        else:
-            rr = rate_map.get(code)
-            if rr and rr.rate:
-                total += amount * rr.rate
+    total, _ = convert_amount_detailed(per_currency, rate_map, to_code)
     return total
