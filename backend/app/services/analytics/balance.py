@@ -46,6 +46,10 @@ def _latest_snapshot_subquery(user_id: int, before_date: date | None = None):
 class AccountBalance:
     currency: str
     amount: Decimal
+    # Date of the snapshot this balance came from, which is not the date it was
+    # carried forward to. Reporting it is what lets a reader see that a period
+    # closed on a months-old measurement.
+    as_of: date
 
 
 @dataclass
@@ -132,7 +136,9 @@ async def get_balance_timeline(
 
         per_date[at_date] = {
             account_id: AccountBalance(
-                currency=row.currency, amount=Decimal(str(row.amount))
+                currency=row.currency,
+                amount=Decimal(str(row.amount)),
+                as_of=row.date,
             )
             for account_id, row in latest.items()
         }

@@ -677,3 +677,118 @@ async def test_summary_falls_back_to_base_currency(
     )
     assert resp.status_code == 200
     assert resp.json()["rate_coverage"]["base_currency"] == "USD"
+
+
+async def test_explain_matches_the_summary_row_it_describes(
+    auth_client, test_user, ref_data, db_session
+):
+    """The breakdown must never disagree with the number it is explaining."""
+    account = ref_data["account"]
+    db_session.add_all(
+        [
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 1, 31),
+                amount=Decimal("1000.00"),
+            ),
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 2, 28),
+                amount=Decimal("1500.00"),
+            ),
+            Transaction(
+                user_id=test_user.id,
+                type=TransactionType.income,
+                date=date(2025, 2, 10),
+                amount=Decimal("2000.00"),
+                currency_id=ref_data["currency"].id,
+                storage_account_id=account.id,
+                income_source_id=ref_data["income_source"].id,
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    params = {"date_from": "2025-01-01", "date_to": "2025-02-28", "group_by": "month"}
+    summary = await auth_client.get("/api/analytics/summary", params=params)
+    feb_row = summary.json()["periods"][1]
+
+    detail = await auth_client.get(
+        "/api/analytics/summary/explain",
+        params={"period": "2025-02-01", "group_by": "month"},
+    )
+    assert detail.status_code == 200
+    data = detail.json()
+
+    for field in ("income", "profit", "derived_expense"):
+        assert float(data[field]) == float(feb_row[field]), field
+    assert data["is_measured"] == feb_row["is_measured"]
+    assert data["period_end"] == "2025-02-28"
+
+
+async def test_explain_reports_the_snapshot_dates_behind_a_delta(
+    auth_client, test_user, ref_data, db_session
+):
+    """Snapshots dated well before the period end must be visible as such."""
+    account = ref_data["account"]
+    db_session.add_all(
+        [
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 1, 5),
+                amount=Decimal("900.00"),
+            ),
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 2, 3),
+                amount=Decimal("400.00"),
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    resp = await auth_client.get(
+        "/api/analytics/summary/explain",
+        params={"period": "2025-02-01", "group_by": "month"},
+    )
+    assert resp.status_code == 200
+    entry = resp.json()["accounts"][0]
+
+    # February's closing balance is really a measurement taken on the 3rd.
+    assert entry["opening"]["date"] == "2025-01-05"
+    assert entry["closing"]["date"] == "2025-02-03"
+    assert float(entry["delta"]) == -500.0
+    assert entry["is_opening_capital"] is False
+    assert entry["remeasured_in_period"] is True
+
+
+async def test_explain_flags_an_account_opened_this_period(
+    auth_client, test_user, ref_data, db_session
+):
+    account = ref_data["account"]
+    db_session.add(
+        BalanceSnapshot(
+            user_id=test_user.id,
+            storage_account_id=account.id,
+            date=date(2025, 1, 31),
+            amount=Decimal("700.00"),
+        )
+    )
+    await db_session.flush()
+
+    resp = await auth_client.get(
+        "/api/analytics/summary/explain",
+        params={"period": "2025-01-01", "group_by": "month"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    entry = data["accounts"][0]
+
+    assert entry["opening"] is None
+    assert entry["is_opening_capital"] is True
+    assert float(data["opening_capital"]["USD"]) == 700.0
+    assert float(data["profit"]) == 0.0

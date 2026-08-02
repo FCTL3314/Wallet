@@ -32,6 +32,7 @@ const RECORD_OF_MONEY_KEYS = new Set([
   'balances',
   'balance_change',
   'opening_capital',
+  'income_by_currency',
   'totals',
   'sources',
 ])

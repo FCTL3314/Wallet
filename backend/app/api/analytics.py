@@ -11,6 +11,7 @@ from app.core.exceptions import AppException
 from app.models import Currency, User
 from app.services.analytics import (
     GroupBy,
+    explain_period,
     get_summary,
     get_income_by_source,
     get_balance_by_storage,
@@ -86,6 +87,20 @@ async def summary(
     return await get_summary(
         db, user.id, date_from, date_to, group_by, currency_id, convert_to
     )
+
+
+@router.get("/summary/explain")
+async def summary_explain(
+    period: date = Query(..., description="Start date of the period to explain"),
+    group_by: GroupBy = Query(default=GroupBy.month),
+    currency_id: int | None = Query(default=None),
+    convert_to: str | None = Query(default=None),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Break a single summary row down into the snapshots and transactions behind it."""
+    convert_to = await _resolve_convert_to(db, user, convert_to, currency_id)
+    return await explain_period(db, user.id, period, group_by, currency_id, convert_to)
 
 
 @router.get("/income-by-source")

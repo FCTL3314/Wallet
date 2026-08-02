@@ -27,6 +27,7 @@ import BaseStatCard from '../components/BaseStatCard.vue'
 import PeriodFilterBar from '../components/PeriodFilterBar.vue'
 import RateBadge from '../components/RateBadge.vue'
 import GrowthBadge from '../components/GrowthBadge.vue'
+import PeriodBreakdown from '../components/PeriodBreakdown.vue'
 import type {SummaryEntry} from '../types/index'
 import {
   PhArrowsClockwise,
@@ -442,6 +443,24 @@ const donutOption = computed(() => {
 
 
 const showRateDetails = ref(false)
+
+// Rows expand one at a time into a breakdown of the snapshots and transactions
+// the row was computed from, so an unexpected figure can be traced in place.
+const expandedPeriod = ref<string | null>(null)
+
+function toggleRow(period: string) {
+  expandedPeriod.value = expandedPeriod.value === period ? null : period
+}
+
+const breakdownParams = computed(() => ({
+  group_by: groupBy.value,
+  currency_id: isAllMode.value ? undefined : (selectedCurrencyId.value as number),
+  convert_to: isAllMode.value && convertToCurrency.value ? convertToCurrency.value : undefined,
+}))
+
+watch([dateFrom, dateTo, groupBy, selectedCurrencyId, convertToCurrency], () => {
+  expandedPeriod.value = null
+})
 </script>
 
 <template>
@@ -692,12 +711,30 @@ const showRateDetails = ref(false)
         </tr>
       </template>
       <template #body>
+        <template v-for="row in periods" :key="row.period">
         <tr
-          v-for="row in periods"
-          :key="row.period"
-          :class="{ 'row-highlighted': row.period === hoveredPeriod }"
+          class="row-expandable"
+          :class="{
+            'row-highlighted': row.period === hoveredPeriod,
+            'row-open': row.period === expandedPeriod,
+          }"
+          @click="toggleRow(row.period)"
         >
           <td>
+            <button
+              type="button"
+              class="row-toggle"
+              :aria-expanded="row.period === expandedPeriod"
+              :aria-label="`Show how ${fmtPeriod(row.period, groupBy)} was calculated`"
+              @click.stop="toggleRow(row.period)"
+            >
+              <PhCaretRight
+                :size="11"
+                weight="bold"
+                aria-hidden="true"
+                :class="['row-caret', { 'row-caret--open': row.period === expandedPeriod }]"
+              />
+            </button>
             {{ fmtPeriod(row.period, groupBy) }}
             <span
               v-if="row.is_bootstrap"
@@ -735,6 +772,12 @@ const showRateDetails = ref(false)
           <td class="col-num">{{ fmtAmount(row.avg_income) }}</td>
           <td class="col-num">{{ fmtAmount(row.avg_profit) }}</td>
         </tr>
+        <tr v-if="row.period === expandedPeriod" class="row-detail">
+          <td colspan="7">
+            <PeriodBreakdown :params="{ period: row.period, ...breakdownParams }" />
+          </td>
+        </tr>
+        </template>
       </template>
     </BaseDataTable>
 
@@ -920,6 +963,50 @@ const showRateDetails = ref(false)
   background: var(--accent-soft);
   border-radius: var(--r-pill);
   vertical-align: middle;
+}
+
+.row-expandable {
+  cursor: pointer;
+}
+
+.row-toggle {
+  border: none;
+  background: none;
+  padding: 0 6px 0 0;
+  cursor: pointer;
+  color: inherit;
+  line-height: 0;
+}
+
+.row-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--r-pill);
+}
+
+@media (hover: hover) {
+  .row-expandable:hover {
+    background: var(--surface-hover);
+  }
+}
+
+.row-open {
+  background: var(--surface-2);
+}
+
+.row-caret {
+  color: var(--ink-4);
+  margin-right: 6px;
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.row-caret--open {
+  transform: rotate(90deg);
+}
+
+.row-detail > td {
+  background: var(--surface-2);
+  padding: 0 18px 6px;
 }
 
 .badge-unmeasured {

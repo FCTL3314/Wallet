@@ -6,10 +6,12 @@ from app.services.analytics.summary import (
     get_expense_template,
     get_date_range,
 )
+from app.services.analytics.explain import explain_period
 
 __all__ = [
     "GroupBy",
     "get_summary",
+    "explain_period",
     "get_balance_breakdown",
     "get_income_by_source",
     "get_balance_by_storage",

@@ -105,6 +105,67 @@ export interface ExpenseTemplate {
   total: number
 }
 
+export interface SnapshotRef {
+  date: string
+  amount: number
+}
+
+export interface ExplainAccount {
+  account_id: number
+  label: string
+  currency: string
+  /** Null when the account had no snapshot before this period. */
+  opening: SnapshotRef | null
+  closing: SnapshotRef | null
+  delta: number
+  is_opening_capital: boolean
+  remeasured_in_period: boolean
+}
+
+export interface ExplainIncomeTx {
+  id: number
+  date: string
+  amount: number
+  currency: string
+  source: string
+  account: string
+  description: string | null
+}
+
+export interface ExplainRate {
+  rate: number | null
+  source: string
+  valid_date: string | null
+  status: 'ok' | 'stale' | 'missing'
+}
+
+export interface PeriodExplain {
+  period: string
+  period_start: string
+  period_end: string
+  is_bootstrap: boolean
+  is_measured: boolean
+  currency: string | null
+  accounts: ExplainAccount[]
+  income_transactions: ExplainIncomeTx[]
+  income_by_currency: Record<string, number>
+  balance_change: Record<string, number>
+  opening_capital: Record<string, number>
+  balances: Record<string, number>
+  income: number
+  profit: number
+  derived_expense: number
+  conversion_missing: string[]
+  rates: Record<string, ExplainRate>
+}
+
+export interface ExplainParams {
+  period: string
+  group_by?: GroupBy
+  currency_id?: number
+  convert_to?: string
+}
+
 export interface AnalyticsParams {
   date_from: string
   date_to: string
@@ -128,6 +189,8 @@ export interface DateRange {
 
 export const analyticsApi = {
   summary: (params: AnalyticsParams) => api.get<SummaryResponse>('/analytics/summary', { params }),
+  summaryExplain: (params: ExplainParams) =>
+    api.get<PeriodExplain>('/analytics/summary/explain', { params }),
   incomeBySource: (params: AnalyticsParams) =>
     api.get<IncomeBySourceEntry[]>('/analytics/income-by-source', { params }),
   balanceByStorage: (params: AnalyticsParams) =>
