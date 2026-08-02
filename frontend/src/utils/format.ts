@@ -1,6 +1,9 @@
 export type PeriodGrouping = 'month' | 'quarter' | 'year'
 
 const numberFmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+// Crypto balances live below one unit, where two decimals renders every holding as
+// "0.00". Amounts at or above 1 keep the fixed two-decimal money format.
+const preciseFmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })
 const monthFmt = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short' })
 
 export function localDateStr(d: Date = new Date()): string {
@@ -11,6 +14,8 @@ export function localDateStr(d: Date = new Date()): string {
 }
 
 export function fmtAmount(n: number): string {
+  const abs = Math.abs(n)
+  if (abs > 0 && abs < 1) return preciseFmt.format(n)
   return numberFmt.format(n)
 }
 

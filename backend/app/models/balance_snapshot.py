@@ -18,7 +18,9 @@ class BalanceSnapshot(Base):
         ForeignKey("storage_accounts.id", ondelete="CASCADE")
     )
     date: Mapped[date] = mapped_column(Date, index=True)
-    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    # 8 dp so crypto balances survive the round trip — BTC-denominated accounts
+    # are offered from the currency catalog and would round to zero at 2 dp.
+    amount: Mapped[Decimal] = mapped_column(Numeric(28, 8))
 
     user = relationship("User", back_populates="balance_snapshots")
     storage_account = relationship("StorageAccount", back_populates="balance_snapshots")

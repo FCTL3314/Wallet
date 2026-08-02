@@ -44,7 +44,8 @@ async def test_delete(auth_client, ref_data):
     assert resp.status_code == 204
 
 
-async def test_amount_zero_rejected(auth_client, ref_data):
+async def test_amount_zero_accepted(auth_client, ref_data):
+    """An emptied account is a real balance, not a validation error."""
     resp = await auth_client.post(
         "/api/balance-snapshots/",
         json={
@@ -53,10 +54,12 @@ async def test_amount_zero_rejected(auth_client, ref_data):
             "amount": "0",
         },
     )
-    assert resp.status_code == 422
+    assert resp.status_code == 201
+    assert float(resp.json()["amount"]) == 0.0
 
 
-async def test_amount_negative_rejected(auth_client, ref_data):
+async def test_amount_negative_accepted(auth_client, ref_data):
+    """Credit cards and margin accounts hold a negative balance."""
     resp = await auth_client.post(
         "/api/balance-snapshots/",
         json={
@@ -65,7 +68,86 @@ async def test_amount_negative_rejected(auth_client, ref_data):
             "amount": "-100",
         },
     )
-    assert resp.status_code == 422
+    assert resp.status_code == 201
+    assert float(resp.json()["amount"]) == -100.0
+
+
+async def test_create_on_foreign_account_rejected(auth_client, other_user, db_session):
+    """A snapshot may only be written against an account the caller owns."""
+    from app.models import Currency, StorageAccount, StorageLocation
+
+    currency = Currency(code="GBP", symbol="£", user_id=other_user.id)
+    db_session.add(currency)
+    await db_session.flush()
+    location = StorageLocation(name="Their bank", user_id=other_user.id)
+    db_session.add(location)
+    await db_session.flush()
+    foreign = StorageAccount(
+        storage_location_id=location.id,
+        currency_id=currency.id,
+        user_id=other_user.id,
+    )
+    db_session.add(foreign)
+    await db_session.flush()
+
+    resp = await auth_client.post(
+        "/api/balance-snapshots/",
+        json={
+            "storage_account_id": foreign.id,
+            "date": "2025-04-30",
+            "amount": "100.00",
+        },
+    )
+    assert resp.status_code == 404
+
+
+async def test_update_cannot_move_to_foreign_account(
+    auth_client, ref_data, other_user, db_session
+):
+    from app.models import Currency, StorageAccount, StorageLocation
+
+    currency = Currency(code="GBP", symbol="£", user_id=other_user.id)
+    db_session.add(currency)
+    await db_session.flush()
+    location = StorageLocation(name="Their bank", user_id=other_user.id)
+    db_session.add(location)
+    await db_session.flush()
+    foreign = StorageAccount(
+        storage_location_id=location.id,
+        currency_id=currency.id,
+        user_id=other_user.id,
+    )
+    db_session.add(foreign)
+    await db_session.flush()
+
+    create = await auth_client.post(
+        "/api/balance-snapshots/",
+        json={
+            "storage_account_id": ref_data["account"].id,
+            "date": "2025-04-30",
+            "amount": "100.00",
+        },
+    )
+    sid = create.json()["id"]
+
+    resp = await auth_client.put(
+        f"/api/balance-snapshots/{sid}", json={"storage_account_id": foreign.id}
+    )
+    assert resp.status_code == 404
+
+
+async def test_crypto_precision_is_preserved(auth_client, ref_data):
+    """Sub-cent amounts must survive the round trip — crypto accounts are supported."""
+    resp = await auth_client.post(
+        "/api/balance-snapshots/",
+        json={
+            "storage_account_id": ref_data["account"].id,
+            "date": "2025-04-30",
+            "amount": "0.00312500",
+        },
+    )
+    assert resp.status_code == 201
+    assert float(resp.json()["amount"]) == 0.003125
 
 
 async def test_filter_by_storage_account(auth_client, ref_data, db_session, test_user):

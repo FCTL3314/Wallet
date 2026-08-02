@@ -3,16 +3,17 @@ from decimal import Decimal
 
 from pydantic import BaseModel
 
-from app.schemas._validators import AmountPositiveMixin
 
-
-class BalanceSnapshotCreate(AmountPositiveMixin, BaseModel):
+# A snapshot states what an account holds, not how much moved. Zero is a real
+# balance and a credit card or margin account is legitimately negative, so
+# unlike a transaction amount this field carries no sign constraint.
+class BalanceSnapshotCreate(BaseModel):
     storage_account_id: int
     date: datetime.date
     amount: Decimal
 
 
-class BalanceSnapshotUpdate(AmountPositiveMixin, BaseModel):
+class BalanceSnapshotUpdate(BaseModel):
     storage_account_id: int | None = None
     date: datetime.date | None = None
     amount: Decimal | None = None

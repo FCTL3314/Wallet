@@ -63,8 +63,10 @@ const snapshots = computed(() =>
   allSnapshots.value.filter((s) => s.date >= dateFrom.value && s.date <= dateTo.value),
 )
 
+// A snapshot records what an account holds. Zero is a real balance and a credit
+// card is legitimately negative, so the only thing to reject here is a non-number.
 const formErrors = computed(() => ({
-  amount: (form.value.amount ?? -1) < 0 ? 'Must be 0 or greater' : null,
+  amount: Number.isFinite(form.value.amount) ? null : 'Enter an amount',
 }))
 
 const {
@@ -636,8 +638,7 @@ watch([dateFrom, dateTo, groupBy], load)
       <input
         v-model.number="form.amount"
         type="number"
-        step="0.01"
-        min="0"
+        step="any"
         required
         :class="{ 'input-invalid': formErrors.amount && touchedFields.has('amount') }"
         @blur="touchedFields = new Set([...touchedFields, 'amount'])"

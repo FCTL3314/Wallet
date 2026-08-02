@@ -22,7 +22,8 @@ class Transaction(Base):
     )
     type: Mapped[TransactionType] = mapped_column(Enum(TransactionType))
     date: Mapped[date] = mapped_column(Date, index=True)
-    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    # 8 dp so crypto amounts survive the round trip — see BalanceSnapshot.amount.
+    amount: Mapped[Decimal] = mapped_column(Numeric(28, 8))
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     currency_id: Mapped[int] = mapped_column(
