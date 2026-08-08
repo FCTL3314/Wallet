@@ -25,8 +25,10 @@ POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 BACKUP_RETAIN_DAYS="${BACKUP_RETAIN_DAYS:-30}"
 RCLONE_CONFIG_FILE="${RCLONE_CONFIG_FILE:-/rclone/rclone.conf}"
 
+BACKUP_PREFIX="wallet_"
+
 TIMESTAMP="$(date '+%Y%m%d_%H%M%S')"
-BACKUP_FILE="/tmp/wallet_${TIMESTAMP}.sql.gz"
+BACKUP_FILE="/tmp/${BACKUP_PREFIX}${TIMESTAMP}.sql.gz"
 BACKUP_NAME="$(basename "${BACKUP_FILE}")"
 CURRENT_STEP="startup"
 
@@ -73,9 +75,18 @@ log "Verified '${BACKUP_NAME}' on remote"
 
 # Step 4: prune old remote backups
 CURRENT_STEP="prune"
-log "Deleting remote files older than ${BACKUP_RETAIN_DAYS} days from ${RCLONE_REMOTE}"
-rclone_cmd delete --min-age "${BACKUP_RETAIN_DAYS}d" "${RCLONE_REMOTE}"
-log "Remote pruning complete"
+log "Deleting backups older than ${BACKUP_RETAIN_DAYS} days from ${RCLONE_REMOTE}"
+rclone_cmd delete \
+    --min-age "${BACKUP_RETAIN_DAYS}d" \
+    --max-depth 1 \
+    --include "${BACKUP_PREFIX}*.sql.gz" \
+    --drive-use-trash=false \
+    "${RCLONE_REMOTE}"
+if RETAINED="$(rclone_cmd lsf --files-only --max-depth 1 --include "${BACKUP_PREFIX}*.sql.gz" "${RCLONE_REMOTE}" | wc -l | tr -d ' ')"; then
+    log "Remote pruning complete, ${RETAINED} backup(s) retained"
+else
+    log "Remote pruning complete"
+fi
 
 CURRENT_STEP="done"
 notify
