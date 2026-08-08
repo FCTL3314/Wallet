@@ -3,7 +3,7 @@ import { computed, onMounted } from 'vue'
 import { PhWarning } from '@phosphor-icons/vue'
 import { analyticsApi, type ExplainParams, type PeriodExplain } from '../api/analytics'
 import { useAsync } from '../composables/useAsync'
-import { fmtAmount } from '../utils/format'
+import { fmtMoney, fmtSignedMoney } from '../utils/format'
 
 const props = defineProps<{ params: ExplainParams }>()
 
@@ -15,7 +15,21 @@ const { data, loading, error, execute } = useAsync<PeriodExplain>(async () => {
 onMounted(execute)
 
 const detail = computed(() => data.value)
-const ccy = computed(() => detail.value?.currency ?? '')
+
+// Without conversion the backend reports no currency, but the figures are still
+// denominated in something: when every account and transaction shares one code,
+// that code is the answer. Only a genuinely mixed, unconverted period has none.
+const ccy = computed<string | null>(() => {
+  const d = detail.value
+  if (!d) return null
+  if (d.currency) return d.currency
+  const codes = new Set([
+    ...Object.keys(d.balances),
+    ...Object.keys(d.balance_change),
+    ...Object.keys(d.income_by_currency),
+  ])
+  return codes.size === 1 ? ([...codes][0] ?? null) : null
+})
 
 function fmtDate(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number)
@@ -51,8 +65,13 @@ const hasStaleClosing = computed(() =>
   ),
 )
 
-const incomeTotal = computed(() =>
-  (detail.value?.income_transactions ?? []).reduce((sum, t) => sum + t.amount, 0),
+// Reported per currency rather than as one sum: the transactions behind a period
+// can be denominated in several currencies, and adding those together would
+// produce a total in no currency at all.
+const incomeTotals = computed(() =>
+  Object.entries(detail.value?.income_by_currency ?? {})
+    .map(([code, amount]) => ({ code, amount }))
+    .sort((a, b) => a.code.localeCompare(b.code)),
 )
 </script>
 
@@ -99,14 +118,14 @@ const incomeTotal = computed(() =>
                 </td>
                 <td class="col-num">
                   <template v-if="acct.opening">
-                    <span class="num">{{ fmtAmount(acct.opening.amount) }}</span>
+                    <span class="num">{{ fmtMoney(acct.opening.amount, acct.currency) }}</span>
                     <span class="muted bd-asof">as of {{ fmtDate(acct.opening.date) }}</span>
                   </template>
                   <span v-else class="muted">not tracked yet</span>
                 </td>
                 <td class="col-num">
                   <template v-if="acct.closing">
-                    <span class="num">{{ fmtAmount(acct.closing.amount) }}</span>
+                    <span class="num">{{ fmtMoney(acct.closing.amount, acct.currency) }}</span>
                     <span
                       class="muted bd-asof"
                       :class="{ 'bd-asof--stale': staleness(acct.closing.date) > STALE_DAYS }"
@@ -124,7 +143,7 @@ const incomeTotal = computed(() =>
                     opening capital, not profit
                   </span>
                   <span v-else class="num" :class="acct.delta >= 0 ? 'up' : 'down'">
-                    {{ acct.delta >= 0 ? '+' : '' }}{{ fmtAmount(acct.delta) }}
+                    {{ fmtSignedMoney(acct.delta, acct.currency) }}
                   </span>
                 </td>
               </tr>
@@ -158,12 +177,16 @@ const incomeTotal = computed(() =>
                 <td>{{ tx.source }}</td>
                 <td class="muted">{{ tx.account }}</td>
                 <td class="col-num num up">
-                  {{ tx.currency }} {{ fmtAmount(tx.amount) }}
+                  {{ fmtMoney(tx.amount, tx.currency) }}
                 </td>
               </tr>
               <tr class="bd-total-row">
                 <td colspan="3">Total received</td>
-                <td class="col-num num">{{ fmtAmount(incomeTotal) }}</td>
+                <td class="col-num num">
+                  <span v-for="total in incomeTotals" :key="total.code" class="bd-total-line">
+                    {{ fmtMoney(total.amount, total.code) }}
+                  </span>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -176,18 +199,18 @@ const incomeTotal = computed(() =>
         <dl class="bd-math">
           <div class="bd-math-row">
             <dt>Income received</dt>
-            <dd class="num">{{ ccy }} {{ fmtAmount(detail.income) }}</dd>
+            <dd class="num">{{ fmtMoney(detail.income, ccy) }}</dd>
           </div>
           <div class="bd-math-row">
             <dt>Profit (change in tracked balances)</dt>
             <dd class="num" :class="detail.profit >= 0 ? 'up' : 'down'">
-              {{ ccy }} {{ fmtAmount(detail.profit) }}
+              {{ fmtMoney(detail.profit, ccy) }}
             </dd>
           </div>
           <div class="bd-math-row bd-math-row--result">
             <dt>Expense = income − profit</dt>
             <dd class="num">
-              <template v-if="detail.is_measured">{{ ccy }} {{ fmtAmount(detail.derived_expense) }}</template>
+              <template v-if="detail.is_measured">{{ fmtMoney(detail.derived_expense, ccy) }}</template>
               <span v-else class="muted">not derived</span>
             </dd>
           </div>
@@ -213,7 +236,7 @@ const incomeTotal = computed(() =>
           <span v-for="(rate, code) in detail.rates" :key="code" class="bd-rate">
             <span class="num">1 {{ code }}</span>
             =
-            <span class="num">{{ rate.rate ? fmtAmount(rate.rate) : '?' }} {{ ccy }}</span>
+            <span class="num">{{ rate.rate ? fmtMoney(rate.rate, ccy) : `? ${ccy ?? ''}` }}</span>
             <span v-if="rate.status !== 'ok'" class="bd-chip">{{ rate.status }}</span>
           </span>
         </div>
@@ -326,6 +349,10 @@ const incomeTotal = computed(() =>
   border-bottom: none;
   font-weight: 600;
   padding-top: 9px;
+}
+
+.bd-total-line {
+  display: block;
 }
 
 .bd-math {

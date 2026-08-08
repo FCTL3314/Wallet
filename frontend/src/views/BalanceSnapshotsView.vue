@@ -3,7 +3,7 @@ import { ref, computed, useTemplateRef, onMounted, watch } from 'vue'
 import { balanceSnapshotsApi, type BalanceSnapshot, type BalanceSnapshotCreate } from '../api/balanceSnapshots'
 import { analyticsApi, type BalanceByStorageEntry, type BalanceByStorageAccount, type GroupBy } from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
-import { fmtAmount, fmtPeriod, localDateStr } from '../utils/format'
+import { fmtAmount, fmtMoney, fmtPeriod, fmtSignedMoney, localDateStr } from '../utils/format'
 import { useCrudModal } from '../composables/useCrudModal'
 import { useDateRange } from '../composables/useDateRange'
 import BaseModal from '../components/BaseModal.vue'
@@ -53,7 +53,7 @@ const allAccounts = computed(() => {
 function accountCell(row: BalanceByStorageEntry, name: string): string {
   const acc = row.accounts.find(a => a.name === name)
   if (!acc) return '—'
-  return `${refs.currencyByCode(acc.currency)?.symbol ?? acc.currency}${fmtAmount(acc.amount)}`
+  return fmtMoney(acc.amount, acc.currency)
 }
 
 const groupBy = ref<GroupBy>('month')
@@ -68,6 +68,11 @@ const snapshots = computed(() =>
 const formErrors = computed(() => ({
   amount: Number.isFinite(form.value.amount) ? null : 'Enter an amount',
 }))
+
+const amountFieldLabel = computed(() => {
+  const code = accountCurrency(form.value.storage_account_id)
+  return code ? `Amount (${code})` : 'Amount'
+})
 
 const {
   showModal,
@@ -234,7 +239,7 @@ function locationNameForAccount(accountId: number): string {
 interface LocationCard {
   id: number
   name: string
-  accounts: { id: number; ccy: string; latest: number; symbol: string }[]
+  accounts: { id: number; ccy: string; name: string; latest: number }[]
 }
 
 const locationCards = computed<LocationCard[]>(() =>
@@ -246,7 +251,7 @@ const locationCards = computed<LocationCard[]>(() =>
         return {
           id: a.id,
           ccy: cur?.code ?? '?',
-          symbol: cur?.symbol ?? '',
+          name: cur?.name ?? cur?.code ?? '?',
           latest: latestAmountForAccount(a.id),
         }
       })
@@ -454,8 +459,8 @@ watch([dateFrom, dateTo, groupBy], load)
       <div class="stack location-accounts">
         <div v-if="!loc.accounts.length" class="muted location-empty">No accounts yet</div>
         <div v-for="acc in loc.accounts" :key="acc.id" class="row-between location-acc-row">
-          <span class="muted">{{ acc.ccy }}</span>
-          <span class="num location-acc-val">{{ acc.symbol }}{{ fmtAmount(acc.latest) }}</span>
+          <span class="muted">{{ acc.name }}</span>
+          <span class="num location-acc-val">{{ fmtMoney(acc.latest, acc.ccy) }}</span>
         </div>
       </div>
       <button
@@ -495,7 +500,7 @@ watch([dateFrom, dateTo, groupBy], load)
       >
         <td>{{ fmtPeriod(row.period, groupBy) }}</td>
         <td v-for="cur in allCurrencies" :key="cur" class="col-num">
-          <template v-if="row.totals[cur] != null">{{ refs.currencyByCode(cur)?.symbol ?? cur }}{{ fmtAmount(row.totals[cur]) }}</template>
+          <template v-if="row.totals[cur] != null">{{ fmtMoney(row.totals[cur], cur) }}</template>
           <template v-else>—</template>
         </td>
         <td v-for="col in allAccounts" :key="col.name" class="col-num">{{ accountCell(row, col.name) }}</td>
@@ -539,7 +544,7 @@ watch([dateFrom, dateTo, groupBy], load)
               <span class="muted snap-ccy-code">{{ c.code }}</span>
               <span class="num snap-total-num">{{ fmtAmount(c.total) }}</span>
               <GrowthBadge v-if="c.delta !== null" :delta="c.delta" :show-icon="false">
-                {{ c.delta >= 0 ? '+' : '−' }}{{ fmtAmount(Math.abs(c.delta)) }}
+                {{ fmtSignedMoney(c.delta, c.code) }}
                 <span v-if="c.deltaPct !== null" class="snap-delta-pct">·
                   {{ c.deltaPct >= 0 ? '+' : '' }}{{ c.deltaPct.toFixed(1) }}%
                 </span>
@@ -565,12 +570,11 @@ watch([dateFrom, dateTo, groupBy], load)
                 <span class="snap-cell-icon"><PhWallet :size="14" /></span>
                 <div class="stack snap-cell-meta">
                   <span class="snap-cell-name">{{ refs.storageAccountLabelById(r.accountId) }}</span>
-                  <span class="muted snap-cell-ccy">{{ r.ccy }}</span>
                 </div>
               </div>
               <div class="snap-cell-foot">
                 <div class="snap-cell-amt">
-                  <span class="num">{{ fmtAmount(r.amount) }}</span>
+                  <span class="num">{{ fmtMoney(r.amount, r.ccy) }}</span>
                   <span v-if="!r.snapshot" class="muted snap-cell-since">
                     unchanged since {{ dateParts(r.since).day }} {{ dateParts(r.since).month }}
                   </span>
@@ -634,7 +638,7 @@ watch([dateFrom, dateTo, groupBy], load)
       <input v-model="form.date" type="date" required />
     </div>
     <div class="form-group">
-      <label>Amount</label>
+      <label>{{ amountFieldLabel }}</label>
       <input
         v-model.number="form.amount"
         type="number"
@@ -786,10 +790,6 @@ watch([dateFrom, dateTo, groupBy], load)
 }
 .snap-cell-meta { gap: 1px; min-width: 0; flex: 1; }
 .snap-cell-name { font-weight: 500; font-size: 13px; }
-.snap-cell-ccy {
-  font-size: 10px;
-  font-family: var(--font-mono);
-}
 .snap-cell-foot {
   display: flex;
   align-items: flex-end;

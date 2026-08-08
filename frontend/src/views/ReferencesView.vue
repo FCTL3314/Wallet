@@ -10,7 +10,7 @@ import {
   type Currency, type StorageLocation, type IncomeSource, type CatalogCurrency,
   type RateInfo, type UserManualRate,
 } from '../api/references'
-import { fmtAmount, localDateStr } from '../utils/format'
+import { fmtMoney, localDateStr } from '../utils/format'
 import { useCrudSection } from '../composables/useCrudSection'
 import BaseButton from '../components/BaseButton.vue'
 import BaseCard from '../components/BaseCard.vue'
@@ -28,6 +28,9 @@ const REF_TABS: { id: ReferencesTab; label: string }[] = [
   { id: 'income',     label: 'Income sources' },
 ]
 const DEFAULT_TAB: ReferencesTab = 'currencies'
+// The history endpoint only ever returns system rates quoted against USD, whatever
+// the user's base currency is.
+const SYSTEM_RATE_CURRENCY = 'USD'
 
 const route = useRoute()
 const router = useRouter()
@@ -686,7 +689,7 @@ async function saveEditSource() {
         class="manual-rate-row"
       >
         <span class="manual-rate-pair">{{ mr.from_code }} → {{ mr.to_code }}</span>
-        <span class="manual-rate-value">{{ mr.rate }}</span>
+        <span class="manual-rate-value">{{ fmtMoney(Number(mr.rate), mr.to_code) }}</span>
         <span class="manual-rate-dates">{{ mr.valid_from }}<template v-if="mr.valid_to"> – {{ mr.valid_to }}</template></span>
         <BaseConfirmButton @confirm="deleteManualRate(mr.id)" />
       </div>
@@ -702,7 +705,9 @@ async function saveEditSource() {
         <template v-else-if="rateHistory.length">
           <div class="rate-history-row" v-for="(entry, i) in rateHistory" :key="i">
             <span class="rate-history-date">{{ entry.valid_date }}</span>
-            <span class="rate-history-value">{{ entry.rate ? fmtAmount(Number(entry.rate)) : '—' }}</span>
+            <span class="rate-history-value">
+              {{ entry.rate ? fmtMoney(Number(entry.rate), SYSTEM_RATE_CURRENCY) : '—' }}
+            </span>
           </div>
         </template>
         <div v-else class="manual-rates-empty">No system rate history available.</div>

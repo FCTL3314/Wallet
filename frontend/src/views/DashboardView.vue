@@ -13,7 +13,7 @@ import {
 import {useReferencesStore} from '../stores/references'
 import {useAuthStore} from '../stores/auth'
 import {storeToRefs} from 'pinia'
-import {fmtAmount, fmtPeriod} from '../utils/format'
+import {fmtAmount, fmtMoney, fmtPeriod, fmtSignedMoney} from '../utils/format'
 import {buildDonutChartOption, buildLineChartOption, DONUT_COLORS, type TooltipBreakdownRow} from '../utils/charts'
 import {useDateRange} from '../composables/useDateRange'
 import VChart from 'vue-echarts'
@@ -437,6 +437,7 @@ const donutOption = computed(() => {
       labels,
       labels.map((l) => donutTotals.value[l] ?? 0),
       DONUT_COLORS.slice(0, labels.length),
+      displayCurrencyCode.value,
       isDark.value,
   )
 })
@@ -554,7 +555,7 @@ watch([dateFrom, dateTo, groupBy, selectedCurrencyId, convertToCurrency], () => 
               {{ heroGrowth.pct >= 0 ? '+' : '' }}{{ heroGrowth.pct.toFixed(1) }}%
             </span>
             <span v-else>
-              {{ heroGrowth.delta >= 0 ? '+' : '−' }}{{ fmtAmount(Math.abs(heroGrowth.delta)) }}
+              {{ fmtSignedMoney(heroGrowth.delta, heroCcy) }}
             </span>
           </GrowthBadge>
           <RateBadge v-if="showRateBadge" :as-of="rateAsOf"/>
@@ -569,7 +570,7 @@ watch([dateFrom, dateTo, groupBy, selectedCurrencyId, convertToCurrency], () => 
               v-for="(val, cur) in displayedBalances"
               :key="cur"
               class="num"
-          >{{ cur }} {{ fmtAmount(val) }}</span>
+          >{{ fmtMoney(val, String(cur)) }}</span>
         </div>
         <p v-if="heroMissingRates.length" class="muted hero-incomplete">
           Excludes {{ heroMissingRates.join(', ') }} — no exchange rate available, so this total is
@@ -595,7 +596,7 @@ watch([dateFrom, dateTo, groupBy, selectedCurrencyId, convertToCurrency], () => 
           <div v-for="item in breakdown" :key="item.account_id" class="hero-breakdown-row">
             <PhWallet :size="13" weight="duotone"/>
             <span class="muted hero-breakdown-label">{{ item.account_label }}</span>
-            <span class="num hero-breakdown-amt">{{ item.currency }} {{ fmtAmount(item.latest_snapshot_amount) }}</span>
+            <span class="num hero-breakdown-amt">{{ fmtMoney(item.latest_snapshot_amount, item.currency) }}</span>
             <span class="muted hero-breakdown-date">{{ item.latest_snapshot_date }}</span>
           </div>
         </div>
@@ -678,7 +679,7 @@ watch([dateFrom, dateTo, groupBy, selectedCurrencyId, convertToCurrency], () => 
           </div>
           <div v-if="donutStats.entries.length" class="donut-total row-between">
             <span class="label">Total</span>
-            <span class="num">{{ isConverted ? '≈' : '' }}{{ fmtAmount(donutStats.total) }}</span>
+            <span class="num">{{ isConverted ? '≈' : '' }}{{ fmtMoney(donutStats.total, displayCurrencyCode) }}</span>
           </div>
         </div>
       </div>
@@ -756,21 +757,21 @@ watch([dateFrom, dateTo, groupBy, selectedCurrencyId, convertToCurrency], () => 
             <template v-if="Object.keys(row.balances).length">
               <div class="balance-cell">
                 <span v-for="(val, cur) in row.balances" :key="cur" class="num">
-                  {{ cur }} {{ fmtAmount(val) }}
+                  {{ fmtMoney(val, String(cur)) }}
                 </span>
               </div>
             </template>
             <span v-else class="muted">—</span>
           </td>
-          <td class="col-num up">{{ fmtAmount(row.income) }}</td>
+          <td class="col-num up">{{ fmtMoney(row.income, displayCurrencyCode) }}</td>
           <td class="col-num" :class="row.is_measured ? (row.profit >= 0 ? 'up' : 'down') : 'muted'">
-            {{ row.is_measured ? fmtAmount(row.profit) : '—' }}
+            {{ row.is_measured ? fmtMoney(row.profit, displayCurrencyCode) : '—' }}
           </td>
           <td class="col-num" :class="row.is_measured && row.derived_expense > 0 ? 'down' : 'muted'">
-            {{ row.is_measured ? fmtAmount(row.derived_expense) : '—' }}
+            {{ row.is_measured ? fmtMoney(row.derived_expense, displayCurrencyCode) : '—' }}
           </td>
-          <td class="col-num">{{ fmtAmount(row.avg_income) }}</td>
-          <td class="col-num">{{ fmtAmount(row.avg_profit) }}</td>
+          <td class="col-num">{{ fmtMoney(row.avg_income, displayCurrencyCode) }}</td>
+          <td class="col-num">{{ fmtMoney(row.avg_profit, displayCurrencyCode) }}</td>
         </tr>
         <tr v-if="row.period === expandedPeriod" class="row-detail">
           <td colspan="7">

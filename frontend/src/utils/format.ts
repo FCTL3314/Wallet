@@ -4,6 +4,7 @@ const numberFmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, max
 // Crypto balances live below one unit, where two decimals renders every holding as
 // "0.00". Amounts at or above 1 keep the fixed two-decimal money format.
 const preciseFmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 })
+const compactFmt = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
 const monthFmt = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short' })
 
 export function localDateStr(d: Date = new Date()): string {
@@ -17,6 +18,25 @@ export function fmtAmount(n: number): string {
   const abs = Math.abs(n)
   if (abs > 0 && abs < 1) return preciseFmt.format(n)
   return numberFmt.format(n)
+}
+
+// Every monetary figure carries the currency it is denominated in. A bare number
+// is ambiguous the moment more than one currency is tracked, and this app is
+// multi-currency by default, so amounts are always rendered through this.
+export function fmtMoney(n: number, currency?: string | null): string {
+  const amount = fmtAmount(n)
+  return currency ? `${currency} ${amount}` : amount
+}
+
+export function fmtSignedMoney(n: number, currency?: string | null): string {
+  return `${n >= 0 ? '+' : '−'}${fmtMoney(Math.abs(n), currency)}`
+}
+
+// Chart axes have room for a few characters at most, so the amount is abbreviated
+// while the currency stays — the label is useless without it.
+export function fmtCompactMoney(n: number, currency?: string | null): string {
+  const amount = compactFmt.format(n)
+  return currency ? `${currency} ${amount}` : amount
 }
 
 export function fmtPeriod(iso: string, groupBy: PeriodGrouping = 'month'): string {

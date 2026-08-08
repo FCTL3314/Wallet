@@ -1,3 +1,5 @@
+import { fmtCompactMoney, fmtMoney } from './format'
+
 export const DONUT_COLORS = ['#5585c5', '#4aaa80', '#e0b84a', '#d46878', '#4cbecb', '#78a8e0']
 
 export interface TooltipBreakdownRow {
@@ -24,8 +26,7 @@ export function buildLineChartOption(
   const tooltipBg = isDark ? 'rgba(30,30,34,0.96)' : '#ffffff'
   const tooltipBorder = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'
   const tooltipText = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.85)'
-  const fmt = (v: number) =>
-    Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const fmt = (v: number) => fmtMoney(Number(v), currencyCode)
   return {
     grid: { left: 16, right: 24, bottom: 8, top: 36, containLabel: true },
     tooltip: {
@@ -65,9 +66,11 @@ export function buildLineChartOption(
     },
     yAxis: {
       type: 'value',
-      name: currencyCode ?? '',
-      nameTextStyle: { color: textMuted, fontSize: 11 },
-      axisLabel: { color: textMuted, fontSize: 11 },
+      axisLabel: {
+        color: textMuted,
+        fontSize: 11,
+        formatter: (value: number) => fmtCompactMoney(value, currencyCode),
+      },
       splitLine: { lineStyle: { color: splitColor } },
     },
     series: [
@@ -87,7 +90,13 @@ export function buildLineChartOption(
   }
 }
 
-export function buildDonutChartOption(labels: string[], values: number[], colors: string[], isDark = false) {
+export function buildDonutChartOption(
+  labels: string[],
+  values: number[],
+  colors: string[],
+  currencyCode: string | null,
+  isDark = false,
+) {
   const tooltipBg = isDark ? 'rgba(30,30,34,0.96)' : '#ffffff'
   const tooltipBorder = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'
   const tooltipText = isDark ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.85)'
@@ -98,7 +107,8 @@ export function buildDonutChartOption(labels: string[], values: number[], colors
       backgroundColor: tooltipBg,
       borderColor: tooltipBorder,
       textStyle: { color: tooltipText },
-      formatter: '{b}: <b>{c}</b> ({d}%)',
+      formatter: (params: { name: string; value: number; percent: number }) =>
+        `${params.name}: <b>${fmtMoney(Number(params.value), currencyCode)}</b> (${params.percent}%)`,
     },
     legend: { show: false },
     series: [

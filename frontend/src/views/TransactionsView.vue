@@ -13,7 +13,7 @@ import {
   type SortOrder,
 } from '../api/transactions'
 import { useReferencesStore } from '../stores/references'
-import { fmtAmount, localDateStr } from '../utils/format'
+import { fmtAmount, fmtMoney, localDateStr } from '../utils/format'
 import { useSuccessAnimation } from '../composables/useSuccessAnimation'
 import { useTable, createColumnHelper } from '../composables/useTable'
 import { useCrudModal } from '../composables/useCrudModal'
@@ -165,6 +165,11 @@ function onCurrencyChange(event: Event) {
 const formErrors = computed(() => ({
   amount: (form.value.amount ?? 0) <= 0 ? 'Must be greater than 0' : null,
 }))
+
+const amountFieldLabel = computed(() => {
+  const code = refs.currencyById(form.value.currency_id)?.code
+  return code ? `Amount (${code})` : 'Amount'
+})
 
 async function save() {
   if (formErrors.value.amount) {
@@ -318,6 +323,10 @@ function sourceName(id: number | null) {
   return refs.incomeSourceById(id)?.name ?? '?'
 }
 
+function txAmount(tx: Transaction): string {
+  return fmtMoney(tx.amount, refs.currencyById(tx.currency_id)?.code ?? null)
+}
+
 const totalEntries = computed(() =>
   (summary.value?.totals ?? []).map((total) => ({
     code: total.currency_code,
@@ -427,7 +436,7 @@ const totalCount = computed(() => summary.value?.count ?? 0)
             <div class="row-card-top">
               <span class="row-card-title">{{ row.original.date }}</span>
               <span class="row-card-amount row-card-amount--income num">
-                {{ fmtAmount(row.original.amount) }}
+                {{ txAmount(row.original) }}
               </span>
             </div>
             <div class="row-card-meta">
@@ -457,7 +466,7 @@ const totalCount = computed(() => summary.value?.count ?? 0)
           :class="{ removing: row.original.id === removingId, 'row-new': row.original.id === newId }"
         >
           <td class="col-date">{{ row.original.date }}</td>
-          <td class="col-num amount-positive">{{ fmtAmount(row.original.amount) }}</td>
+          <td class="col-num amount-positive">{{ txAmount(row.original) }}</td>
           <td>{{ refs.storageAccountLabelById(row.original.storage_account_id) }}</td>
           <td>{{ sourceName(row.original.income_source_id) }}</td>
           <td class="col-desc">{{ row.original.description || '' }}</td>
@@ -486,7 +495,7 @@ const totalCount = computed(() => summary.value?.count ?? 0)
       <input id="income-date" v-model="form.date" type="date" required />
     </div>
     <div class="form-group">
-      <label for="income-amount">Amount</label>
+      <label for="income-amount">{{ amountFieldLabel }}</label>
       <input
         id="income-amount"
         v-model.number="form.amount"

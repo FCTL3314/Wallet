@@ -5,7 +5,7 @@ import { analyticsApi, type ExpenseTemplate, type ExpenseTemplateItem } from '..
 import { expenseCategoriesApi } from '../api/references'
 import { useReferencesStore } from '../stores/references'
 import { useAuthStore } from '../stores/auth'
-import { fmtAmount } from '../utils/format'
+import { fmtMoney } from '../utils/format'
 import { useTable, createColumnHelper } from '../composables/useTable'
 import { useCrudModal } from '../composables/useCrudModal'
 import BaseModal from '../components/BaseModal.vue'
@@ -28,12 +28,17 @@ const template = ref<ExpenseTemplate | null>(null)
 const loading = ref(false)
 const tagInput = ref('')
 
-const baseCurrencyCode = computed(() => user.value?.base_currency_code ?? null)
+// A budget carries no currency of its own, so it is read in the user's base
+// currency — falling back to the first currency they track when none is set,
+// rather than printing a bare number nobody can interpret.
+const budgetCurrency = computed(
+  () => user.value?.base_currency_code ?? refs.currencies[0]?.code ?? null,
+)
 
 const annualTotal = computed(() => (template.value?.total ?? 0) * MONTHS_PER_YEAR)
 
 const amountFieldLabel = computed(() =>
-  baseCurrencyCode.value ? `Monthly Amount (${baseCurrencyCode.value})` : 'Monthly Amount',
+  budgetCurrency.value ? `Monthly Amount (${budgetCurrency.value})` : 'Monthly Amount',
 )
 
 function addTag() {
@@ -164,15 +169,15 @@ onMounted(load)
   <div v-if="template" class="kpis">
     <BaseStatCard label="Budget · monthly">
       <div class="stat-value">
-        <span v-if="baseCurrencyCode" class="stat-currency">{{ baseCurrencyCode }}</span
-        >{{ fmtAmount(template.total) }}
+        <span v-if="budgetCurrency" class="stat-currency">{{ budgetCurrency }}</span
+        >{{ fmtMoney(template.total) }}
       </div>
       <div class="stat-foot"><span class="muted">{{ template.items.length }} categories</span></div>
     </BaseStatCard>
     <BaseStatCard label="Annual projection" variant="profit">
       <div class="stat-value">
-        <span v-if="baseCurrencyCode" class="stat-currency">{{ baseCurrencyCode }}</span
-        >{{ fmtAmount(annualTotal) }}
+        <span v-if="budgetCurrency" class="stat-currency">{{ budgetCurrency }}</span
+        >{{ fmtMoney(annualTotal) }}
       </div>
       <div class="stat-foot"><span class="muted">Monthly budget × {{ MONTHS_PER_YEAR }}</span></div>
     </BaseStatCard>
@@ -205,7 +210,7 @@ onMounted(load)
           <div class="row-card-top">
             <span class="row-card-title">{{ row.original.name }}</span>
             <span class="row-card-amount row-card-amount--expense num">
-              {{ fmtAmount(row.original.budgeted_amount) }}
+              {{ fmtMoney(row.original.budgeted_amount, budgetCurrency) }}
             </span>
           </div>
           <span v-if="row.original.tags.length" class="tag-chips">
@@ -227,7 +232,7 @@ onMounted(load)
         :class="{ removing: row.original.id === removingId, 'row-new': row.original.id === newId }"
       >
         <td class="col-name">{{ row.original.name }}</td>
-        <td class="col-num">{{ fmtAmount(row.original.budgeted_amount) }}</td>
+        <td class="col-num">{{ fmtMoney(row.original.budgeted_amount, budgetCurrency) }}</td>
         <td class="col-tags">
           <span class="tag-chips">
             <span v-for="tag in row.original.tags" :key="tag" class="tag-chip">{{ tag }}</span>
