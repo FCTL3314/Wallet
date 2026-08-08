@@ -2,44 +2,45 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import BalanceSnapshot, Currency, StorageAccount, StorageLocation
 from app.services.analytics.periods import GroupBy, _generate_periods
 
 
-def _latest_snapshot_subquery(user_id: int, before_date: date | None = None):
-    """Return a subquery that yields the latest snapshot id per storage account.
+@dataclass(frozen=True)
+class AccountInfo:
+    account_id: int
+    location: str
+    currency: str
 
-    Ranks each account's snapshots by (date DESC, id DESC) and keeps the top row,
-    optionally capped at before_date (inclusive). Ranking by date first matters:
-    snapshots may be inserted in any order, so a back-filled older snapshot gets a
-    higher id than the rows it precedes. Picking by max(id) alone would make that
-    back-filled row the "current" balance for every later period.
+    @property
+    def label(self) -> str:
+        return f"{self.location} {self.currency}"
+
+
+async def account_directory(db: AsyncSession, user_id: int) -> dict[int, AccountInfo]:
+    """Location and currency per storage account.
+
+    One place builds the display label, so an account cannot be called two
+    different things depending on which endpoint answered.
     """
-    conditions = [BalanceSnapshot.user_id == user_id]
-    if before_date is not None:
-        conditions.append(BalanceSnapshot.date <= before_date)
+    result = await db.execute(
+        select(StorageAccount.id, StorageLocation.name, Currency.code)
+        .join(StorageLocation, StorageAccount.storage_location_id == StorageLocation.id)
+        .join(Currency, StorageAccount.currency_id == Currency.id)
+        .where(StorageAccount.user_id == user_id)
+    )
+    return {
+        row[0]: AccountInfo(account_id=row[0], location=row[1], currency=row[2])
+        for row in result.all()
+    }
 
-    ranked = (
-        select(
-            BalanceSnapshot.id.label("snapshot_id"),
-            func.row_number()
-            .over(
-                partition_by=BalanceSnapshot.storage_account_id,
-                order_by=(BalanceSnapshot.date.desc(), BalanceSnapshot.id.desc()),
-            )
-            .label("rn"),
-        )
-        .where(*conditions)
-        .subquery()
-    )
-    return (
-        select(ranked.c.snapshot_id.label("latest_id"))
-        .where(ranked.c.rn == 1)
-        .subquery()
-    )
+
+def account_label(directory: dict[int, AccountInfo], account_id: int) -> str:
+    info = directory.get(account_id)
+    return info.label if info else f"Account #{account_id}"
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,7 @@ class AccountBalance:
     # carried forward to. Reporting it is what lets a reader see that a period
     # closed on a months-old measurement.
     as_of: date
+    snapshot_id: int
 
 
 @dataclass
@@ -86,14 +88,22 @@ async def get_balance_timeline(
 ) -> BalanceTimeline:
     """Build a BalanceTimeline covering every date in ``at_dates``, in one query.
 
+    This is the only implementation of "what did each account hold on date X".
+    Every balance figure in the app resolves through it, so carrying a stale
+    snapshot forward behaves identically everywhere.
+
     Loads the snapshot history once and walks it forward instead of issuing one
-    grouped scan per date.
+    grouped scan per date. Snapshots are ordered by date before id: they may be
+    inserted in any order, so a back-filled older snapshot gets a higher id than
+    the rows it precedes, and ordering by id alone would make that back-filled
+    row the "current" balance for every later date.
     """
     if not at_dates:
         return BalanceTimeline()
 
     q = (
         select(
+            BalanceSnapshot.id,
             BalanceSnapshot.storage_account_id,
             BalanceSnapshot.date,
             BalanceSnapshot.amount,
@@ -139,11 +149,28 @@ async def get_balance_timeline(
                 currency=row.currency,
                 amount=Decimal(str(row.amount)),
                 as_of=row.date,
+                snapshot_id=row.id,
             )
             for account_id, row in latest.items()
         }
 
     return BalanceTimeline(per_date=per_date, dates_by_account=dates_by_account)
+
+
+async def get_snapshot_dates(
+    db: AsyncSession, user_id: int, date_to: date | None = None
+) -> list[date]:
+    """Every distinct date on which the user recorded at least one snapshot."""
+    q = (
+        select(BalanceSnapshot.date)
+        .where(BalanceSnapshot.user_id == user_id)
+        .distinct()
+        .order_by(BalanceSnapshot.date)
+    )
+    if date_to is not None:
+        q = q.where(BalanceSnapshot.date <= date_to)
+    result = await db.execute(q)
+    return list(result.scalars())
 
 
 def totals_by_currency(accounts: dict[int, AccountBalance]) -> dict[str, Decimal]:
@@ -169,101 +196,60 @@ async def get_balance_by_storage(
     if not periods:
         return []
 
-    q = (
-        select(
-            BalanceSnapshot.storage_account_id,
-            BalanceSnapshot.date,
-            BalanceSnapshot.amount,
-            StorageLocation.name.label("location"),
-            Currency.code.label("currency"),
-        )
-        .join(StorageAccount, BalanceSnapshot.storage_account_id == StorageAccount.id)
-        .join(StorageLocation, StorageAccount.storage_location_id == StorageLocation.id)
-        .join(Currency, StorageAccount.currency_id == Currency.id)
-        .where(
-            BalanceSnapshot.user_id == user_id,
-            BalanceSnapshot.date <= periods[-1][1],
-        )
-        .order_by(
-            BalanceSnapshot.storage_account_id,
-            BalanceSnapshot.date,
-            BalanceSnapshot.id,
-        )
-    )
-    result = await db.execute(q)
-
-    history: dict[int, list] = {}
-    for row in result.all():
-        history.setdefault(row.storage_account_id, []).append(row)
+    period_ends = [end for _, end in periods]
+    timeline = await get_balance_timeline(db, user_id, period_ends)
+    directory = await account_directory(db, user_id)
 
     out: list[dict] = []
     for period_start, period_end in periods:
-        accounts: list[dict] = []
-        totals: dict[str, Decimal] = {}
-        for account_rows in history.values():
-            latest = None
-            for row in account_rows:
-                if row.date > period_end:
-                    break
-                latest = row
-            if latest is None:
-                continue
-            amount = Decimal(str(latest.amount))
-            accounts.append(
-                {
-                    "name": f"{latest.location} {latest.currency}",
-                    "currency": latest.currency,
-                    "amount": amount,
-                }
-            )
-            totals[latest.currency] = totals.get(latest.currency, Decimal("0")) + amount
-        if not accounts:
+        balances = timeline.balances_at(period_end)
+        if not balances:
             continue
-        accounts.sort(key=lambda a: a["name"])
+        accounts = sorted(
+            (
+                {
+                    "name": account_label(directory, account_id),
+                    "currency": balance.currency,
+                    "amount": balance.amount,
+                }
+                for account_id, balance in balances.items()
+            ),
+            key=lambda a: a["name"],
+        )
         out.append(
             {
                 "period": period_start.isoformat(),
                 "accounts": accounts,
-                "totals": totals,
+                "totals": totals_by_currency(balances),
             }
         )
 
     return out
 
 
-async def get_balance_breakdown(db: AsyncSession, user_id: int) -> list[dict]:
-    """
-    Return the latest balance snapshot per StorageAccount for the given user up to today.
+async def get_balance_breakdown(db: AsyncSession, user_id: int) -> dict:
+    """The latest known balance of every storage account, as of today.
+
+    The per-currency totals ship with the accounts rather than being re-added by
+    each caller, so "what I hold right now" is one number computed in one place.
     """
     today = date.today()
-    subq = _latest_snapshot_subquery(user_id, before_date=today)
+    timeline = await get_balance_timeline(db, user_id, [today])
+    directory = await account_directory(db, user_id)
+    balances = timeline.balances_at(today)
 
-    q = (
-        select(
-            StorageAccount.id.label("account_id"),
-            StorageLocation.name.label("location_name"),
-            Currency.code.label("currency"),
-            BalanceSnapshot.date.label("latest_snapshot_date"),
-            BalanceSnapshot.amount.label("latest_snapshot_amount"),
-        )
-        .join(subq, BalanceSnapshot.id == subq.c.latest_id)
-        .join(StorageAccount, BalanceSnapshot.storage_account_id == StorageAccount.id)
-        .join(StorageLocation, StorageAccount.storage_location_id == StorageLocation.id)
-        .join(Currency, StorageAccount.currency_id == Currency.id)
-        .where(BalanceSnapshot.user_id == user_id)
-        .order_by(StorageLocation.name, Currency.code)
+    accounts = sorted(
+        (
+            {
+                "account_id": account_id,
+                "account_label": account_label(directory, account_id),
+                "currency": balance.currency,
+                "latest_snapshot_date": balance.as_of,
+                "latest_snapshot_amount": balance.amount,
+            }
+            for account_id, balance in balances.items()
+        ),
+        key=lambda a: a["account_label"],
     )
 
-    result = await db.execute(q)
-    rows = result.all()
-
-    return [
-        {
-            "account_id": row.account_id,
-            "account_label": f"{row.location_name} {row.currency}",
-            "currency": row.currency,
-            "latest_snapshot_date": row.latest_snapshot_date,
-            "latest_snapshot_amount": Decimal(str(row.latest_snapshot_amount)),
-        }
-        for row in rows
-    ]
+    return {"accounts": accounts, "totals": totals_by_currency(balances)}

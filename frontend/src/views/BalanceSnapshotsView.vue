@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, useTemplateRef, onMounted, watch } from 'vue'
 import { balanceSnapshotsApi, type BalanceSnapshot, type BalanceSnapshotCreate } from '../api/balanceSnapshots'
-import { analyticsApi, type BalanceByStorageEntry, type BalanceByStorageAccount, type GroupBy } from '../api/analytics'
+import {
+  analyticsApi,
+  type BalanceByStorageEntry,
+  type BalanceByStorageAccount,
+  type BalanceBreakdownItem,
+  type GroupBy,
+  type SnapshotTimelineEntry,
+} from '../api/analytics'
 import { useReferencesStore } from '../stores/references'
 import { fmtAmount, fmtMoney, fmtPeriod, fmtSignedMoney, localDateStr } from '../utils/format'
 import { useCrudModal } from '../composables/useCrudModal'
@@ -15,11 +22,8 @@ import BaseButton from '../components/BaseButton.vue'
 import EditDeleteActions from '../components/EditDeleteActions.vue'
 import PeriodFilterBar from '../components/PeriodFilterBar.vue'
 import { useSuccessAnimation } from '../composables/useSuccessAnimation'
-import { PhWallet, PhCaretDown, PhPlus, PhWarning } from '@phosphor-icons/vue'
+import { PhWallet, PhCaretDown, PhPlus } from '@phosphor-icons/vue'
 import { storageLocationsApi, storageAccountsApi } from '../api/references'
-
-const SNAPSHOT_PAGE_SIZE = 1000
-const SNAPSHOT_MAX_PAGES = 25
 
 const HINT_TOTAL_BALANCE =
   'The most recent snapshot of every account, summed per currency. Accounts you have not re-snapshotted keep their last recorded amount, so this is your latest known position rather than a live balance.'
@@ -27,9 +31,10 @@ const HINT_TOTAL_BALANCE =
 const refs = useReferencesStore()
 const { spawn } = useSuccessAnimation()
 const addBtnRef = useTemplateRef<HTMLElement>('addBtn')
-const allSnapshots = ref<BalanceSnapshot[]>([])
-const historyTruncated = ref(false)
 const storageData = ref<BalanceByStorageEntry[]>([])
+const timeline = ref<SnapshotTimelineEntry[]>([])
+const latestByAccount = ref<BalanceBreakdownItem[]>([])
+const currentTotals = ref<Record<string, number>>({})
 const loading = ref(false)
 
 const allCurrencies = computed(() => {
@@ -58,10 +63,6 @@ function accountCell(row: BalanceByStorageEntry, name: string): string {
 
 const groupBy = ref<GroupBy>('month')
 const { dateFrom, dateTo, activePreset, allRange, initRange } = useDateRange('YTD')
-
-const snapshots = computed(() =>
-  allSnapshots.value.filter((s) => s.date >= dateFrom.value && s.date <= dateTo.value),
-)
 
 // A snapshot records what an account holds. Zero is a real balance and a credit
 // card is legitimately negative, so the only thing to reject here is a non-number.
@@ -116,29 +117,6 @@ const {
   afterDelete: () => load(),
 })
 
-interface TimelineRow {
-  accountId: number
-  ccy: string
-  amount: number
-  snapshot: BalanceSnapshot | null
-  since: string
-}
-
-interface TimelineCurrency {
-  code: string
-  total: number
-  delta: number | null
-  deltaPct: number | null
-}
-
-interface TimelineSet {
-  date: string
-  rows: TimelineRow[]
-  currencies: TimelineCurrency[]
-  capturedCount: number
-  locations: string[]
-}
-
 const openTimelineDates = ref<Set<string>>(new Set())
 
 function toggleTimelineDate(d: string) {
@@ -147,73 +125,18 @@ function toggleTimelineDate(d: string) {
   openTimelineDates.value = s
 }
 
-const timelineSets = computed<TimelineSet[]>(() => {
-  const byDate = new Map<string, BalanceSnapshot[]>()
-  for (const s of allSnapshots.value) {
-    const arr = byDate.get(s.date) ?? []
-    arr.push(s)
-    byDate.set(s.date, arr)
+// The row carries everything the edit form needs, so reopening a snapshot costs
+// no extra request. Rows whose amount was carried forward have no id and are not
+// editable from here — there is nothing recorded on this date to edit.
+function snapshotOf(entryDate: string, row: SnapshotTimelineEntry['rows'][number]): BalanceSnapshot | null {
+  if (row.snapshot_id === null) return null
+  return {
+    id: row.snapshot_id,
+    storage_account_id: row.account_id,
+    date: entryDate,
+    amount: row.amount,
   }
-
-  const state = new Map<number, { snapshot: BalanceSnapshot; since: string }>()
-  const built: { date: string; rows: TimelineRow[]; totals: Record<string, number> }[] = []
-
-  for (const date of [...byDate.keys()].sort()) {
-    for (const s of byDate.get(date) ?? []) {
-      const cur = state.get(s.storage_account_id)
-      if (!cur || cur.since < date || s.id > cur.snapshot.id) {
-        state.set(s.storage_account_id, { snapshot: s, since: date })
-      }
-    }
-
-    const rows: TimelineRow[] = [...state.entries()]
-      .map(([accountId, held]) => ({
-        accountId,
-        ccy: accountCurrency(accountId),
-        amount: Number(held.snapshot.amount),
-        snapshot: held.since === date ? held.snapshot : null,
-        since: held.since,
-      }))
-      .sort((a, b) =>
-        (refs.storageAccountLabelById(a.accountId) || '').localeCompare(
-          refs.storageAccountLabelById(b.accountId) || '',
-        ),
-      )
-
-    const totals: Record<string, number> = {}
-    for (const r of rows) totals[r.ccy] = (totals[r.ccy] ?? 0) + r.amount
-
-    built.push({ date, rows, totals })
-  }
-
-  const sets: TimelineSet[] = built.map((entry, i) => {
-    const prev = i > 0 ? built[i - 1] : null
-    const currencies = Object.entries(entry.totals)
-      .map(([code, total]) => {
-        const before = prev?.totals[code]
-        const delta = before === undefined ? null : total - before
-        return {
-          code,
-          total,
-          delta,
-          deltaPct: delta !== null && before ? (delta / before) * 100 : null,
-        }
-      })
-      .sort((a, b) => a.code.localeCompare(b.code))
-
-    return {
-      date: entry.date,
-      rows: entry.rows,
-      currencies,
-      capturedCount: entry.rows.filter((r) => r.snapshot).length,
-      locations: [...new Set(entry.rows.map((r) => locationNameForAccount(r.accountId)))],
-    }
-  })
-
-  return sets
-    .filter((s) => s.date >= dateFrom.value && s.date <= dateTo.value)
-    .reverse()
-})
+}
 
 function dateParts(d: string): { day: string; month: string; year: string } {
   const dt = new Date(d)
@@ -230,16 +153,22 @@ function accountCurrency(accountId: number): string {
   return refs.currencyById(acc.currency_id)?.code ?? ''
 }
 
-function locationNameForAccount(accountId: number): string {
-  const acc = refs.storageAccounts.find((a) => a.id === accountId)
-  const loc = acc ? refs.storageLocations.find((l) => l.id === acc.storage_location_id) : null
-  return loc?.name ?? '—'
-}
-
 interface LocationCard {
   id: number
   name: string
   accounts: { id: number; ccy: string; name: string; latest: number }[]
+}
+
+// Latest amounts come from /analytics/balance-breakdown rather than being picked
+// out of the raw snapshot list here: the backend already decides which snapshot
+// counts as "latest", and re-deciding it in the browser is how this page and the
+// dashboard drifted apart.
+const latestAmounts = computed(
+  () => new Map(latestByAccount.value.map((b) => [b.account_id, b.latest_snapshot_amount])),
+)
+
+function latestAmountForAccount(accountId: number): number {
+  return latestAmounts.value.get(accountId) ?? 0
 }
 
 const locationCards = computed<LocationCard[]>(() =>
@@ -258,13 +187,6 @@ const locationCards = computed<LocationCard[]>(() =>
     return { id: loc.id, name: loc.name, accounts }
   }),
 )
-
-function latestAmountForAccount(accountId: number): number {
-  const held = allSnapshots.value
-    .filter((s) => s.storage_account_id === accountId)
-    .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)
-  return held[0]?.amount ?? 0
-}
 
 const newLocationName = ref('')
 const showNewLocationDialog = ref(false)
@@ -310,20 +232,13 @@ async function createAccount() {
   await refs.fetchAll()
 }
 
-const totalKpiCount = computed(() => snapshots.value.length)
-const distinctSnapshotDates = computed(() => new Set(snapshots.value.map((s) => s.date)).size)
-const totalsByCcy = computed(() => {
-  const totals: Record<string, number> = {}
-  for (const a of refs.storageAccounts) {
-    const cur = refs.currencyById(a.currency_id)
-    if (!cur) continue
-    totals[cur.code] = (totals[cur.code] ?? 0) + Number(latestAmountForAccount(a.id))
-  }
-  return totals
-})
+const distinctSnapshotDates = computed(() => timeline.value.length)
+const totalKpiCount = computed(() =>
+  timeline.value.reduce((sum, entry) => sum + entry.captured_count, 0),
+)
 
 const totalEntries = computed(() =>
-  Object.entries(totalsByCcy.value)
+  Object.entries(currentTotals.value)
     .map(([code, amount]) => ({ code, amount }))
     .sort((a, b) => b.amount - a.amount),
 )
@@ -347,41 +262,20 @@ async function save() {
   await crudSave()
 }
 
-async function fetchSnapshotHistory(): Promise<{ items: BalanceSnapshot[]; truncated: boolean }> {
-  const byId = new Map<number, BalanceSnapshot>()
-  let cursor: string | undefined
-
-  for (let page = 0; page < SNAPSHOT_MAX_PAGES; page++) {
-    const { data } = await balanceSnapshotsApi.list({
-      limit: SNAPSHOT_PAGE_SIZE,
-      date_to: cursor,
-    })
-    const knownBefore = byId.size
-    let oldest: string | null = null
-    for (const snap of data) {
-      byId.set(snap.id, snap)
-      if (oldest === null || snap.date < oldest) oldest = snap.date
-    }
-    if (data.length < SNAPSHOT_PAGE_SIZE) return { items: [...byId.values()], truncated: false }
-    if (oldest === null || oldest === cursor || byId.size === knownBefore) break
-    cursor = oldest
-  }
-
-  return { items: [...byId.values()], truncated: true }
-}
-
 async function load() {
   loading.value = true
   try {
-    const [history, analytics] = await Promise.all([
-      fetchSnapshotHistory(),
+    const [byStorage, snapshotTimeline, breakdown] = await Promise.all([
       analyticsApi.balanceByStorage({
         date_from: dateFrom.value, date_to: dateTo.value, group_by: groupBy.value,
       }),
+      analyticsApi.snapshotTimeline({ date_from: dateFrom.value, date_to: dateTo.value }),
+      analyticsApi.balanceBreakdown(),
     ])
-    allSnapshots.value = history.items
-    historyTruncated.value = history.truncated
-    storageData.value = analytics.data
+    storageData.value = byStorage.data
+    timeline.value = snapshotTimeline.data
+    latestByAccount.value = breakdown.data.accounts
+    currentTotals.value = breakdown.data.totals
   } finally {
     loading.value = false
   }
@@ -406,17 +300,6 @@ watch([dateFrom, dateTo, groupBy], load)
     >
       <div ref="addBtn" data-onboarding="add-snapshot-btn"><BaseButton variant="primary" size="sm" @click="openCreate">+ Add Snapshot</BaseButton></div>
     </PeriodFilterBar>
-  </BaseCard>
-
-  <BaseCard v-if="historyTruncated" class="warning-card">
-    <div class="row warning-row">
-      <PhWarning :size="18" weight="fill" class="warning-icon" />
-      <span>
-        Your history is longer than Wallet can load in one go. The totals, the location cards and the
-        timeline on this page cover only the {{ allSnapshots.length }} most recent snapshots — anything
-        older is not reflected here.
-      </span>
-    </div>
   </BaseCard>
 
   <div class="kpis">
@@ -508,17 +391,17 @@ watch([dateFrom, dateTo, groupBy], load)
     </template>
   </BaseDataTable>
 
-  <BaseCard v-if="timelineSets.length" class="card--flush snap-timeline-card">
+  <BaseCard v-if="timeline.length" class="card--flush snap-timeline-card">
     <div class="snap-header">
       <div>
         <div class="label">History</div>
         <div class="snap-subtitle">Snapshot timeline</div>
-        <div class="muted snap-hint">Each entry is one moment in time across every account. Expand a date to edit or delete the snapshots taken that day.</div>
+        <div class="muted snap-hint">Each entry is one moment in time across every account. Movement is measured the same way the dashboard measures profit, so an account tracked for the first time counts as opening capital rather than a gain. Expand a date to edit or delete the snapshots taken that day.</div>
       </div>
     </div>
     <div class="snap-timeline">
       <div
-        v-for="(set, i) in timelineSets"
+        v-for="(set, i) in timeline"
         :key="set.date"
         class="snap-set"
         :class="{ 'snap-set--open': openTimelineDates.has(set.date) }"
@@ -526,7 +409,7 @@ watch([dateFrom, dateTo, groupBy], load)
         <button class="snap-head" @click="toggleTimelineDate(set.date)">
           <span class="snap-rail">
             <span class="snap-dot" />
-            <span v-if="i < timelineSets.length - 1" class="snap-line" />
+            <span v-if="i < timeline.length - 1" class="snap-line" />
           </span>
           <div class="snap-date">
             <span class="snap-day">{{ dateParts(set.date).day }}</span>
@@ -537,7 +420,7 @@ watch([dateFrom, dateTo, groupBy], load)
             <span class="snap-locs">
               <span v-for="loc in set.locations" :key="loc" class="snap-loc-chip">{{ loc }}</span>
             </span>
-            <span class="muted snap-meta-count">{{ set.capturedCount }} of {{ set.rows.length }} updated</span>
+            <span class="muted snap-meta-count">{{ set.captured_count }} of {{ set.rows.length }} updated</span>
           </div>
           <div class="snap-total">
             <div v-for="c in set.currencies" :key="c.code" class="snap-ccy-line">
@@ -545,10 +428,13 @@ watch([dateFrom, dateTo, groupBy], load)
               <span class="num snap-total-num">{{ fmtAmount(c.total) }}</span>
               <GrowthBadge v-if="c.delta !== null" :delta="c.delta" :show-icon="false">
                 {{ fmtSignedMoney(c.delta, c.code) }}
-                <span v-if="c.deltaPct !== null" class="snap-delta-pct">·
-                  {{ c.deltaPct >= 0 ? '+' : '' }}{{ c.deltaPct.toFixed(1) }}%
+                <span v-if="c.delta_pct !== null" class="snap-delta-pct">·
+                  {{ c.delta_pct >= 0 ? '+' : '' }}{{ c.delta_pct.toFixed(1) }}%
                 </span>
               </GrowthBadge>
+              <span v-if="c.opening_capital" class="muted snap-opening">
+                +{{ fmtMoney(c.opening_capital, c.code) }} opening
+              </span>
             </div>
           </div>
           <div class="snap-actions">
@@ -559,30 +445,33 @@ watch([dateFrom, dateTo, groupBy], load)
           <div class="snap-grid">
             <div
               v-for="r in set.rows"
-              :key="r.accountId"
+              :key="r.account_id"
               class="snap-cell"
               :class="{
-                'snap-cell--carried': !r.snapshot,
-                'snap-cell--removing': r.snapshot && r.snapshot.id === removingId,
+                'snap-cell--carried': r.snapshot_id === null,
+                'snap-cell--removing': r.snapshot_id !== null && r.snapshot_id === removingId,
               }"
             >
               <div class="snap-cell-head">
                 <span class="snap-cell-icon"><PhWallet :size="14" /></span>
                 <div class="stack snap-cell-meta">
-                  <span class="snap-cell-name">{{ refs.storageAccountLabelById(r.accountId) }}</span>
+                  <span class="snap-cell-name">{{ r.label }}</span>
                 </div>
               </div>
               <div class="snap-cell-foot">
                 <div class="snap-cell-amt">
-                  <span class="num">{{ fmtMoney(r.amount, r.ccy) }}</span>
-                  <span v-if="!r.snapshot" class="muted snap-cell-since">
+                  <span class="num">{{ fmtMoney(r.amount, r.currency) }}</span>
+                  <span v-if="r.snapshot_id === null" class="muted snap-cell-since">
                     unchanged since {{ dateParts(r.since).day }} {{ dateParts(r.since).month }}
+                  </span>
+                  <span v-else-if="r.is_opening_capital" class="muted snap-cell-since">
+                    first tracked here
                   </span>
                 </div>
                 <EditDeleteActions
-                  v-if="r.snapshot"
-                  @edit="openEdit(r.snapshot)"
-                  @confirm="crudRemove(r.snapshot.id)"
+                  v-if="r.snapshot_id !== null"
+                  @edit="openEdit(snapshotOf(set.date, r)!)"
+                  @confirm="crudRemove(r.snapshot_id)"
                 />
               </div>
             </div>
@@ -712,19 +601,6 @@ watch([dateFrom, dateTo, groupBy], load)
   background: var(--accent-soft);
 }
 
-.warning-card {
-  background: var(--warning-soft);
-  border-color: transparent;
-}
-.warning-row {
-  gap: 10px;
-  flex-wrap: wrap;
-  font-size: 13px;
-}
-.warning-icon {
-  color: var(--warning-ink);
-  flex-shrink: 0;
-}
 .location-add {
   border: 1.5px dashed var(--hairline-strong);
   background: transparent;
@@ -776,6 +652,10 @@ watch([dateFrom, dateTo, groupBy], load)
 .snap-delta-pct {
   opacity: 0.7;
   margin-left: 2px;
+}
+.snap-opening {
+  font-size: 11px;
+  white-space: nowrap;
 }
 .snap-cell-icon {
   width: 28px;

@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
@@ -6,74 +7,91 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Currency, Transaction, IncomeSource
 from app.models.transaction import TransactionType
+from app.services.analytics.money import build_converter
 from app.services.analytics.periods import GroupBy, _period_label, _generate_periods
-from app.services.exchange_rates import (
-    RateResult,
-    get_rates_for_periods,
-    convert_amount,
-)
+
+OTHER_SOURCE = "Other"
 
 
-async def _get_income_per_period(
+@dataclass
+class IncomeMatrix:
+    """Income at its finest grain: period → source → currency.
+
+    Every income figure Wallet reports is a rollup of this one table. Keeping the
+    breakdown rather than pre-summing is what stops the dashboard total, the
+    per-source donut and a single explained row from drifting apart — they are
+    now three views of the same cells, not three queries that happen to agree.
+    """
+
+    cells: dict[str, dict[str, dict[str, Decimal]]] = field(default_factory=dict)
+
+    def add(self, period: str, source: str, currency: str, amount: Decimal) -> None:
+        by_source = self.cells.setdefault(period, {})
+        by_currency = by_source.setdefault(source, {})
+        by_currency[currency] = by_currency.get(currency, Decimal("0")) + amount
+
+    def periods(self) -> list[str]:
+        return sorted(self.cells)
+
+    def by_source(self, period: str) -> dict[str, dict[str, Decimal]]:
+        return self.cells.get(period, {})
+
+    def by_currency(self, period: str) -> dict[str, Decimal]:
+        totals: dict[str, Decimal] = {}
+        for per_currency in self.cells.get(period, {}).values():
+            for code, amount in per_currency.items():
+                totals[code] = totals.get(code, Decimal("0")) + amount
+        return totals
+
+
+async def get_income_matrix(
     db: AsyncSession,
     user_id: int,
     date_from: date,
     date_to: date,
     group_by: GroupBy,
     currency_id: int | None = None,
-) -> dict[str, Decimal]:
-    """Return total income per period as {period_start_iso: amount}."""
-    period = func.date_trunc(group_by.value, Transaction.date).label("period")
-    q = (
-        select(period, func.coalesce(func.sum(Transaction.amount), 0).label("income"))
-        .where(
-            Transaction.user_id == user_id,
-            Transaction.type == TransactionType.income,
-            Transaction.date >= date_from,
-            Transaction.date <= date_to,
-        )
-        .group_by("period")
-    )
-    if currency_id is not None:
-        q = q.where(Transaction.currency_id == currency_id)
-    result = await db.execute(q)
-    return {
-        row.period.date().isoformat(): Decimal(str(row.income)) for row in result.all()
-    }
-
-
-async def _get_income_per_period_by_currency(
-    db: AsyncSession,
-    user_id: int,
-    date_from: date,
-    date_to: date,
-    group_by: GroupBy,
-) -> dict[str, dict[str, Decimal]]:
-    """Return income per period broken down by currency: {period_key: {currency_code: amount}}."""
-    period = func.date_trunc(group_by.value, Transaction.date).label("period")
+) -> IncomeMatrix:
+    """Load every income transaction in range, grouped by period, source and currency."""
+    period = _period_label(group_by).label("period")
     q = (
         select(
             period,
-            Currency.code.label("currency_code"),
-            func.coalesce(func.sum(Transaction.amount), 0).label("income"),
+            IncomeSource.name.label("source"),
+            Currency.code.label("currency"),
+            func.coalesce(func.sum(Transaction.amount), 0).label("total"),
         )
         .join(Currency, Transaction.currency_id == Currency.id)
+        .join(
+            IncomeSource,
+            Transaction.income_source_id == IncomeSource.id,
+            isouter=True,
+        )
         .where(
             Transaction.user_id == user_id,
             Transaction.type == TransactionType.income,
             Transaction.date >= date_from,
             Transaction.date <= date_to,
         )
-        .group_by("period", Currency.code)
+        .group_by("period", IncomeSource.name, Currency.code)
+        .order_by("period")
     )
+    if currency_id is not None:
+        q = q.where(Transaction.currency_id == currency_id)
+
     result = await db.execute(q)
-    out: dict[str, dict[str, Decimal]] = {}
+
+    matrix = IncomeMatrix()
     for row in result.all():
-        p = row.period.date().isoformat()
-        if p not in out:
-            out[p] = {}
-        out[p][row.currency_code] = Decimal(str(row.income))
-    return out
+        if row.period is None:
+            continue
+        matrix.add(
+            row.period.date().isoformat(),
+            row.source or OTHER_SOURCE,
+            row.currency,
+            Decimal(str(row.total)),
+        )
+    return matrix
 
 
 async def get_income_by_source(
@@ -84,131 +102,51 @@ async def get_income_by_source(
     group_by: GroupBy,
     currency_id: int | None = None,
     convert_to: str | None = None,
-) -> list[dict]:
-    converting = convert_to is not None and currency_id is None
+) -> dict:
+    """Income split by source, per period and across the whole range.
 
+    The range totals ship with the periods so a caller charting the split never
+    re-adds them itself — that second sum is what let a donut disagree with the
+    total income the summary reported for the same window.
+    """
     all_periods = _generate_periods(date_from, date_to, group_by)
     if not all_periods:
-        return []
+        return {"periods": [], "totals": {}, "total": Decimal("0")}
 
     # Match get_summary: rows are whole calendar periods, so the income window
     # spans them rather than the raw request, or a mid-month date_from would make
     # this endpoint disagree with the summary it sits next to.
-    date_from, date_to = all_periods[0][0], all_periods[-1][1]
+    range_start, range_end = all_periods[0][0], all_periods[-1][1]
+    period_end_map = {start.isoformat(): end for start, end in all_periods}
 
-    period = _period_label(group_by).label("period")
-
-    if converting:
-        q = (
-            select(
-                period,
-                IncomeSource.name.label("source"),
-                Currency.code.label("currency_code"),
-                func.coalesce(func.sum(Transaction.amount), 0).label("total"),
-            )
-            .join(Currency, Transaction.currency_id == Currency.id)
-            .join(
-                IncomeSource,
-                Transaction.income_source_id == IncomeSource.id,
-                isouter=True,
-            )
-            .where(
-                Transaction.user_id == user_id,
-                Transaction.type == TransactionType.income,
-                Transaction.date >= date_from,
-                Transaction.date <= date_to,
-            )
-            .group_by("period", IncomeSource.name, Currency.code)
-            .order_by("period")
-        )
-    else:
-        q = (
-            select(
-                period,
-                IncomeSource.name.label("source"),
-                func.coalesce(func.sum(Transaction.amount), 0).label("total"),
-            )
-            .join(
-                IncomeSource,
-                Transaction.income_source_id == IncomeSource.id,
-                isouter=True,
-            )
-            .where(
-                Transaction.user_id == user_id,
-                Transaction.type == TransactionType.income,
-                Transaction.date >= date_from,
-                Transaction.date <= date_to,
-            )
-            .group_by("period", IncomeSource.name)
-            .order_by("period")
-        )
-        if currency_id is not None:
-            q = q.where(Transaction.currency_id == currency_id)
-
-    result = await db.execute(q)
-    rows = result.all()
-
-    if not converting:
-        grouped: dict[str, dict] = {}
-        for row in rows:
-            p = row.period.date().isoformat() if row.period else "unknown"
-            if p not in grouped:
-                grouped[p] = {"period": p, "total": Decimal("0"), "sources": {}}
-            source = row.source or "Other"
-            amount = Decimal(str(row.total))
-            grouped[p]["sources"][source] = amount
-            grouped[p]["total"] += amount
-        return list(grouped.values())
-
-    # Converting mode: accumulate per-currency amounts per (period, source), then convert.
-    # temp_data: {period_key: {source: {currency_code: amount}}}
-    temp_data: dict[str, dict[str, dict[str, Decimal]]] = {}
-    periods_with_data: set[date] = set()
-
-    period_end_map: dict[str, date] = {
-        start.isoformat(): end for start, end in all_periods
-    }
-
-    for row in rows:
-        p = row.period.date().isoformat() if row.period else "unknown"
-        period_end = period_end_map.get(p)
-        if period_end:
-            periods_with_data.add(period_end)
-        source = row.source or "Other"
-        amount = Decimal(str(row.total))
-        if p not in temp_data:
-            temp_data[p] = {}
-        if source not in temp_data[p]:
-            temp_data[p][source] = {}
-        temp_data[p][source][row.currency_code] = (
-            temp_data[p][source].get(row.currency_code, Decimal("0")) + amount
-        )
-
-    # Fetch all currency codes the user owns (needed for rate lookup)
-    codes_result = await db.execute(
-        select(Currency.code).where(Currency.user_id == user_id)
+    converter = await build_converter(
+        db, user_id, convert_to, list(period_end_map.values()), currency_id
     )
-    all_codes = list(codes_result.scalars())
+    matrix = await get_income_matrix(
+        db, user_id, range_start, range_end, group_by, currency_id
+    )
 
-    rate_cache: dict[date, dict[str, RateResult]] = {}
-    if periods_with_data and all_codes:
-        rate_cache = await get_rates_for_periods(
-            db,
-            all_codes,
-            list(periods_with_data),
-            to_code=convert_to,
-            user_id=user_id,
+    periods: list[dict] = []
+    range_totals: dict[str, Decimal] = {}
+    range_total = Decimal("0")
+
+    for period_key in matrix.periods():
+        period_end = period_end_map.get(period_key)
+        if period_end is None:
+            continue
+        sources: dict[str, Decimal] = {}
+        period_total = Decimal("0")
+        for source, per_currency in matrix.by_source(period_key).items():
+            # Each period converts at its own closing rate, so the range total has
+            # to accumulate the converted amounts rather than be re-derived from
+            # the raw currency sums at a single rate.
+            amount = converter.collapse(per_currency, period_end)
+            sources[source] = amount
+            period_total += amount
+            range_totals[source] = range_totals.get(source, Decimal("0")) + amount
+        range_total += period_total
+        periods.append(
+            {"period": period_key, "total": period_total, "sources": sources}
         )
 
-    converted: dict[str, dict] = {}
-    for p, sources_map in temp_data.items():
-        period_end = period_end_map.get(p)
-        rate_map = rate_cache.get(period_end, {}) if period_end else {}
-        if p not in converted:
-            converted[p] = {"period": p, "total": Decimal("0"), "sources": {}}
-        for source, per_currency in sources_map.items():
-            amount = convert_amount(per_currency, rate_map, convert_to)
-            converted[p]["sources"][source] = amount
-            converted[p]["total"] += amount
-
-    return list(converted.values())
+    return {"periods": periods, "totals": range_totals, "total": range_total}

@@ -72,6 +72,10 @@ const periods = ref<SummaryEntry[]>([])
 const stats = ref<SummaryStats | null>(null)
 const rateCoverage = ref<RateCoverage | null>(null)
 const sourceData = ref<IncomeBySourceEntry[]>([])
+// Both totalled by the backend, so the donut cannot disagree with the income the
+// summary reports for the same window.
+const donutTotals = ref<Record<string, number>>({})
+const donutTotal = ref(0)
 const loading = ref(false)
 const selectedCurrencyId = ref<number | 'all'>('all')
 // Empty until the currency list loads. Sending a guessed code on the first paint
@@ -109,7 +113,7 @@ const hoveredPeriod = ref<string | null>(null)
 async function loadBreakdown() {
   try {
     const {data: bd} = await analyticsApi.balanceBreakdown()
-    breakdown.value = bd
+    breakdown.value = bd.accounts
   } finally {
     breakdownLoaded.value = true
   }
@@ -132,7 +136,9 @@ async function load() {
     periods.value = summaryRes.data.periods
     stats.value = summaryRes.data.stats
     rateCoverage.value = summaryRes.data.rate_coverage ?? null
-    sourceData.value = sourceRes.data
+    sourceData.value = sourceRes.data.periods
+    donutTotals.value = sourceRes.data.totals
+    donutTotal.value = sourceRes.data.total
   } finally {
     loading.value = false
   }
@@ -413,23 +419,12 @@ const lineOption = computed(() => {
   }
 })
 
-const donutTotals = computed(() => {
-  const totals: Record<string, number> = {}
-  for (const entry of sourceData.value) {
-    for (const [source, amount] of Object.entries(entry.sources)) {
-      totals[source] = (totals[source] ?? 0) + Number(amount)
-    }
-  }
-  return totals
-})
-
-const donutStats = computed(() => {
-  const entries = Object.entries(donutTotals.value)
+const donutStats = computed(() => ({
+  entries: Object.entries(donutTotals.value)
       .map(([name, amount], i) => ({name, amount, color: DONUT_COLORS[i] ?? '#ccc'}))
-      .sort((a, b) => b.amount - a.amount)
-  const total = entries.reduce((s, e) => s + e.amount, 0)
-  return {entries, total}
-})
+      .sort((a, b) => b.amount - a.amount),
+  total: donutTotal.value,
+}))
 
 const donutOption = computed(() => {
   const labels = Object.keys(donutTotals.value)

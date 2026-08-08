@@ -81,6 +81,13 @@ export interface IncomeBySourceEntry {
   sources: Record<string, number>
 }
 
+export interface IncomeBySourceResponse {
+  periods: IncomeBySourceEntry[]
+  /** Per-source totals across the whole range, summed by the backend. */
+  totals: Record<string, number>
+  total: number
+}
+
 export interface BalanceByStorageAccount {
   name: string
   currency: string
@@ -182,9 +189,51 @@ export interface BalanceBreakdownItem {
   latest_snapshot_amount: number
 }
 
+export interface BalanceBreakdown {
+  accounts: BalanceBreakdownItem[]
+  /** Per-currency sum of the accounts above, totalled by the backend. */
+  totals: Record<string, number>
+}
+
 export interface DateRange {
   min_date: string | null
   max_date: string | null
+}
+
+export interface SnapshotTimelineRow {
+  account_id: number
+  label: string
+  currency: string
+  amount: number
+  delta: number
+  /** True when this account was tracked for the first time on this date. */
+  is_opening_capital: boolean
+  /** Null when the amount was carried forward rather than recorded on this date. */
+  snapshot_id: number | null
+  since: string
+}
+
+export interface SnapshotTimelineCurrency {
+  code: string
+  total: number
+  /** Movement of already-tracked accounts — null when there is no earlier entry. */
+  delta: number | null
+  delta_pct: number | null
+  /** Balance brought in by accounts tracked for the first time on this date. */
+  opening_capital: number | null
+}
+
+export interface SnapshotTimelineEntry {
+  date: string
+  rows: SnapshotTimelineRow[]
+  currencies: SnapshotTimelineCurrency[]
+  captured_count: number
+  locations: string[]
+}
+
+export interface SnapshotTimelineParams {
+  date_from: string
+  date_to: string
 }
 
 export const analyticsApi = {
@@ -192,10 +241,12 @@ export const analyticsApi = {
   summaryExplain: (params: ExplainParams) =>
     api.get<PeriodExplain>('/analytics/summary/explain', { params }),
   incomeBySource: (params: AnalyticsParams) =>
-    api.get<IncomeBySourceEntry[]>('/analytics/income-by-source', { params }),
+    api.get<IncomeBySourceResponse>('/analytics/income-by-source', { params }),
   balanceByStorage: (params: AnalyticsParams) =>
     api.get<BalanceByStorageEntry[]>('/analytics/balance-by-storage', { params }),
+  snapshotTimeline: (params: SnapshotTimelineParams) =>
+    api.get<SnapshotTimelineEntry[]>('/analytics/snapshot-timeline', { params }),
   expenseTemplate: () => api.get<ExpenseTemplate>('/analytics/expense-template'),
-  balanceBreakdown: () => api.get<BalanceBreakdownItem[]>('/analytics/balance-breakdown'),
+  balanceBreakdown: () => api.get<BalanceBreakdown>('/analytics/balance-breakdown'),
   dateRange: () => api.get<DateRange>('/analytics/date-range'),
 }

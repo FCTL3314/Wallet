@@ -17,6 +17,7 @@ from app.services.analytics import (
     get_balance_by_storage,
     get_expense_template,
     get_balance_breakdown,
+    get_snapshot_timeline,
     get_date_range,
 )
 
@@ -71,6 +72,11 @@ class BalanceBreakdownItem(BaseModel):
     currency: str
     latest_snapshot_date: date
     latest_snapshot_amount: float
+
+
+class BalanceBreakdown(BaseModel):
+    accounts: list[BalanceBreakdownItem]
+    totals: dict[str, float]
 
 
 @router.get("/summary")
@@ -130,6 +136,17 @@ async def balance_by_storage(
     return await get_balance_by_storage(db, user.id, date_from, date_to, group_by)
 
 
+@router.get("/snapshot-timeline")
+async def snapshot_timeline(
+    date_from: date = Query(...),
+    date_to: date = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Balances at every date the user recorded snapshots on, newest first."""
+    return await get_snapshot_timeline(db, user.id, date_from, date_to)
+
+
 @router.get("/expense-template")
 async def expense_template(
     user: User = Depends(get_current_user),
@@ -138,12 +155,12 @@ async def expense_template(
     return await get_expense_template(db, user.id)
 
 
-@router.get("/balance-breakdown", response_model=list[BalanceBreakdownItem])
+@router.get("/balance-breakdown", response_model=BalanceBreakdown)
 async def balance_breakdown(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return the latest balance snapshot per storage account for the authenticated user."""
+    """Return the latest balance snapshot per storage account, plus per-currency totals."""
     return await get_balance_breakdown(db, user.id)
 
 

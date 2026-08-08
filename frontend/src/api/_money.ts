@@ -23,6 +23,7 @@ const MONEY_KEYS = new Set([
   'converted_balance',
   'delta',
   'pct',
+  'delta_pct',
   'total_income',
   'total_profit',
   'total_expense',

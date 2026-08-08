@@ -222,10 +222,13 @@ async def test_income_by_source(auth_client, test_user, ref_data, db_session):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) == 2
+    assert len(data["periods"]) == 2
     # Each period should have the "Salary" source
-    for period in data:
+    for period in data["periods"]:
         assert "Salary" in period["sources"]
+    # The range totals are a rollup of the same cells, not a separate query.
+    assert float(data["total"]) == sum(float(p["total"]) for p in data["periods"])
+    assert set(data["totals"]) == {"Salary"}
 
 
 async def test_balance_by_storage(auth_client, test_user, ref_data, db_session):
@@ -371,10 +374,12 @@ async def test_balance_uses_latest_date_not_latest_insert(
 
     resp = await auth_client.get("/api/analytics/balance-breakdown")
     assert resp.status_code == 200
-    rows = resp.json()
+    body = resp.json()
+    rows = body["accounts"]
     assert len(rows) == 1
     assert rows[0]["latest_snapshot_date"] == "2025-06-30"
     assert float(rows[0]["latest_snapshot_amount"]) == 5000.0
+    assert body["totals"] == {"USD": 5000.0}
 
 
 async def test_summary_keeps_income_in_bootstrap_period(
@@ -792,3 +797,237 @@ async def test_explain_flags_an_account_opened_this_period(
     assert entry["is_opening_capital"] is True
     assert float(data["opening_capital"]["USD"]) == 700.0
     assert float(data["profit"]) == 0.0
+
+
+async def test_snapshot_timeline_movement_matches_the_summary(
+    auth_client, test_user, ref_data, db_session
+):
+    """The timeline and the dashboard must report the same movement.
+
+    Both now roll up ``split_balance_movement``, so a month whose snapshots fall
+    on the period boundaries has to produce one number, not two. This is the
+    regression that made the two pages disagree.
+    """
+    account = ref_data["account"]
+    db_session.add_all(
+        [
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 1, 31),
+                amount=Decimal("1000.00"),
+            ),
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 2, 28),
+                amount=Decimal("1750.00"),
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    params = {"date_from": "2025-01-01", "date_to": "2025-02-28"}
+    summary = await auth_client.get(
+        "/api/analytics/summary", params={**params, "group_by": "month"}
+    )
+    feb_row = summary.json()["periods"][1]
+
+    resp = await auth_client.get("/api/analytics/snapshot-timeline", params=params)
+    assert resp.status_code == 200
+    entries = resp.json()
+
+    # Newest first, so February leads.
+    assert [e["date"] for e in entries] == ["2025-02-28", "2025-01-31"]
+    feb_usd = next(c for c in entries[0]["currencies"] if c["code"] == "USD")
+
+    assert float(feb_usd["delta"]) == float(feb_row["balance_change"]["USD"]) == 750.0
+    assert float(feb_usd["total"]) == float(feb_row["balances"]["USD"]) == 1750.0
+
+
+async def test_snapshot_timeline_reports_opening_capital_separately(
+    auth_client, test_user, ref_data, db_session
+):
+    """A newly tracked account must not read as a sudden gain on the timeline."""
+    account = ref_data["account"]
+    db_session.add_all(
+        [
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 1, 31),
+                amount=Decimal("1000.00"),
+            ),
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 2, 28),
+                amount=Decimal("1200.00"),
+            ),
+        ]
+    )
+    second = await _account_at_new_location(
+        db_session, test_user, ref_data["currency"].id, "Broker"
+    )
+    db_session.add(
+        BalanceSnapshot(
+            user_id=test_user.id,
+            storage_account_id=second.id,
+            date=date(2025, 2, 28),
+            amount=Decimal("500000.00"),
+        )
+    )
+    await db_session.flush()
+
+    resp = await auth_client.get(
+        "/api/analytics/snapshot-timeline",
+        params={"date_from": "2025-01-01", "date_to": "2025-02-28"},
+    )
+    assert resp.status_code == 200
+    feb = resp.json()[0]
+    usd = next(c for c in feb["currencies"] if c["code"] == "USD")
+
+    assert float(usd["delta"]) == 200.0
+    assert float(usd["opening_capital"]) == 500000.0
+    assert float(usd["total"]) == 501200.0
+
+    broker = next(r for r in feb["rows"] if r["label"] == "Broker USD")
+    assert broker["is_opening_capital"] is True
+    assert float(broker["delta"]) == 0.0
+
+
+async def test_snapshot_timeline_compares_against_the_entry_before_the_window(
+    auth_client, test_user, ref_data, db_session
+):
+    """The first visible entry is measured against the snapshot that precedes it.
+
+    Narrowing the date filter must not turn a known movement into a fresh start,
+    which is what happens when the comparison is done over the filtered list.
+    """
+    account = ref_data["account"]
+    db_session.add_all(
+        [
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 1, 31),
+                amount=Decimal("1000.00"),
+            ),
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 2, 28),
+                amount=Decimal("1200.00"),
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    resp = await auth_client.get(
+        "/api/analytics/snapshot-timeline",
+        params={"date_from": "2025-02-01", "date_to": "2025-02-28"},
+    )
+    assert resp.status_code == 200
+    entries = resp.json()
+
+    assert [e["date"] for e in entries] == ["2025-02-28"]
+    usd = next(c for c in entries[0]["currencies"] if c["code"] == "USD")
+    assert float(usd["delta"]) == 200.0
+    assert usd["opening_capital"] is None
+
+
+async def test_snapshot_timeline_marks_carried_forward_rows_uneditable(
+    auth_client, test_user, ref_data, db_session
+):
+    """A row showing last month's number has no snapshot to edit on this date."""
+    account = ref_data["account"]
+    second = await _account_at_new_location(
+        db_session, test_user, ref_data["currency"].id, "Broker"
+    )
+    db_session.add_all(
+        [
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 1, 31),
+                amount=Decimal("1000.00"),
+            ),
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=second.id,
+                date=date(2025, 1, 31),
+                amount=Decimal("50.00"),
+            ),
+            BalanceSnapshot(
+                user_id=test_user.id,
+                storage_account_id=account.id,
+                date=date(2025, 2, 28),
+                amount=Decimal("1200.00"),
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    resp = await auth_client.get(
+        "/api/analytics/snapshot-timeline",
+        params={"date_from": "2025-01-01", "date_to": "2025-02-28"},
+    )
+    feb = resp.json()[0]
+
+    assert feb["captured_count"] == 1
+    assert len(feb["rows"]) == 2
+
+    carried = next(r for r in feb["rows"] if r["label"] == "Broker USD")
+    assert carried["snapshot_id"] is None
+    assert carried["since"] == "2025-01-31"
+
+    fresh = next(r for r in feb["rows"] if r["label"] != "Broker USD")
+    assert fresh["snapshot_id"] is not None
+    assert fresh["since"] == "2025-02-28"
+
+
+async def test_income_by_source_total_matches_the_summary_income(
+    auth_client, test_user, ref_data, db_session
+):
+    """The donut and the summary row read the same income matrix."""
+    account = ref_data["account"]
+    db_session.add_all(
+        [
+            Transaction(
+                user_id=test_user.id,
+                type=TransactionType.income,
+                date=date(2025, 3, 4),
+                amount=Decimal("1200.00"),
+                currency_id=ref_data["currency"].id,
+                storage_account_id=account.id,
+                income_source_id=ref_data["income_source"].id,
+            ),
+            Transaction(
+                user_id=test_user.id,
+                type=TransactionType.income,
+                date=date(2025, 3, 20),
+                amount=Decimal("300.00"),
+                currency_id=ref_data["currency"].id,
+                storage_account_id=account.id,
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    params = {"date_from": "2025-03-01", "date_to": "2025-03-31", "group_by": "month"}
+    summary = await auth_client.get("/api/analytics/summary", params=params)
+    by_source = await auth_client.get("/api/analytics/income-by-source", params=params)
+
+    march_row = summary.json()["periods"][0]
+    by_source_body = by_source.json()
+    march_sources = by_source_body["periods"][0]
+
+    assert float(march_sources["total"]) == float(march_row["income"]) == 1500.0
+    # An income transaction with no source still has to appear somewhere.
+    assert float(march_sources["sources"]["Other"]) == 300.0
+    # The range total is the same number the summary reports as total income.
+    assert (
+        float(by_source_body["total"])
+        == float(summary.json()["stats"]["total_income"])
+        == 1500.0
+    )
